@@ -1,0 +1,53 @@
+version: "3.9"
+
+# rede interna isolada para comunicação entre serviços
+networks:
+  lol_network:
+    driver: bridge
+
+# volumes nomeados para persistência de dados
+volumes:
+  postgres_data:
+    driver: local
+
+services:
+  # ── Banco de dados PostgreSQL 16 ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: lol_manager_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lol_manager_db
+      POSTGRES_USER: lol_admin
+      POSTGRES_PASSWORD: lol_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - lol_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lol_admin -d lol_manager_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Cache e Pub/Sub Redis 7 ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: lol_manager_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - lol_network
+    # configura Redis com persistência AOF desabilitada (apenas cache)
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

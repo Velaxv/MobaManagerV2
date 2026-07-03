@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "lol-manager"
+version = "0.1.0"
+description = "Backend engine para simulador de gestão de esports LoL"
+authors = ["Dev"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.30"}
+alembic = "^1.13.1"
+asyncpg = "^0.29.0"
+redis = {extras = ["hiredis"], version = "^5.0.4"}
+pydantic = "^2.7.1"
+pydantic-settings = "^2.3.0"
+numpy = "^1.26.4"
+apscheduler = "^3.10.4"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.7"
+httpx = "^0.27.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

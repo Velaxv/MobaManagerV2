@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Node
+node_modules/
+dist/
+.npm/
+
+# DB
+*.sqlite
+*.db
+lol_manager.db
+
+# OS
+.DS_Store
+Thumbs.db
