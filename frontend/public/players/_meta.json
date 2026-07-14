@@ -1,0 +1,77 @@
+{
+  "STEPZ": {
+    "status": "photo",
+    "page": "STEPZ_(Eloy_Rodríguez)",
+    "file": "RED_STEPZ_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/1/18/RED_STEPZ_2026_Split_1.png/revision/latest?cb=20260327042536",
+    "local": "/players/stepz.jpg"
+  },
+  "Kaze": {
+    "status": "photo",
+    "page": "Kaze_(Lucas_Fe)",
+    "file": "RED_Kaze_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/7/78/RED_Kaze_2026_Split_1.png/revision/latest?cb=20260327042448",
+    "local": "/players/kaze.jpg"
+  },
+  "frosty": {
+    "status": "photo",
+    "page": "Frosty_(José_Eduardo)",
+    "file": "RED_Frosty_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/8/85/RED_Frosty_2026_Split_1.png/revision/latest?cb=20260327042642",
+    "local": "/players/frosty.jpg"
+  },
+  "Ayu": {
+    "status": "silhouette",
+    "page": "Ayu"
+  },
+  "JoJo": {
+    "status": "photo",
+    "page": "JoJo_(Gabriel_Dzelme)",
+    "file": "FURIA_JoJo_LTA_2025_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/1/1a/FURIA_JoJo_LTA_2025_Split_1.png/revision/latest?cb=20250125192131",
+    "local": "/players/jojo.jpg"
+  },
+  "Zest": {
+    "status": "photo",
+    "page": "Zest_(Kim_Dong-min)",
+    "file": "LOS_Zest_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/7/77/LOS_Zest_2026_Split_1.png/revision/latest?cb=20260117194802",
+    "local": "/players/zest.jpg"
+  },
+  "Curse": {
+    "status": "silhouette",
+    "page": "Curse"
+  },
+  "Ackerman": {
+    "status": "photo",
+    "page": "Ackerman_(Gabriel_Aparicio)",
+    "file": "LOS_Ackerman_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/f/f1/LOS_Ackerman_2026_Split_1.png/revision/latest?cb=20260117194807",
+    "local": "/players/ackerman.jpg"
+  },
+  "BAO": {
+    "status": "photo",
+    "page": "BAO_(Jeong_Hyeon-woo)",
+    "file": "FXW7_Bao_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/a/a6/FXW7_Bao_2026_Split_1.png/revision/latest?cb=20260117200341",
+    "local": "/players/bao.jpg"
+  },
+  "Envy": {
+    "status": "silhouette",
+    "page": "Envy"
+  },
+  "Trigger": {
+    "status": "photo",
+    "page": "Trigger_(Kim_Eui-joo)",
+    "file": "PaiN_Trigger_2026_CBLOL_Cup.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/9/9e/PaiN_Trigger_2026_CBLOL_Cup.png/revision/latest?cb=20260129212504",
+    "local": "/players/trigger.jpg"
+  },
+  "Toplop": {
+    "status": "photo",
+    "page": "TopLop",
+    "file": "LEV_TopLop_2026_Split_1.png",
+    "url": "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images/6/65/LEV_TopLop_2026_Split_1.png/revision/latest?cb=20260117194253",
+    "local": "/players/toplop.jpg"
+  }
+}

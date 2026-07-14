@@ -3,7 +3,7 @@ import { useGameStore, type Player } from '../store/useGameStore';
 import { DataGrid, type ColumnDef } from '../components/DataGrid';
 import { SlidersHorizontal, UserPlus, ShoppingBag } from 'lucide-react';
 import { RoleIcon } from '../components/RoleIcon';
-import { ChampionImage } from '../components/ChampionImage';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 import { ROLE_LABELS } from '../lib/champions';
 
 export function TransferMarket() {
@@ -33,11 +33,7 @@ export function TransferMarket() {
         sortable: true,
         cell: (value, row) => (
           <div className="flex items-center gap-2.5">
-            <ChampionImage
-              name={row.championPool?.[0]?.champion}
-              variant="ban"
-              className="!w-9 !h-9"
-            />
+            <PlayerPortrait name={String(value)} size="sm" />
             <div className="flex flex-col min-w-0">
               <span className="font-semibold text-white truncate">{value}</span>
               <span className="text-[10px] text-white/40 font-mono uppercase tracking-tighter">

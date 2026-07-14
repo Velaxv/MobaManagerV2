@@ -19,6 +19,7 @@
 - **P1-2:** Offseason — renovar/liberar + iniciar novo split  
 - **P1-4:** Draft AI backend no oponente (`POST /draft/ai-decision`)  
 - **P1-5:** Táticas pós-draft (estilo Early/Mid/Late, lineup, coach comms)  
+- **Fotos de jogadores:** 42/45 com retrato real (Leaguepedia); 3 silhueta (Ayu, Curse, Envy)  
 - Testes: **48 passed** · `npm run build` OK  
 
 ### Próxima sessão

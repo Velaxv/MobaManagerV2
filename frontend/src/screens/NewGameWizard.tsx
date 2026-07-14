@@ -12,7 +12,7 @@ import {
   TrendingUp,
   Loader2,
 } from 'lucide-react';
-import { ChampionImage } from '../components/ChampionImage';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 import { RoleIcon } from '../components/RoleIcon';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
 import { PlayerRole } from '../types/game';
@@ -523,15 +523,7 @@ export function NewGameWizard() {
                             key={p.id}
                             className="flex items-center gap-2 p-1.5 rounded-sm bg-black/35 border border-white/5"
                           >
-                            <ChampionImage
-                              name={
-                                Array.isArray(p.championPool) && p.championPool[0]
-                                  ? (p.championPool[0] as { champion?: string }).champion
-                                  : undefined
-                              }
-                              variant="ban"
-                              className="!w-8 !h-8"
-                            />
+                            <PlayerPortrait name={p.name} size="xs" />
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-semibold text-white truncate">
                                 {p.name}

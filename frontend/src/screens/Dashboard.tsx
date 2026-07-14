@@ -17,7 +17,7 @@ import {
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
 import { RoleIcon } from '../components/RoleIcon';
-import { ChampionImage } from '../components/ChampionImage';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 
 export function Dashboard() {
   const [isAdvancing, setIsAdvancing] = useState(false);
@@ -415,11 +415,7 @@ export function Dashboard() {
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <ChampionImage
-                          name={player.championPool?.[0]?.champion}
-                          variant="ban"
-                          className="!w-8 !h-8"
-                        />
+                        <PlayerPortrait name={player.name} size="xs" />
                         <span className="font-semibold text-sm text-white truncate">{player.name}</span>
                       </div>
                       <span className="flex items-center gap-1 role-pill shrink-0">
@@ -478,11 +474,7 @@ export function Dashboard() {
                 key={player.id}
                 className="flex sm:flex-col items-center sm:items-stretch gap-2 p-2.5 rounded-sm bg-black/30 border border-white/5 hover:border-lol-gold/25 transition-colors"
               >
-                <ChampionImage
-                  name={player.championPool?.[0]?.champion}
-                  variant="portrait"
-                  className="shrink-0"
-                />
+                <PlayerPortrait name={player.name} size="md" className="shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1 text-[9px] text-white/40 mb-0.5">
                     <RoleIcon role={player.role} size={10} className="text-lol-gold/70" />

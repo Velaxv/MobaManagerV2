@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
+import { ROLE_LABELS } from '../lib/champions';
 import { ChampionImage } from '../components/ChampionImage';
+import { PlayerPortrait } from '../components/PlayerPortrait';
 import { RoleIcon } from '../components/RoleIcon';
 import { Users, Search } from 'lucide-react';
 import { PlayerRole } from '../types/game';
+import { getPlayerPhotoUrl } from '../lib/playerPhotoMap';
 
 const ROLE_ORDER = [
   PlayerRole.TOP,
@@ -37,17 +39,22 @@ export function Squad() {
     });
   }, [bench, filterRole, search]);
 
-  const heroChamp = starters[2]?.championPool?.[0]?.champion || starters[0]?.championPool?.[0]?.champion;
+  const heroPhoto =
+    getPlayerPhotoUrl(starters[2]?.name) ||
+    getPlayerPhotoUrl(starters[0]?.name) ||
+    null;
 
   return (
     <div className="flex flex-col gap-4">
       {/* Hero */}
       <div className="panel-lol relative overflow-hidden min-h-[120px]">
-        {heroChamp && (
+        {heroPhoto ? (
           <div
-            className="absolute inset-0 bg-cover bg-center opacity-30"
-            style={{ backgroundImage: `url(${championSplashUrl(heroChamp)})` }}
+            className="absolute inset-0 bg-cover bg-top opacity-35"
+            style={{ backgroundImage: `url(${heroPhoto})` }}
           />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#121a28] to-lol-void" />
         )}
         <div className="absolute inset-0 bg-gradient-to-r from-lol-void via-lol-void/90 to-lol-void/70" />
         <div className="relative panel-lol-header !border-0 !bg-transparent">
@@ -76,20 +83,24 @@ export function Squad() {
         </div>
         <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {starters.map((p) => {
-            const mainChamp = p.championPool?.[0]?.champion;
+            const photo = getPlayerPhotoUrl(p.name);
             return (
               <div key={p.id} className="hub-player-card">
-                {/* Splash header */}
-                <div className="relative h-16 overflow-hidden">
-                  {mainChamp && (
+                {/* Foto real / silhueta (não usa splash de campeão) */}
+                <div className="relative h-20 overflow-hidden bg-[#0a1018]">
+                  {photo ? (
                     <div
-                      className="absolute inset-0 bg-cover bg-center"
-                      style={{ backgroundImage: `url(${championSplashUrl(mainChamp)})` }}
+                      className="absolute inset-0 bg-cover bg-top opacity-80"
+                      style={{ backgroundImage: `url(${photo})` }}
                     />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-80">
+                      <PlayerPortrait name={p.name} size="lg" className="!w-14 !h-14" />
+                    </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#060d18] via-black/40 to-transparent" />
                   <div className="absolute bottom-2 left-2 right-2 flex items-end justify-between">
-                    <ChampionImage name={mainChamp} variant="portrait" locked className="!w-11 !h-11" />
+                    <PlayerPortrait name={p.name} size="md" className="!w-11 !h-11 ring-1 ring-black/40" />
                     <span className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-lol-gold bg-black/60 border border-lol-gold/30 px-1.5 py-0.5 rounded-sm">
                       <RoleIcon role={p.role} size={11} active />
                       {ROLE_LABELS[p.role]}
@@ -235,11 +246,7 @@ export function Squad() {
                   <tr key={p.id} className="hover:bg-white/[0.03]">
                     <td className="py-2 px-2">
                       <div className="flex items-center gap-2">
-                        <ChampionImage
-                          name={p.championPool?.[0]?.champion}
-                          variant="ban"
-                          className="!w-8 !h-8"
-                        />
+                        <PlayerPortrait name={p.name} size="xs" />
                         <span className="font-semibold">{p.name}</span>
                       </div>
                     </td>
