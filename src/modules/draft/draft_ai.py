@@ -96,12 +96,34 @@ class DraftAI:
     Inteligência Artificial encarregada de banir e escolher campeões de forma ótima.
     """
 
+    def __init__(self, patch_bias: Optional[Dict[str, float]] = None) -> None:
+        # champion name lower -> score (positivo = buff no patch)
+        self.patch_bias: Dict[str, float] = patch_bias or {}
+
+    def _patch_score(self, champion: str) -> float:
+        return float(self.patch_bias.get(champion.lower(), 0.0) or 0.0)
+
+    def _weighted_choice(self, champions: List[str]) -> str:
+        """Prefere campeões buffados no patch (ainda com aleatoriedade)."""
+        if not champions:
+            return "Aatrox"
+        if len(champions) == 1 or not self.patch_bias:
+            return random.choice(champions)
+        weights = []
+        for c in champions:
+            # score 0.1 → ~1.5x; score -0.1 → ~0.67x
+            s = self._patch_score(c)
+            w = max(0.15, 1.0 + s * 5.0)
+            weights.append(w)
+        return random.choices(champions, weights=weights, k=1)[0]
+
     def make_decision(
         self,
         draft_state: DraftState,
         team_side: DraftTeam,
         team_obj,
-        opponent_team_obj
+        opponent_team_obj,
+        patch_bias: Optional[Dict[str, float]] = None,
     ) -> Tuple[str, Optional[PlayerRole]]:
         """
         Calcula qual campeão o time deve escolher ou banir no turno atual do draft.
@@ -109,6 +131,9 @@ class DraftAI:
         Returns:
             Tupla (nome_do_campeao, role_hint_ou_None)
         """
+        if patch_bias is not None:
+            self.patch_bias = patch_bias
+
         current_action = draft_state.current_action
         if not current_action:
             raise ValueError("Draft já concluído. IA não pode tomar decisões.")
@@ -151,19 +176,19 @@ class DraftAI:
                         opp_main_champions.append(champ)
 
         if opp_main_champions:
-            # Bane um dos campeões principais do oponente com maior prioridade
-            chosen_ban = random.choice(opp_main_champions)
+            # Prioriza banir mains do oponente que estão buffados no patch
+            chosen_ban = self._weighted_choice(opp_main_champions)
             logger.info(f"[DraftAI] Banindo campeão preferido do oponente: {chosen_ban}")
             return chosen_ban
 
-        # Fallback: Bane um campeão forte aleatório do meta geral
+        # Fallback: Bane um campeão forte aleatório do meta geral (prioriza buffados)
         all_possible = []
         for role_champs in CHAMPIONS_BY_ROLE.values():
             all_possible.extend(role_champs)
         
         valid_bans = [c for c in all_possible if c.lower() not in unavailable]
         if valid_bans:
-            return random.choice(valid_bans)
+            return self._weighted_choice(valid_bans)
         
         return "Aatrox"  # Fallback definitivo
 
@@ -248,15 +273,16 @@ class DraftAI:
                 return chosen_champ, chosen_role
 
         # Sem counter-pick viável. Escolhe o melhor campeão da pool do jogador disponível.
-        available_main = [c for c in main_pool if c.lower() not in unavailable]
+        # Preferência leve por buffs do patch atual.
+        available_main = [c for c in main_pool if c and c.lower() not in unavailable]
         if available_main:
-            chosen_champ = random.choice(available_main)
+            chosen_champ = self._weighted_choice(available_main)
             logger.info(f"[DraftAI] Escolhendo MAIN champion da pool de {player.name}: {chosen_champ}")
             return chosen_champ, chosen_role
 
-        available_sec = [c for c in sec_pool if c.lower() not in unavailable]
+        available_sec = [c for c in sec_pool if c and c.lower() not in unavailable]
         if available_sec:
-            chosen_champ = random.choice(available_sec)
+            chosen_champ = self._weighted_choice(available_sec)
             logger.info(f"[DraftAI] Escolhendo SECONDARY champion da pool de {player.name}: {chosen_champ}")
             return chosen_champ, chosen_role
 
@@ -265,7 +291,7 @@ class DraftAI:
         valid_pos_champs = [c for c in pos_champs if c.lower() not in unavailable]
         
         if valid_pos_champs:
-            chosen_champ = random.choice(valid_pos_champs)
+            chosen_champ = self._weighted_choice(valid_pos_champs)
             logger.warning(f"[DraftAI] Jogador {player.name} FORÇADO a jogar fora da pool com {chosen_champ}")
             return chosen_champ, chosen_role
 

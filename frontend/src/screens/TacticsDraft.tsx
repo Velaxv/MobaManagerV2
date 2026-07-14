@@ -148,6 +148,9 @@ export function TacticsDraft() {
   const processDraftAction = useGameStore((s) => s.processDraftAction);
   const resetDraft = useGameStore((s) => s.resetDraft);
   const champions = useGameStore((s) => s.champions);
+  const patchBadges = useGameStore((s) => s.patchBadges);
+  const refreshPatch = useGameStore((s) => s.refreshPatch);
+  const patchStatus = useGameStore((s) => s.patchStatus);
   const submitDraftAndStartMatch = useGameStore((s) => s.submitDraftAndStartMatch);
   const matchTactics = useGameStore((s) => s.matchTactics);
   const setMatchTactics = useGameStore((s) => s.setMatchTactics);
@@ -164,6 +167,10 @@ export function TacticsDraft() {
 
   const starters = myPlayers.slice(0, 5);
   const isComplete = draft.isComplete;
+
+  useEffect(() => {
+    void refreshPatch();
+  }, [refreshPatch]);
 
   // Inicializa lineup padrão (1º de cada role) quando o draft completa
   useEffect(() => {
@@ -212,8 +219,18 @@ export function TacticsDraft() {
       const q = search.toLowerCase();
       list = list.filter((c) => c.name.toLowerCase().includes(q));
     }
-    return list.sort((a, b) => a.name.localeCompare(b.name));
-  }, [champions, selectedRole, usedChamps, search]);
+    // Meta do patch: buffs primeiro, nerfs por último, depois A-Z
+    const rank = (name: string) => {
+      const b = patchBadges[name.toLowerCase()];
+      if (b === 'BUFF') return 0;
+      if (b === 'NERF') return 2;
+      return 1;
+    };
+    return list.sort((a, b) => {
+      const d = rank(a.name) - rank(b.name);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
+  }, [champions, selectedRole, usedChamps, search, patchBadges]);
 
   const getComfortLevel = (championName: string, role: PlayerRole) => {
     const player = starters.find((p) => p.role === role);
@@ -600,20 +617,43 @@ export function TacticsDraft() {
                     </div>
                   )}
 
-                  {/* Grid de campeões */}
+                  {/* Grid de campeões (buffs do patch sobem na lista) */}
+                  {patchStatus?.active?.version && (
+                    <div className="text-[9px] font-mono text-white/40 px-1 flex items-center gap-2">
+                      <span className="text-lol-gold-soft">Patch v{patchStatus.active.version}</span>
+                      <span className="text-emerald-400">▲ BUFF</span>
+                      <span className="text-red-400">▼ NERF</span>
+                      <span className="text-white/30">ordenam o grid e guiam a IA</span>
+                    </div>
+                  )}
                   <div className="flex-1 overflow-y-auto max-h-[280px] sm:max-h-[300px] grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 gap-1.5 p-1 content-start">
-                    {championsList.map((c) => (
-                      <ChampionImage
-                        key={c.id}
-                        name={c.name}
-                        variant="portrait"
-                        showName
-                        highlighted={selectedChamp === c.name}
-                        disabled={!isMyTurn || isBusy}
-                        onClick={() => isMyTurn && !isBusy && setSelectedChamp(c.name)}
-                        className="!w-full !h-auto aspect-square"
-                      />
-                    ))}
+                    {championsList.map((c) => {
+                      const badge = patchBadges[c.name.toLowerCase()];
+                      return (
+                        <div key={c.id} className="relative">
+                          <ChampionImage
+                            name={c.name}
+                            variant="portrait"
+                            showName
+                            highlighted={selectedChamp === c.name}
+                            disabled={!isMyTurn || isBusy}
+                            onClick={() => isMyTurn && !isBusy && setSelectedChamp(c.name)}
+                            className="!w-full !h-auto aspect-square"
+                          />
+                          {badge && (
+                            <span
+                              className={`absolute top-0.5 right-0.5 text-[8px] font-bold px-1 rounded-sm border z-10 ${
+                                badge === 'BUFF'
+                                  ? 'bg-emerald-950/90 text-emerald-300 border-emerald-600/50'
+                                  : 'bg-red-950/90 text-red-300 border-red-700/50'
+                              }`}
+                            >
+                              {badge === 'BUFF' ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                     {championsList.length === 0 && (
                       <div className="col-span-full text-center text-white/40 text-xs py-10">
                         Nenhum campeão disponível nesta role.
@@ -636,6 +676,16 @@ export function TacticsDraft() {
                                 ⚠ Off-pool — debuff de mecânica
                               </span>
                             )}
+                          {selectedChamp && patchBadges[selectedChamp.toLowerCase()] === 'BUFF' && (
+                            <span className="block text-emerald-400 text-[10px] mt-0.5">
+                              ▲ Buff no patch — recomendado no meta atual
+                            </span>
+                          )}
+                          {selectedChamp && patchBadges[selectedChamp.toLowerCase()] === 'NERF' && (
+                            <span className="block text-red-400 text-[10px] mt-0.5">
+                              ▼ Nerf no patch — desempenho reduzido no motor
+                            </span>
+                          )}
                         </div>
                         <button
                           onClick={handleConfirm}

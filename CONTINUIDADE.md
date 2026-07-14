@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P2-5 academy)  
+**Última atualização:** 2026-07-14 (P2-6 patches)  
 **Branch:** `main`  
-**Estado:** P2-5 feito — academy, promote/demote, cláusulas rookie  
+**Estado:** P2-6 feito — patch notes, meta no draft e motor  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -10,12 +10,12 @@
 3. Este arquivo — stack + como rodar  
 
 ### Entregue nesta jornada (fechado)
-P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências · P3-1 modularizar API · P2-3 treino · P2-4 scouting · **P2-5 academy**  
-**Testes: 79 passed** · `npm run build` OK  
+P0…P2-5 · **P2-6 patches jogáveis**  
+**Testes: 84 passed** · `npm run build` OK  
 
 ### Próxima sessão
-1. **P2-6** Patches jogáveis  
-2. **P3-2** Testes integração API  
+1. **P3-2** Testes integração API  
+2. **P3-4** Pydantic v2 / lifespan  
 3. `git push origin main` (backup remoto opcional)  
 
 ```bat
@@ -210,7 +210,8 @@ CONTINUIDADE.md  (este arquivo)
 - [x] Treino / desenvolvimento CA→PA (**P2-3** feito)
 - [x] Scouting / atributos ocultos (**P2-4** feito)
 - [x] Academy e subidas (**P2-5** feito)
-- [ ] Patches jogáveis (**P2-6** próximo)
+- [x] Patches jogáveis (**P2-6** feito)
+- [ ] Testes integração API (**P3-2**)
 - [ ] Migrar warnings Pydantic v2 (`ConfigDict`, lifespan)
 
 ### P3 — longo prazo

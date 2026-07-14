@@ -299,8 +299,22 @@ class CalendarService:
         from src.modules.simulation.patch_service import PatchService
         current_date = date.today() + timedelta(days=day_info["total_days"])
         patch_service = PatchService(self.db)
+        # Limpa versão cacheada para reavaliar se um patch entrou em vigor neste dia
+        from src.core.redis_client import redis_client as _rc
+        await _rc.delete("patch:current:version")
         active_patch_version = await patch_service.update_patch_cache(current_date)
         day_info["active_patch"] = active_patch_version
+        try:
+            patch_status = await patch_service.get_status(current_date)
+            day_info["patch_status"] = {
+                "version": active_patch_version,
+                "buff_count": (patch_status.get("active") or {}).get("buff_count"),
+                "nerf_count": (patch_status.get("active") or {}).get("nerf_count"),
+                "upcoming_version": (patch_status.get("upcoming") or {}).get("version"),
+                "upcoming_days": (patch_status.get("upcoming") or {}).get("days_until"),
+            }
+        except Exception:
+            day_info["patch_status"] = {"version": active_patch_version}
 
         # Enriquecimento para o frontend montar a grade semanal
         day_info["league_id"] = str(league.id)

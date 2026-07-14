@@ -88,45 +88,57 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
                 db.add(role_stats)
                 role_stats_instances[f"{name}:{role}"] = role_stats
 
-        # 3. Cria Patches
+        # 3. Cria Patches (16.1 já em vigor no dia 0; 16.2 chega ~semana 2)
         today = date.today()
-        # Patch 16.1 lançado há 3 dias (vigor daqui a 4 dias)
         patch1 = Patch(
             id=uuid.uuid4(),
             version="16.1",
-            release_date=today - timedelta(days=3),
-            effective_date=today + timedelta(days=4)
+            release_date=today - timedelta(days=10),
+            effective_date=today - timedelta(days=3),  # ativo desde o início da carreira
         )
-        # Patch 16.2 lançado daqui a 4 dias (vigor daqui a 11 dias)
         patch2 = Patch(
             id=uuid.uuid4(),
             version="16.2",
             release_date=today + timedelta(days=4),
-            effective_date=today + timedelta(days=11)
+            effective_date=today + timedelta(days=10),  # ~dia 10 do calendário
         )
         db.add(patch1)
         db.add(patch2)
 
-        # ChampionPatchMeta (Modificadores do Patch)
-        # Patch 16.1: Buffa Azir no Mid (+10% dano) e nerfa K'Sante no Top (-10% sobrevivência)
-        meta_azir_16_1 = ChampionPatchMeta(
-            id=uuid.uuid4(),
-            patch_id=patch1.id,
-            champion_role_stats_id=role_stats_instances["Azir:MID"].id,
-            damage_modifier=1.10,
-            utility_modifier=1.0,
-            survivability_modifier=1.0
-        )
-        meta_ksante_16_1 = ChampionPatchMeta(
-            id=uuid.uuid4(),
-            patch_id=patch1.id,
-            champion_role_stats_id=role_stats_instances["K'Sante:TOP"].id,
-            damage_modifier=1.0,
-            utility_modifier=1.0,
-            survivability_modifier=0.90
-        )
-        db.add(meta_azir_16_1)
-        db.add(meta_ksante_16_1)
+        def _meta(patch_id, key, dmg=1.0, utl=1.0, srv=1.0):
+            if key not in role_stats_instances:
+                return None
+            m = ChampionPatchMeta(
+                id=uuid.uuid4(),
+                patch_id=patch_id,
+                champion_role_stats_id=role_stats_instances[key].id,
+                damage_modifier=dmg,
+                utility_modifier=utl,
+                survivability_modifier=srv,
+            )
+            db.add(m)
+            return m
+
+        # Patch 16.1 — meta CBLOL de abertura
+        _meta(patch1.id, "Azir:MID", dmg=1.10)  # buff mid control
+        _meta(patch1.id, "K'Sante:TOP", srv=0.90)  # nerf tank top
+        _meta(patch1.id, "Jinx:BOT", dmg=1.08)
+        _meta(patch1.id, "Lee Sin:JUNGLE", dmg=0.92, utl=0.95)
+        _meta(patch1.id, "Thresh:SUPPORT", utl=1.08, srv=1.05)
+        _meta(patch1.id, "Orianna:MID", dmg=1.06, utl=1.04)
+        _meta(patch1.id, "Sejuani:JUNGLE", srv=1.07, utl=1.05)
+        _meta(patch1.id, "Varus:BOT", dmg=0.93)
+
+        # Patch 16.2 — giro de meta (playoffs prep)
+        _meta(patch2.id, "Azir:MID", dmg=0.94)  # nerf após overbuff
+        _meta(patch2.id, "Sylas:MID", dmg=1.09, utl=1.04)
+        _meta(patch2.id, "Renekton:TOP", dmg=1.07)
+        _meta(patch2.id, "K'Sante:TOP", srv=1.05)  # partial revert
+        _meta(patch2.id, "Kai'Sa:BOT", dmg=1.08)
+        _meta(patch2.id, "Jinx:BOT", dmg=0.95)
+        _meta(patch2.id, "Maokai:JUNGLE", srv=1.06, utl=1.05)
+        _meta(patch2.id, "Nautilus:SUPPORT", utl=1.06, srv=1.04)
+        _meta(patch2.id, "Thresh:SUPPORT", utl=0.96)
 
         # 4. Times e elencos oficiais do CBLOL 2026 Split 1 (8 orgs)
         teams_list = []

@@ -169,7 +169,7 @@ interface GameState {
   } | null;
 
   // --- Calendário e Estado do Jogo ---
-  currentScreen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS';
+  currentScreen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH';
   currentWeek: number;
   currentDayIndex: number; // 0-6 (Segunda a Domingo)
   totalDaysElapsed: number;
@@ -328,7 +328,38 @@ interface GameState {
   setGameState: (state: 'MAIN_MENU' | 'NEW_GAME_SETUP' | 'PLAYING') => void;
   setManager: (name: string, teamId: string) => void;
   advanceDay: () => Promise<void>;
-  setCurrentScreen: (screen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS') => void;
+  setCurrentScreen: (screen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH') => void;
+  refreshPatch: () => Promise<void>;
+  patchStatus: {
+    calendar_date?: string;
+    active?: {
+      version: string;
+      release_date?: string;
+      effective_date?: string;
+      buff_count?: number;
+      nerf_count?: number;
+      changes?: {
+        champion: string;
+        role: string;
+        kind: string;
+        summary?: string;
+        score?: number;
+      }[];
+    } | null;
+    upcoming?: {
+      version: string;
+      days_until?: number;
+      effective_date?: string;
+      changes?: { champion: string; role: string; kind: string }[];
+    } | null;
+    patches?: {
+      version: string;
+      status: string;
+      effective_date: string;
+    }[];
+    badges?: Record<string, string>;
+  } | null;
+  patchBadges: Record<string, string>;
   loadData: () => Promise<void>;
   refreshRosterAndMarket: () => Promise<void>;
   refreshPlayoffs: () => Promise<void>;
@@ -488,6 +519,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   totalDaysElapsed: 0,
   splitPhase: SplitPhase.OFFSEASON,
   calendar: INITIAL_CALENDAR,
+  patchStatus: null,
+  patchBadges: {},
   
   // --- Roster do Time e Mercado ---
   isDataLoaded: false,
@@ -585,6 +618,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshFinance();
         void get().refreshTraining();
         void get().refreshScouting();
+        void get().refreshPatch();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -914,6 +948,34 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setCurrentScreen: (screen) => set({ currentScreen: screen }),
 
+  refreshPatch: async () => {
+    try {
+      const days = get().totalDaysElapsed || 0;
+      const status = await api.getPatches(days);
+      const badges = status.badges || {};
+      set({
+        patchStatus: status,
+        patchBadges: badges,
+      });
+    } catch (e) {
+      console.warn('Patch notes indisponíveis:', e);
+      try {
+        const b = await api.getPatchBadges();
+        set({
+          patchBadges: b.badges || {},
+          patchStatus: {
+            active: b.version
+              ? { version: String(b.version), changes: b.changes || [] }
+              : null,
+            badges: b.badges || {},
+          },
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+  },
+
   loadData: async () => {
     try {
       const { manager } = get();
@@ -978,6 +1040,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshFinance();
         void get().refreshTraining();
         void get().refreshScouting();
+        void get().refreshPatch();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);

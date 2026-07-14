@@ -10,10 +10,11 @@ import {
   Radio,
   Save,
   Loader2,
+  FileCode2,
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 
-export type AppScreen = 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS';
+export type AppScreen = 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH';
 
 const NAV: {
   id: AppScreen;
@@ -27,6 +28,7 @@ const NAV: {
   { id: 'SQUAD', label: 'Elenco', short: 'Elenco', icon: UserCircle2, hint: 'Plantel', group: 'manage' },
   { id: 'STANDINGS', label: 'Tabela', short: 'Tabela', icon: TableProperties, hint: 'CBLOL', group: 'manage' },
   { id: 'MARKET', label: 'Mercado', short: 'Mercado', icon: Users, hint: 'Contratações', group: 'manage' },
+  { id: 'PATCH', label: 'Patch', short: 'Patch', icon: FileCode2, hint: 'Meta', group: 'manage' },
   { id: 'DRAFT', label: 'Draft', short: 'Draft', icon: Swords, hint: 'Picks & bans', group: 'compete' },
   { id: 'SIMULATION', label: 'Partida', short: 'Live', icon: Trophy, hint: 'Ao vivo', group: 'compete' },
 ];

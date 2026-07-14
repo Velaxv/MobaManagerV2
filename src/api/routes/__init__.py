@@ -14,6 +14,7 @@ from src.api.routes import (
     draft,
     offseason,
     career,
+    patches,
 )
 
 
@@ -30,3 +31,4 @@ def include_routers(app: FastAPI) -> None:
     app.include_router(draft.router)
     app.include_router(offseason.router)
     app.include_router(career.router)
+    app.include_router(patches.router)

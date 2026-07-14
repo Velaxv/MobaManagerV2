@@ -60,7 +60,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 | P2-3 | **Treino e desenvolvimento** (CA→PA) | Sem progressão de elenco | Alto | ✅ Feito (2026-07-14) — foco/intensidade, treino+scrim+match XP |
 | P2-4 | **Scouting / atributos ocultos** | Consistency e BMA existem mas não brilham | Médio | ✅ Feito (2026-07-14) — máscara + assignment + progresso diário via staff |
 | P2-5 | **Academy e subidas** | Rookies existem mas pouco usados | Médio | ✅ Feito (2026-07-14) — is_starter, promote/demote, cláusula rookie UI |
-| P2-6 | **Patches jogáveis** | Patch meta no seed pouco visível | Médio | Tela de patch + impacto em draft/recomendação |
+| P2-6 | **Patches jogáveis** | Patch meta no seed pouco visível | Médio | ✅ Feito (2026-07-14) — notes UI, badges draft, bias IA, seed 16.1/16.2 |
 
 ### P3 — Arquitetura e qualidade
 

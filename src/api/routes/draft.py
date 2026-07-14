@@ -71,8 +71,20 @@ async def draft_ai_decision(req: DraftAIDecisionRequest, db: AsyncSession = Depe
     team_obj = blue if acting == DraftTeam.BLUE else red
     opp_obj = red if acting == DraftTeam.BLUE else blue
 
+    # Bias do patch ativo (buffs/nerfs) influencia bans e picks da IA
+    from datetime import date
+    from src.modules.simulation.patch_service import PatchService
+
+    patch_bias = await PatchService.get_cached_bias()
+    if not patch_bias:
+        try:
+            await PatchService(db).update_patch_cache(date.today())
+            patch_bias = await PatchService.get_cached_bias()
+        except Exception:
+            patch_bias = {}
+
     try:
-        champion, role = DraftAI().make_decision(
+        champion, role = DraftAI(patch_bias=patch_bias or {}).make_decision(
             draft_state=state,
             team_side=acting,
             team_obj=team_obj,
@@ -89,4 +101,5 @@ async def draft_ai_decision(req: DraftAIDecisionRequest, db: AsyncSession = Depe
         "team": side,
         "current_turn": turn,
         "source": "backend_draft_ai",
+        "patch_bias_applied": bool(patch_bias),
     }

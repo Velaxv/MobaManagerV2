@@ -11,7 +11,7 @@
 1. Abrir a pasta do projeto  
 2. Ler este arquivo + `CONTINUIDADE.md`  
 3. Roadmap: `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`  
-4. Rodar testes: deve dar **79 passed**
+4. Rodar testes: deve dar **84 passed**
    ```bat
    set PYTHONPATH=.
    venv\Scripts\python -m pytest tests -q
@@ -61,8 +61,8 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P2-6** — Patches jogáveis  
-2. **P3-2** — Testes de integração API (httpx)  
+1. **P3-2** — Testes de integração API (httpx)  
+2. **P3-4** — Pydantic v2 / lifespan  
 3. Push remoto se ainda não fez: `git push origin main`
 
 ### Feito nesta retomada
@@ -72,6 +72,7 @@
 | P2-3 | Treino / CA→PA | `TrainingService`, plano foco/intensidade, XP em treino+partida, UI no Painel |
 | P2-4 | Scouting | Consistência/BMA/PA mascarados; assignment + progresso diário; UI Elenco/Mercado/Painel |
 | P2-5 | Academy | `is_starter`, promote/demote, cláusulas rookie na UI, seções Elenco |
+| P2-6 | Patches | Notas 16.1/16.2, tela Patch, badges no draft, bias na DraftAI |
 
 ---
 

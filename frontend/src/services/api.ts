@@ -361,6 +361,34 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to demote player');
   },
 
+  getPatches: async (daysElapsed?: number) => {
+    const qs =
+      daysElapsed != null ? `?days_elapsed=${encodeURIComponent(String(daysElapsed))}` : '';
+    const response = await fetch(`${API_BASE}/patches${qs}`);
+    return parseJsonOrThrow(response, 'Failed to fetch patches');
+  },
+
+  getCurrentPatch: async (daysElapsed?: number) => {
+    const qs =
+      daysElapsed != null ? `?days_elapsed=${encodeURIComponent(String(daysElapsed))}` : '';
+    const response = await fetch(`${API_BASE}/patches/current${qs}`);
+    return parseJsonOrThrow(response, 'Failed to fetch current patch');
+  },
+
+  getPatchBadges: async (): Promise<{
+    version: string | null;
+    badges: Record<string, string>;
+    changes: {
+      champion: string;
+      role: string;
+      kind: string;
+      summary?: string;
+    }[];
+  }> => {
+    const response = await fetch(`${API_BASE}/patches/badges`);
+    return parseJsonOrThrow(response, 'Failed to fetch patch badges');
+  },
+
   getChampions: async (): Promise<Champion[]> => {
     const response = await fetch(`${API_BASE}/champions`);
     return parseJsonOrThrow(response, 'Failed to fetch champions');

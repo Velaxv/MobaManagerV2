@@ -7,6 +7,7 @@ import { MainMenu } from './screens/MainMenu';
 import { NewGameWizard } from './screens/NewGameWizard';
 import { Squad } from './screens/Squad';
 import { Standings } from './screens/Standings';
+import { PatchNotes } from './screens/PatchNotes';
 import { GameShell } from './components/GameShell';
 import { useGameStore } from './store/useGameStore';
 
@@ -37,6 +38,8 @@ function App() {
         return <Standings />;
       case 'MARKET':
         return <TransferMarket />;
+      case 'PATCH':
+        return <PatchNotes />;
       case 'DRAFT':
         return <TacticsDraft />;
       case 'SIMULATION':

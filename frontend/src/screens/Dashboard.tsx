@@ -15,6 +15,7 @@ import {
   FileSignature,
   Dumbbell,
   Binoculars,
+  FileCode2,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -57,6 +58,7 @@ export function Dashboard() {
     scouting,
     lastScoutingEvent,
     clearScout,
+    patchStatus,
   } = useGameStore();
   const [trainingBusy, setTrainingBusy] = useState(false);
   const [trainingMsg, setTrainingMsg] = useState<string | null>(null);
@@ -365,6 +367,46 @@ export function Dashboard() {
           >
             {avgBurnout}%
           </div>
+        </div>
+      </div>
+
+      {/* Patch meta */}
+      <div className="panel-lol border-lol-gold/15">
+        <div className="panel-lol-header">
+          <div className="flex items-center gap-2">
+            <FileCode2 className="w-4 h-4 text-lol-gold" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Patch · meta
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentScreen('PATCH')}
+            className="text-[9px] uppercase tracking-wide text-lol-gold border border-lol-gold/30 px-2 py-1 rounded-sm hover:bg-lol-gold/10"
+          >
+            Notas →
+          </button>
+        </div>
+        <div className="p-3 flex flex-wrap items-center gap-3 text-[11px] font-mono">
+          <span className="text-white/70">
+            Ativo:{' '}
+            <span className="text-emerald-400 font-bold">
+              {patchStatus?.active?.version ? `v${patchStatus.active.version}` : '—'}
+            </span>
+          </span>
+          {patchStatus?.active && (
+            <>
+              <span className="text-emerald-400/80">
+                {patchStatus.active.buff_count ?? 0} buffs
+              </span>
+              <span className="text-red-400/80">{patchStatus.active.nerf_count ?? 0} nerfs</span>
+            </>
+          )}
+          {patchStatus?.upcoming && (
+            <span className="text-sky-300/80">
+              Próx. v{patchStatus.upcoming.version} em {patchStatus.upcoming.days_until}d
+            </span>
+          )}
         </div>
       </div>
 
