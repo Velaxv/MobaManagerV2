@@ -136,7 +136,12 @@ export function Standings() {
                                 <span className="text-[9px] text-white/40 font-mono uppercase">
                                   {s.label}
                                 </span>
-                                <span className="text-[9px] text-white/30">BO{s.best_of}</span>
+                                <span className="text-[9px] text-white/30">
+                                  BO{s.best_of}
+                                  {s.score
+                                    ? ` · ${s.score.home ?? 0}-${s.score.away ?? 0}`
+                                    : ''}
+                                </span>
                               </div>
                               <div className="flex items-center justify-between gap-2 text-sm">
                                 <span
@@ -145,6 +150,11 @@ export function Standings() {
                                   }`}
                                 >
                                   {seriesSideLabel(s.home)}
+                                  {s.score != null && (
+                                    <span className="ml-1 font-mono text-lol-gold-soft">
+                                      {s.score.home ?? 0}
+                                    </span>
+                                  )}
                                 </span>
                                 <Swords className="w-3.5 h-3.5 text-white/25 shrink-0" />
                                 <span
@@ -152,15 +162,25 @@ export function Standings() {
                                     awayWon ? 'text-lol-gold' : 'text-white/85'
                                   }`}
                                 >
+                                  {s.score != null && (
+                                    <span className="mr-1 font-mono text-lol-gold-soft">
+                                      {s.score.away ?? 0}
+                                    </span>
+                                  )}
                                   {seriesSideLabel(s.away)}
                                 </span>
                               </div>
                               <p className="text-[9px] mt-1 text-white/30 font-mono">
                                 {done
-                                  ? 'Encerrada'
-                                  : s.status === 'ready'
-                                    ? 'Pronta'
-                                    : 'Aguardando'}
+                                  ? 'Série encerrada'
+                                  : s.status === 'in_progress'
+                                    ? `Em andamento · Map ${(s.maps?.length || 0) + 1}`
+                                    : s.status === 'ready'
+                                      ? 'Pronta'
+                                      : 'Aguardando'}
+                                {s.fearless_used && s.fearless_used.length > 0
+                                  ? ` · Fearless ${s.fearless_used.length}`
+                                  : ''}
                               </p>
                             </div>
                           );

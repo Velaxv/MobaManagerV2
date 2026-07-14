@@ -10,7 +10,7 @@ Formato:
   Final: W(SF1) vs W(SF2)
 
 Estado do bracket vive no Redis (chave playoffs:league:{id}).
-Séries MVP: 1 partida decisiva (BO1 jogável), labels best_of para UI.
+Séries multi-map: BO3 (QF/SF) e BO5 (Final) com fearless light e momentum.
 """
 
 from __future__ import annotations
@@ -26,6 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.redis_client import redis_client
 from src.models.league import League, LeagueTeam
 from src.models.team import Team
+from src.modules.calendar.playoff_series import (
+    ensure_series_multi_map,
+    record_map_result,
+    series_public_view,
+    side_for_next_map,
+    wins_needed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,72 +90,95 @@ def build_top6_bracket(
             "seed": None,
         }
 
+    def multi(base: Dict[str, Any]) -> Dict[str, Any]:
+        base.update(
+            {
+                "score": {"home": 0, "away": 0},
+                "maps": [],
+                "fearless_used": [],
+                "momentum_team_id": None,
+                "current_map": 1,
+            }
+        )
+        return base
+
     series = [
-        {
-            "id": "qf1",
-            "round": ROUND_QUARTER,
-            "label": "Quartas — 3º vs 6º",
-            "best_of": 3,
-            "home": team_fields(3),
-            "away": team_fields(6),
-            "winner_team_id": None,
-            "status": "ready",  # ready | pending | complete
-            "feeds_into": "sf2",
-            "feeds_slot": "away",
-        },
-        {
-            "id": "qf2",
-            "round": ROUND_QUARTER,
-            "label": "Quartas — 4º vs 5º",
-            "best_of": 3,
-            "home": team_fields(4),
-            "away": team_fields(5),
-            "winner_team_id": None,
-            "status": "ready",
-            "feeds_into": "sf1",
-            "feeds_slot": "away",
-        },
-        {
-            "id": "sf1",
-            "round": ROUND_SEMI,
-            "label": "Semifinal — 1º vs vencedor QF",
-            "best_of": 3,
-            "home": team_fields(1),
-            "away": empty_side(),
-            "winner_team_id": None,
-            "status": "pending",
-            "feeds_into": "final",
-            "feeds_slot": "home",
-        },
-        {
-            "id": "sf2",
-            "round": ROUND_SEMI,
-            "label": "Semifinal — 2º vs vencedor QF",
-            "best_of": 3,
-            "home": team_fields(2),
-            "away": empty_side(),
-            "winner_team_id": None,
-            "status": "pending",
-            "feeds_into": "final",
-            "feeds_slot": "away",
-        },
-        {
-            "id": "final",
-            "round": ROUND_FINAL,
-            "label": "Grande Final",
-            "best_of": 5,
-            "home": empty_side(),
-            "away": empty_side(),
-            "winner_team_id": None,
-            "status": "pending",
-            "feeds_into": None,
-            "feeds_slot": None,
-        },
+        multi(
+            {
+                "id": "qf1",
+                "round": ROUND_QUARTER,
+                "label": "Quartas — 3º vs 6º",
+                "best_of": 3,
+                "home": team_fields(3),
+                "away": team_fields(6),
+                "winner_team_id": None,
+                "status": "ready",  # ready | in_progress | pending | complete
+                "feeds_into": "sf2",
+                "feeds_slot": "away",
+            }
+        ),
+        multi(
+            {
+                "id": "qf2",
+                "round": ROUND_QUARTER,
+                "label": "Quartas — 4º vs 5º",
+                "best_of": 3,
+                "home": team_fields(4),
+                "away": team_fields(5),
+                "winner_team_id": None,
+                "status": "ready",
+                "feeds_into": "sf1",
+                "feeds_slot": "away",
+            }
+        ),
+        multi(
+            {
+                "id": "sf1",
+                "round": ROUND_SEMI,
+                "label": "Semifinal — 1º vs vencedor QF",
+                "best_of": 3,
+                "home": team_fields(1),
+                "away": empty_side(),
+                "winner_team_id": None,
+                "status": "pending",
+                "feeds_into": "final",
+                "feeds_slot": "home",
+            }
+        ),
+        multi(
+            {
+                "id": "sf2",
+                "round": ROUND_SEMI,
+                "label": "Semifinal — 2º vs vencedor QF",
+                "best_of": 3,
+                "home": team_fields(2),
+                "away": empty_side(),
+                "winner_team_id": None,
+                "status": "pending",
+                "feeds_into": "final",
+                "feeds_slot": "away",
+            }
+        ),
+        multi(
+            {
+                "id": "final",
+                "round": ROUND_FINAL,
+                "label": "Grande Final",
+                "best_of": 5,
+                "home": empty_side(),
+                "away": empty_side(),
+                "winner_team_id": None,
+                "status": "pending",
+                "feeds_into": None,
+                "feeds_slot": None,
+            }
+        ),
     ]
 
     return {
         "status": "active",  # active | complete
-        "format": "top6_single_elim",
+        "format": "top6_single_elim_bo",
+        "series_mode": "multi_map",
         "champion_team_id": None,
         "champion_name": None,
         "seeds": [by_seed[i] for i in range(1, 7)],
@@ -173,11 +203,15 @@ def series_involves_team(series: Dict[str, Any], team_id: str) -> bool:
 
 
 def series_ready(series: Dict[str, Any]) -> bool:
+    """Série jogável: pronta ou em andamento (map seguinte)."""
+    ensure_series_multi_map(series)
     if series.get("status") == "complete":
         return False
     home = (series.get("home") or {}).get("team_id")
     away = (series.get("away") or {}).get("team_id")
-    return bool(home and away)
+    if not (home and away):
+        return False
+    return series.get("status") in ("ready", "in_progress", "pending") and bool(home and away)
 
 
 def apply_series_result(
@@ -192,7 +226,7 @@ def apply_series_result(
     series = find_series(bracket, series_id)
     if not series:
         raise ValueError(f"Série {series_id} não encontrada")
-    if series.get("status") == "complete":
+    if series.get("status") == "complete" and series.get("_bracket_applied"):
         return bracket
 
     winner_id = str(winner_team_id)
@@ -213,16 +247,20 @@ def apply_series_result(
 
     series["winner_team_id"] = winner_id
     series["status"] = "complete"
+    series["_bracket_applied"] = True
+    ensure_series_multi_map(series)
 
     eliminated = bracket.setdefault("eliminated", [])
-    eliminated.append(
-        {
-            "team_id": loser_id,
-            "team_name": loser_name,
-            "eliminated_in": series.get("round"),
-            "series_id": series_id,
-        }
-    )
+    # evita duplicar se reprocessar
+    if not any(e.get("series_id") == series_id for e in eliminated):
+        eliminated.append(
+            {
+                "team_id": loser_id,
+                "team_name": loser_name,
+                "eliminated_in": series.get("round"),
+                "series_id": series_id,
+            }
+        )
 
     feeds = series.get("feeds_into")
     slot = series.get("feeds_slot")
@@ -265,26 +303,57 @@ def series_for_round(bracket: Dict[str, Any], round_name: str) -> List[Dict[str,
     return [
         s
         for s in bracket.get("series") or []
-        if s.get("round") == round_name and series_ready(s) and s.get("status") != "complete"
+        if s.get("round") == round_name
+        and series_ready(s)
+        and s.get("status") not in ("complete", "awaiting_close")
     ]
 
 
 def series_to_match_payload(series: Dict[str, Any]) -> Dict[str, Any]:
-    """Payload compatível com scheduled_matches do calendar."""
+    """Payload compatível com scheduled_matches do calendar (próximo map da série)."""
+    ensure_series_multi_map(series)
     home = series.get("home") or {}
     away = series.get("away") or {}
+    home_id = str(home.get("team_id") or "")
+    away_id = str(away.get("team_id") or "")
+    blue_id, red_id = side_for_next_map(series)
+
+    def side_meta(tid: str) -> Dict[str, Any]:
+        if tid == home_id:
+            return home
+        if tid == away_id:
+            return away
+        return {}
+
+    blue = side_meta(blue_id)
+    red = side_meta(red_id)
+    view = series_public_view(series)
+    map_n = int(view.get("current_map") or 1)
+    bo = int(series.get("best_of") or 1)
+    label = series.get("label") or series.get("id")
+    score_txt = view.get("score_display") or "0-0"
+
     return {
-        "blue_team_id": str(home.get("team_id")),
-        "blue_team_name": home.get("team_name"),
-        "blue_team_abbr": home.get("team_abbr"),
-        "red_team_id": str(away.get("team_id")),
-        "red_team_name": away.get("team_name"),
-        "red_team_abbr": away.get("team_abbr"),
+        "blue_team_id": blue_id,
+        "blue_team_name": blue.get("team_name"),
+        "blue_team_abbr": blue.get("team_abbr"),
+        "red_team_id": red_id,
+        "red_team_name": red.get("team_name"),
+        "red_team_abbr": red.get("team_abbr"),
         "is_playoff": True,
         "series_id": series.get("id"),
         "playoff_round": series.get("round"),
-        "series_label": series.get("label"),
-        "best_of": series.get("best_of"),
+        "series_label": f"{label} · Map {map_n} (BO{bo} · {score_txt})",
+        "best_of": bo,
+        "wins_needed": wins_needed(bo),
+        "series_score": view["score"],
+        "series_score_display": score_txt,
+        "map_index": map_n,
+        "maps_played": view["maps_played"],
+        "fearless_used": view["fearless_used"],
+        "momentum_team_id": view.get("momentum_team_id"),
+        "home_team_id": home_id,
+        "away_team_id": away_id,
         "home_seed": home.get("seed"),
         "away_seed": away.get("seed"),
     }
@@ -402,16 +471,22 @@ class PlayoffService:
                     day_info["playoff_round"] = r
                     break
 
+        # Normaliza séries legadas
+        for s in bracket.get("series") or []:
+            ensure_series_multi_map(s)
+
         all_matches = [series_to_match_payload(s) for s in pending]
         interactive: list[dict] = []
         auto_results: list[dict] = []
+        series_touched = False
 
-        for match in all_matches:
-            involves = (
-                managed_team_id
-                and managed_team_id
-                in (match["blue_team_id"], match["red_team_id"])
-            )
+        for series in pending:
+            ensure_series_multi_map(series)
+            match = series_to_match_payload(series)
+            home_id = str((series.get("home") or {}).get("team_id") or "")
+            away_id = str((series.get("away") or {}).get("team_id") or "")
+            involves = managed_team_id and str(managed_team_id) in (home_id, away_id)
+
             if involves:
                 interactive.append(match)
                 continue
@@ -420,25 +495,66 @@ class PlayoffService:
                 interactive.append({**match, "auto_sim_failed": True})
                 continue
 
+            # Auto-simula maps até fechar a série (BO3/BO5)
             try:
-                result = await auto_simulate_fn(
-                    match["blue_team_id"],
-                    match["red_team_id"],
-                    day_info.get("week", 0),
-                    True,
-                )
-                winner_id = str(result.get("winner_team_id"))
-                apply_series_result(bracket, match["series_id"], winner_id)
-                auto_results.append({**match, **result, "series_resolved": True})
+                safety = 0
+                while series.get("status") != "complete" and safety < 12:
+                    safety += 1
+                    map_payload = series_to_match_payload(series)
+                    fearless = list(series.get("fearless_used") or [])
+                    result = await auto_simulate_fn(
+                        map_payload["blue_team_id"],
+                        map_payload["red_team_id"],
+                        day_info.get("week", 0),
+                        True,
+                        fearless,
+                    )
+                    winner_id = str(result.get("winner_team_id"))
+                    blue_draft = result.get("blue_draft") or result.get("draft_blue") or []
+                    red_draft = result.get("red_draft") or result.get("draft_red") or []
+                    # Extrai picks do draft_log se necessário
+                    if not blue_draft and isinstance(result.get("draft_log"), dict):
+                        dl = result["draft_log"]
+                        blue_draft = [
+                            {"champion": p} if isinstance(p, str) else p
+                            for p in (dl.get("blue") or dl.get("blue_picks") or [])
+                        ]
+                        red_draft = [
+                            {"champion": p} if isinstance(p, str) else p
+                            for p in (dl.get("red") or dl.get("red_picks") or [])
+                        ]
+
+                    map_info = record_map_result(
+                        series,
+                        winner_team_id=winner_id,
+                        blue_team_id=map_payload["blue_team_id"],
+                        red_team_id=map_payload["red_team_id"],
+                        blue_draft=blue_draft,
+                        red_draft=red_draft,
+                    )
+                    auto_results.append(
+                        {
+                            **map_payload,
+                            **result,
+                            "map_resolved": True,
+                            "series_score": map_info.get("score"),
+                            "series_score_display": map_info.get("score_display"),
+                            "series_complete": map_info.get("series_complete"),
+                        }
+                    )
+                    if map_info.get("series_complete"):
+                        apply_series_result(bracket, series["id"], winner_id)
+                        series_touched = True
+                        break
+                    series_touched = True
             except Exception as exc:
                 logger.error(
-                    f"[PlayoffService] Falha auto-sim {match.get('series_id')}: {exc}",
+                    f"[PlayoffService] Falha auto-sim série {series.get('id')}: {exc}",
                     exc_info=True,
                 )
-                interactive.append({**match, "auto_sim_failed": True})
+                interactive.append({**series_to_match_payload(series), "auto_sim_failed": True})
 
-        # Finalizou alguma série automática → persistir + talvez crowning
-        if auto_results:
+        if series_touched or auto_results:
             if bracket.get("status") == "complete":
                 await self._apply_final_placements(league, bracket)
             await self.save_bracket(str(league.id), bracket)
@@ -457,17 +573,21 @@ class PlayoffService:
         red_team_id: str,
         winner_team_id: str,
         series_id: Optional[str] = None,
+        blue_draft: Optional[List[Dict[str, str]]] = None,
+        red_draft: Optional[List[Dict[str, str]]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Chamado após partida interativa de playoff."""
+        """Chamado após um map interativo de playoff (pode não fechar a série)."""
         bracket = await self.get_bracket(str(league_id))
         if not bracket or bracket.get("status") == "complete":
             return bracket
+
+        for s in bracket.get("series") or []:
+            ensure_series_multi_map(s)
 
         target = None
         if series_id:
             target = find_series(bracket, series_id)
         if not target:
-            # Inferir por pares e status ready
             for s in bracket.get("series") or []:
                 if s.get("status") == "complete":
                     continue
@@ -487,11 +607,24 @@ class PlayoffService:
             )
             return bracket
 
-        apply_series_result(bracket, target["id"], str(winner_team_id))
+        map_info = record_map_result(
+            target,
+            winner_team_id=str(winner_team_id),
+            blue_team_id=str(blue_team_id),
+            red_team_id=str(red_team_id),
+            blue_draft=blue_draft,
+            red_draft=red_draft,
+        )
+        bracket["last_map_result"] = {
+            "series_id": target.get("id"),
+            **map_info,
+        }
 
-        league = await self.db.get(League, uuid.UUID(str(league_id)))
-        if league and bracket.get("status") == "complete":
-            await self._apply_final_placements(league, bracket)
+        if map_info.get("series_complete"):
+            apply_series_result(bracket, target["id"], str(winner_team_id))
+            league = await self.db.get(League, uuid.UUID(str(league_id)))
+            if league and bracket.get("status") == "complete":
+                await self._apply_final_placements(league, bracket)
 
         await self.save_bracket(str(league_id), bracket)
         await self.db.flush()

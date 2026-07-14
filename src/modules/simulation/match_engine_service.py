@@ -97,6 +97,13 @@ class LiveMatchState(BaseModel):
     blue_bans: List[str] = []
     red_bans: List[str] = []
     scout_evaluation: Optional[Dict[str, Any]] = None
+    # Playoff série multi-map
+    series_id: Optional[str] = None
+    fearless_used: List[str] = []
+    series_score: Optional[Dict[str, int]] = None
+    map_index: Optional[int] = None
+    momentum_team_id: Optional[str] = None
+    series_map_result: Optional[Dict[str, Any]] = None
 
 
 # Speeds permitidas (label → tick_ms)
@@ -154,6 +161,11 @@ class MatchEngineService:
         managed_team_id: Optional[str] = None,
         blue_bans: Optional[List[str]] = None,
         red_bans: Optional[List[str]] = None,
+        series_id: Optional[str] = None,
+        fearless_used: Optional[List[str]] = None,
+        series_score: Optional[Dict[str, int]] = None,
+        map_index: Optional[int] = None,
+        momentum_team_id: Optional[str] = None,
     ) -> LiveMatchState:
         """Inicializa o estado da partida ao vivo no Redis e dispara a background task do loop de ticks."""
         from src.modules.simulation.tactics import clamp_coach_comms, normalize_style
@@ -188,7 +200,20 @@ class MatchEngineService:
             managed_team_id=str(managed_team_id) if managed_team_id else None,
             blue_bans=list(blue_bans or []),
             red_bans=list(red_bans or []),
+            series_id=series_id,
+            fearless_used=list(fearless_used or []),
+            series_score=series_score,
+            map_index=map_index,
+            momentum_team_id=str(momentum_team_id) if momentum_team_id else None,
         )
+
+        # Momentum: ouro inicial extra no lado do vencedor do map anterior
+        if momentum_team_id:
+            mid = str(momentum_team_id)
+            if mid == str(blue_team.id):
+                state.blue_gold += 400
+            elif mid == str(red_team.id):
+                state.red_gold += 400
         
         # Grava estado inicial
         key = f"live_match:{match_id}"
@@ -741,13 +766,42 @@ class MatchEngineService:
                     from src.modules.calendar.playoff_service import PlayoffService
 
                     ps = PlayoffService(db)
-                    await ps.resolve_match_result(
+                    bracket = await ps.resolve_match_result(
                         league_id=state.league_id,
                         blue_team_id=state.blue_team_id,
                         red_team_id=state.red_team_id,
                         winner_team_id=str(winner_id),
                         series_id=getattr(state, "series_id", None),
+                        blue_draft=list(state.blue_draft or []),
+                        red_draft=list(state.red_draft or []),
                     )
+                    if bracket and isinstance(bracket, dict):
+                        last = bracket.get("last_map_result") or {}
+                        state.series_map_result = last
+                        if last.get("score"):
+                            state.series_score = last["score"]
+                        state.event_logs.append(
+                            _normalize_event_log(
+                                {
+                                    "timestamp": f"{int(state.current_minute):02d}:00",
+                                    "phase": "COMPLETE",
+                                    "event_type": "SERIES_UPDATE",
+                                    "description": (
+                                        f"Map {last.get('map_index', '?')} encerrado. "
+                                        f"Placar da série: {last.get('score_display', '—')}"
+                                        + (
+                                            " · Série fechada!"
+                                            if last.get("series_complete")
+                                            else " · Próximo map em breve."
+                                        )
+                                    ),
+                                    "impact": last,
+                                }
+                            )
+                        )
+                        await redis_client.set_generic(
+                            f"live_match:{state.match_id}", _state_to_dict(state)
+                        )
                 except Exception as pe:
                     logger.error(
                         f"[MatchEngineService] Falha ao resolver série de playoff: {pe}",

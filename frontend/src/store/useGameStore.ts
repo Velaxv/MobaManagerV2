@@ -289,6 +289,19 @@ interface GameState {
     isPlayoff?: boolean;
     seriesId?: string;
     seriesLabel?: string;
+    seriesScore?: { home: number; away: number };
+    seriesScoreDisplay?: string;
+    mapIndex?: number;
+    fearlessUsed?: string[];
+    momentumTeamId?: string;
+    homeTeamId?: string;
+    awayTeamId?: string;
+    seriesMapResult?: {
+      series_complete?: boolean;
+      score_display?: string;
+      map_index?: number;
+      score?: { home: number; away: number };
+    } | null;
     blueScore: number;
     redScore: number;
     currentPhase: 'DRAFT' | 'DRAFT_COMPLETE' | 'EARLY_GAME' | 'MID_GAME' | 'LATE_GAME' | 'COMPLETE' | 'FINISHED' | 'SETUP';
@@ -702,9 +715,23 @@ export const useGameStore = create<GameState>((set, get) => ({
           );
 
           if (myMatch) {
-            const isPo = !!(myMatch as { is_playoff?: boolean }).is_playoff;
-            const seriesLabel = (myMatch as { series_label?: string }).series_label;
-            const seriesId = (myMatch as { series_id?: string }).series_id;
+            const m = myMatch as {
+              is_playoff?: boolean;
+              series_label?: string;
+              series_id?: string;
+              series_score?: { home: number; away: number };
+              series_score_display?: string;
+              map_index?: number;
+              fearless_used?: string[];
+              momentum_team_id?: string;
+              home_team_id?: string;
+              away_team_id?: string;
+              best_of?: number;
+            };
+            const isPo = !!m.is_playoff;
+            const seriesLabel = m.series_label;
+            const seriesId = m.series_id;
+            const scoreDisp = m.series_score_display || '0-0';
             set({
               activeMatch: {
                 matchId: undefined,
@@ -715,6 +742,13 @@ export const useGameStore = create<GameState>((set, get) => ({
                 isPlayoff: isPo,
                 seriesId,
                 seriesLabel,
+                seriesScore: m.series_score,
+                seriesScoreDisplay: scoreDisp,
+                mapIndex: m.map_index,
+                fearlessUsed: m.fearless_used || [],
+                momentumTeamId: m.momentum_team_id,
+                homeTeamId: m.home_team_id,
+                awayTeamId: m.away_team_id,
                 blueScore: 0,
                 redScore: 0,
                 currentPhase: 'DRAFT',
@@ -722,7 +756,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                   {
                     phase: 'DRAFT',
                     text: isPo
-                      ? `Playoffs${seriesLabel ? ` · ${seriesLabel}` : ''}: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}. Vá para Draft.`
+                      ? `Playoffs${seriesLabel ? ` · ${seriesLabel}` : ''}: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}${m.fearless_used?.length ? ` · Fearless (${m.fearless_used.length} bloqueados)` : ''}. Vá para Draft.`
                       : `Match day: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}. Vá para Táticas/Draft.`,
                     timestamp: '00:00',
                     type: 'alert',
@@ -1465,6 +1499,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         scout_session_id: scoutSessionId || undefined,
         blue_bans: draft.blueBans,
         red_bans: draft.redBans,
+        series_id: activeMatch.seriesId,
+        fearless_used: activeMatch.fearlessUsed || [],
+        series_score: activeMatch.seriesScore,
+        map_index: activeMatch.mapIndex,
+        momentum_team_id: activeMatch.momentumTeamId,
       });
 
       const phase = response.state?.phase === 'FINISHED' ? 'COMPLETE' : (response.state?.phase || 'EARLY_GAME');
@@ -1534,6 +1573,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       const scoutEval = state.scout_evaluation || null;
+      const seriesMapResult = state.series_map_result || activeMatch.seriesMapResult || null;
       set({
         activeMatch: {
           ...activeMatch,
@@ -1552,6 +1592,10 @@ export const useGameStore = create<GameState>((set, get) => ({
           coachCommsUsed: state.blue_coach_comms_used ?? activeMatch.coachCommsUsed,
           speed: (state.speed_label as typeof activeMatch.speed) || activeMatch.speed,
           scoutEvaluation: scoutEval || activeMatch.scoutEvaluation || null,
+          seriesMapResult,
+          seriesScore: state.series_score || seriesMapResult?.score || activeMatch.seriesScore,
+          seriesScoreDisplay:
+            seriesMapResult?.score_display || activeMatch.seriesScoreDisplay,
         },
         ...(scoutEval
           ? {

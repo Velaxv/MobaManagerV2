@@ -32,6 +32,7 @@ class DraftAIDecisionRequest(BaseModel):
     red_bans: List[str] = []
     blue_picks: List[Dict[str, str]] = []  # {champion, role}
     red_picks: List[Dict[str, str]] = []
+    fearless_used: Optional[List[str]] = None  # bloqueados na série
 
 
 class DraftScoutAdviceRequest(BaseModel):
@@ -49,6 +50,7 @@ class DraftScoutAdviceRequest(BaseModel):
     focus_role: Optional[str] = None  # role selecionada no FE
     limit: int = 5
     session_id: Optional[str] = None  # histórico de dicas na sessão de draft
+    fearless_used: Optional[List[str]] = None
 
 
 class DraftScoutActionRequest(BaseModel):
@@ -125,6 +127,12 @@ class StartLiveMatchRequest(BaseModel):
     # Bans do draft interativo (para avaliação do scout)
     blue_bans: Optional[List[str]] = None
     red_bans: Optional[List[str]] = None
+    # Playoff multi-map
+    series_id: Optional[str] = None
+    fearless_used: Optional[List[str]] = None
+    series_score: Optional[Dict[str, int]] = None
+    map_index: Optional[int] = None
+    momentum_team_id: Optional[str] = None
 
 
 class CoachCommRequest(BaseModel):

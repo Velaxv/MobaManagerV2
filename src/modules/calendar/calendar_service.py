@@ -9,7 +9,7 @@ Responsabilidades:
   - Despachar eventos de partida para o match engine quando is_match_day=True
 """
 import logging
-from typing import Optional
+from typing import Optional, List
 from datetime import date, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -366,13 +366,20 @@ class CalendarService:
         )
         ps = PlayoffService(self.db)
 
-        async def _auto(blue_id: str, red_id: str, week: int, is_playoff: bool):
+        async def _auto(
+            blue_id: str,
+            red_id: str,
+            week: int,
+            is_playoff: bool,
+            fearless_locked=None,
+        ):
             return await self._auto_simulate_match(
                 league=league,
                 blue_team_id=blue_id,
                 red_team_id=red_id,
                 week=week,
                 is_playoff=is_playoff,
+                fearless_locked=fearless_locked,
             )
 
         interactive = await ps.dispatch_match_day(
@@ -536,6 +543,7 @@ class CalendarService:
         red_team_id: str,
         week: int,
         is_playoff: bool = False,
+        fearless_locked: Optional[list] = None,
     ) -> dict:
         """
         Simula uma partida IA vs IA (draft + MatchEngine) e atualiza standings
@@ -575,6 +583,10 @@ class CalendarService:
         match_uuid = uuid_mod.uuid4()
         draft = SnakeDraft(match_id=str(match_uuid))
         draft.initialize()
+        # Fearless da série (BO3/BO5): bloqueia picks já usados
+        if fearless_locked:
+            st0 = draft.get_current_state()
+            st0.fearless_locked = list(fearless_locked)
         draft_ai = DraftAI()
 
         while not draft.get_current_state().is_complete:
@@ -582,12 +594,27 @@ class CalendarService:
             current_team_side = DraftTeam(expected["team"])
             active_team = blue_team if current_team_side == DraftTeam.BLUE else red_team
             passive_team = red_team if current_team_side == DraftTeam.BLUE else blue_team
+            state = draft.get_current_state()
+            if fearless_locked:
+                state.fearless_locked = list(fearless_locked)
             chosen_champ, role = draft_ai.make_decision(
-                draft_state=draft.get_current_state(),
+                draft_state=state,
                 team_side=current_team_side,
                 team_obj=active_team,
                 opponent_team_obj=passive_team,
             )
+            # Se fearless pegou o champ, tenta fallback
+            if chosen_champ and chosen_champ.lower() in state.unavailable_champions:
+                from src.modules.draft.draft_ai import CHAMPIONS_BY_ROLE
+                from src.shared.enums import PlayerRole as PR
+
+                pool = []
+                for rl in PR:
+                    pool.extend(CHAMPIONS_BY_ROLE.get(rl, []))
+                chosen_champ = next(
+                    (c for c in pool if c.lower() not in state.unavailable_champions),
+                    chosen_champ,
+                )
             draft.process_action(
                 team=current_team_side,
                 action=DraftAction(expected["action"]),
@@ -602,6 +629,11 @@ class CalendarService:
             blue_team=blue_team,
             red_team=red_team,
         )
+
+        # Momentum de série: leve bônus de draft penalty do oponente
+        # (vencedor do map anterior no blue = pressão)
+        if is_playoff and fearless_locked:
+            pass  # hooks futuros
 
         sim_result = MatchEngine().simulate(
             MatchInput(
@@ -689,6 +721,15 @@ class CalendarService:
             "duration": sim_result.match_duration_minutes,
             "auto_simulated": True,
             "is_playoff": is_playoff,
+            "blue_draft": [
+                {"champion": p.get("champion"), "role": p.get("role_hint")}
+                for p in (draft_state.blue_picks or [])
+            ],
+            "red_draft": [
+                {"champion": p.get("champion"), "role": p.get("role_hint")}
+                for p in (draft_state.red_picks or [])
+            ],
+            "draft_log": sim_result.draft_log,
         }
 
     @staticmethod

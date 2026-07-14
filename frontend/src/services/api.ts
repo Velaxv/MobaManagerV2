@@ -212,6 +212,11 @@ export interface PlayoffSeries {
   status: string;
   feeds_into?: string | null;
   feeds_slot?: string | null;
+  score?: { home: number; away: number };
+  maps?: { map_index: number; winner_team_id?: string }[];
+  fearless_used?: string[];
+  momentum_team_id?: string | null;
+  current_map?: number;
 }
 
 export interface PlayoffBracket {
@@ -556,6 +561,7 @@ export const api = {
     red_bans: string[];
     blue_picks: { champion: string; role: string }[];
     red_picks: { champion: string; role: string }[];
+    fearless_used?: string[];
   }): Promise<{
     champion: string;
     role?: string | null;
@@ -585,6 +591,7 @@ export const api = {
     focus_role?: string;
     limit?: number;
     session_id?: string;
+    fearless_used?: string[];
   }): Promise<DraftScoutAdviceResponse> => {
     const response = await fetch(`${API_BASE}/draft/scout-advice`, {
       method: 'POST',
@@ -833,6 +840,11 @@ export const api = {
     scout_session_id?: string;
     blue_bans?: string[];
     red_bans?: string[];
+    series_id?: string;
+    fearless_used?: string[];
+    series_score?: { home: number; away: number };
+    map_index?: number;
+    momentum_team_id?: string;
   }) => {
     const response = await fetch(`${API_BASE}/matches/live/start`, {
       method: 'POST',

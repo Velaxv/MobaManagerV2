@@ -337,6 +337,22 @@ export function MatchSimulation() {
                 <ChampionImage key={p.champion} name={p.champion} variant="pick" locked />
               ))}
             </div>
+            {activeMatch.seriesMapResult && (
+              <div className="mb-4 text-left border border-lol-gold/30 bg-black/50 rounded-sm p-3 space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-lol-gold font-semibold">
+                  Série de playoffs
+                </div>
+                <p className="text-[12px] text-white/80 font-mono">
+                  Map {activeMatch.seriesMapResult.map_index ?? activeMatch.mapIndex ?? '?'} ·
+                  Placar {activeMatch.seriesMapResult.score_display || activeMatch.seriesScoreDisplay || '—'}
+                </p>
+                <p className="text-[10px] text-white/45">
+                  {activeMatch.seriesMapResult.series_complete
+                    ? 'Série encerrada — avance o dia para a próxima chave.'
+                    : 'Série continua — avance o dia (ou o calendário) para o próximo map.'}
+                </p>
+              </div>
+            )}
             {scoutReport?.summary && (
               <div className="mb-5 text-left border border-cyan-500/30 bg-cyan-950/40 rounded-sm p-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">

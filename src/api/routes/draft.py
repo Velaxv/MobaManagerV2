@@ -36,6 +36,7 @@ def _norm_picks(picks: List[Dict[str, str]]) -> List[dict]:
 def _build_draft_state(req, turn: int):
     from src.modules.draft.snake_draft import DraftState
 
+    fearless = list(getattr(req, "fearless_used", None) or [])
     return DraftState(
         match_id="interactive",
         blue_bans=list(req.blue_bans or []),
@@ -44,6 +45,7 @@ def _build_draft_state(req, turn: int):
         red_picks=_norm_picks(req.red_picks),
         current_turn=turn,
         is_complete=turn >= 20,
+        fearless_locked=fearless,
     )
 
 

@@ -98,6 +98,9 @@ class DraftState:
     
     # Log de ações
     action_log: List[str] = field(default_factory=list)
+
+    # Fearless draft (série BO3/BO5): campeões já pickados na série
+    fearless_locked: List[str] = field(default_factory=list)
     
     @property
     def all_banned(self) -> Set[str]:
@@ -110,11 +113,15 @@ class DraftState:
         blue = {p["champion"].lower() for p in self.blue_picks}
         red = {p["champion"].lower() for p in self.red_picks}
         return blue | red
+
+    @property
+    def all_fearless(self) -> Set[str]:
+        return {c.lower() for c in (self.fearless_locked or []) if c}
     
     @property
     def unavailable_champions(self) -> Set[str]:
-        """Conjunto de todos os campeões indisponíveis (banidos ou escolhidos)."""
-        return self.all_banned | self.all_picked
+        """Banidos, pickados ou bloqueados por fearless da série."""
+        return self.all_banned | self.all_picked | self.all_fearless
     
     @property
     def current_action(self) -> Optional[Tuple[str, DraftTeam, DraftAction]]:
@@ -247,6 +254,12 @@ class SnakeDraft:
             raise ChampionAlreadyPicked(
                 f"{champion!r} já foi escolhido neste draft.",
                 code="CHAMPION_ALREADY_PICKED"
+            )
+
+        if champion_lower in self._state.all_fearless:
+            raise ChampionAlreadyPicked(
+                f"{champion!r} está bloqueado por Fearless Draft nesta série.",
+                code="CHAMPION_FEARLESS_LOCKED",
             )
         
         # Processa a ação

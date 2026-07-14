@@ -253,6 +253,7 @@ export function TacticsDraft() {
           focus_role: selectedRole,
           limit: 5,
           session_id: scoutSessionId || undefined,
+          fearless_used: fearlessUsed,
         });
         if (cancelled) return;
         if (useGameStore.getState().draft.currentTurn !== turnSnapshot) return;
@@ -303,6 +304,8 @@ export function TacticsDraft() {
     [isMyTurn, isBusy]
   );
 
+  const fearlessUsed = activeMatch?.fearlessUsed || [];
+
   const usedChamps = useMemo(
     () =>
       new Set([
@@ -310,8 +313,9 @@ export function TacticsDraft() {
         ...draft.redBans,
         ...draft.bluePicks.map((p) => p.champion),
         ...draft.redPicks.map((p) => p.champion),
+        ...fearlessUsed,
       ]),
-    [draft]
+    [draft, fearlessUsed]
   );
 
   const championsList = useMemo(() => {
@@ -457,6 +461,7 @@ export function TacticsDraft() {
             champion: p.champion,
             role: p.role,
           })),
+          fearless_used: fearlessUsed,
         });
         champion = res.champion;
         if (usedChamps.has(champion)) {
@@ -558,6 +563,15 @@ export function TacticsDraft() {
                 <p className="text-[10px] text-white/45 font-mono flex items-center gap-1.5">
                   <Volume2 className="w-3 h-3 opacity-50" />
                   Snake Draft · Ação {Math.min(draft.currentTurn + 1, 20)}/20
+                  {activeMatch?.isPlayoff && activeMatch?.seriesScoreDisplay && (
+                    <span className="text-lol-gold-soft">
+                      · Série {activeMatch.seriesScoreDisplay}
+                      {activeMatch.mapIndex ? ` · Map ${activeMatch.mapIndex}` : ''}
+                    </span>
+                  )}
+                  {fearlessUsed.length > 0 && (
+                    <span className="text-cyan-300/80">· Fearless {fearlessUsed.length}</span>
+                  )}
                 </p>
               </div>
             </div>
