@@ -166,6 +166,43 @@ class CalendarService:
                         exc_info=True,
                     )
 
+            # Treino / desenvolvimento (CA→PA) em TRAINING, SCRIM e MATCH_DAY
+            try:
+                from src.modules.career.training_service import TrainingService
+
+                training = TrainingService(self.db)
+                training_sessions = await training.process_league_day(
+                    teams_in_league,
+                    day_type=day_info["day_type"],
+                    is_match_day=day_info.get("is_match_day", False),
+                    managed_team_id=managed_team_id,
+                )
+                day_info["training_sessions"] = training_sessions
+                if managed_team_id:
+                    mine_tr = next(
+                        (
+                            s
+                            for s in training_sessions
+                            if s.get("team_id") == str(managed_team_id)
+                        ),
+                        None,
+                    )
+                    if mine_tr and not mine_tr.get("skipped"):
+                        day_info["managed_training"] = {
+                            "focus": mine_tr.get("focus"),
+                            "intensity": mine_tr.get("intensity"),
+                            "ca_gains": mine_tr.get("ca_gains", 0),
+                            "attr_gains": mine_tr.get("attr_gains", 0),
+                            "players_trained": mine_tr.get("players_trained", 0),
+                            "gains": mine_tr.get("gains", [])[:12],
+                            "day_type": mine_tr.get("day_type"),
+                        }
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Erro no treino da liga '{league.name}': {exc}",
+                    exc_info=True,
+                )
+
             # Finanças: tick mensal (a cada 28 dias de calendário)
             try:
                 from src.modules.career.finance_service import FinanceService
@@ -470,8 +507,20 @@ class CalendarService:
         from src.modules.draft.draft_ai import DraftAI, calculate_draft_penalties
         from src.modules.simulation.match_engine import MatchEngine, MatchInput
 
-        blue_team = await self.db.get(Team, uuid_mod.UUID(blue_team_id))
-        red_team = await self.db.get(Team, uuid_mod.UUID(red_team_id))
+        from sqlalchemy.orm import selectinload
+
+        blue_q = await self.db.execute(
+            select(Team)
+            .where(Team.id == uuid_mod.UUID(blue_team_id))
+            .options(selectinload(Team.players))
+        )
+        red_q = await self.db.execute(
+            select(Team)
+            .where(Team.id == uuid_mod.UUID(red_team_id))
+            .options(selectinload(Team.players))
+        )
+        blue_team = blue_q.scalar_one_or_none()
+        red_team = red_q.scalar_one_or_none()
         if not blue_team or not red_team:
             raise ValueError("Time não encontrado para auto-simulação")
 
@@ -555,6 +604,16 @@ class CalendarService:
             if contract:
                 contract.rookie_games_played += 1
                 contract.check_and_trigger_rookie_extension()
+
+        # XP de partida (CA→PA) nos titulares de ambos os lados
+        try:
+            from src.modules.career.training_service import TrainingService
+
+            tr = TrainingService(self.db)
+            await tr.apply_match_xp_for_starters(blue_team)
+            await tr.apply_match_xp_for_starters(red_team)
+        except Exception as te:
+            logger.warning(f"[CalendarService] Match XP auto-sim: {te}")
 
         db_match = Match(
             id=match_uuid,

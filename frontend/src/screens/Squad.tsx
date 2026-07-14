@@ -131,6 +131,33 @@ export function Squad() {
                       <div className="text-lol-gold-soft text-sm">{p.mechanics}</div>
                     </div>
                   </div>
+                  {/* Barra de progresso CA→PA */}
+                  <div>
+                    <div className="flex justify-between text-[9px] text-white/35 mb-0.5">
+                      <span>Progresso</span>
+                      <span>
+                        {p.potentialAbility > 0
+                          ? Math.min(
+                              100,
+                              Math.round((p.currentAbility / p.potentialAbility) * 100)
+                            )
+                          : 0}
+                        %
+                      </span>
+                    </div>
+                    <div className="stat-bar">
+                      <div
+                        className="stat-bar-fill bg-sky-500/80"
+                        style={{
+                          width: `${
+                            p.potentialAbility > 0
+                              ? Math.min(100, (p.currentAbility / p.potentialAbility) * 100)
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                     <div>

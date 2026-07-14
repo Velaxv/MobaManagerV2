@@ -11,7 +11,7 @@
 1. Abrir a pasta do projeto  
 2. Ler este arquivo + `CONTINUIDADE.md`  
 3. Roadmap: `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`  
-4. Rodar testes: deve dar **56 passed**
+4. Rodar testes: deve dar **65 passed**
    ```bat
    set PYTHONPATH=.
    venv\Scripts\python -m pytest tests -q
@@ -61,15 +61,16 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P2-3** — Treino / desenvolvimento (CA→PA)  
-2. **P2-4** — Scouting / atributos ocultos  
-3. **P3-2** — Testes de integração API (httpx) — agora mais fácil com routers  
+1. **P2-4** — Scouting / atributos ocultos  
+2. **P2-5** — Academy e subidas  
+3. **P3-2** — Testes de integração API (httpx)  
 4. Push remoto se ainda não fez: `git push origin main`
 
 ### Feito nesta retomada
 | ID | Entrega | Notas |
 |----|---------|-------|
 | P3-1 | Modularizar `main.py` | `src/api/` — schemas, serializers, routes por domínio; `main.py` ~70 linhas |
+| P2-3 | Treino / CA→PA | `TrainingService`, plano foco/intensidade, XP em treino+partida, UI no Painel |
 
 ---
 

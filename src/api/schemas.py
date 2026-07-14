@@ -75,3 +75,8 @@ class CoachCommRequest(BaseModel):
 
 class LiveSpeedRequest(BaseModel):
     speed: str  # 1x | 2x | 4x | instant
+
+
+class TrainingPlanRequest(BaseModel):
+    focus: str = "BALANCED"  # BALANCED | MECHANICS | MENTAL | TEAMPLAY | ROLE
+    intensity: str = "NORMAL"  # LIGHT | NORMAL | HARD

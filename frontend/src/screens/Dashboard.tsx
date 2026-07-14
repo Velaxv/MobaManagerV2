@@ -13,6 +13,7 @@ import {
   Activity,
   Trophy,
   FileSignature,
+  Dumbbell,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -49,7 +50,12 @@ export function Dashboard() {
     startOffseasonDev,
     finance,
     lastFinanceEvent,
+    training,
+    lastTrainingEvent,
+    setTrainingPlan,
   } = useGameStore();
+  const [trainingBusy, setTrainingBusy] = useState(false);
+  const [trainingMsg, setTrainingMsg] = useState<string | null>(null);
 
   const myTeamId = manager?.teamId;
   const isOffseason = splitPhase === SplitPhase.OFFSEASON;
@@ -355,6 +361,164 @@ export function Dashboard() {
           >
             {avgBurnout}%
           </div>
+        </div>
+      </div>
+
+      {/* Treino / desenvolvimento */}
+      <div className="panel-lol">
+        <div className="panel-lol-header">
+          <div className="flex items-center gap-2">
+            <Dumbbell className="w-4 h-4 text-sky-400" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Treino · CA → PA
+            </span>
+          </div>
+          <span className="text-[10px] text-white/35 font-mono">
+            {(training?.focus || 'BALANCED').replace(/_/g, ' ')} ·{' '}
+            {training?.intensity || 'NORMAL'}
+          </span>
+        </div>
+        <div className="p-3 space-y-3">
+          <p className="text-[11px] text-white/45 leading-relaxed">
+            Dias de treino e scrim desenvolvem o elenco. Partidas dão XP aos titulares. Rookies e
+            jovens crescem mais; burnout alto freia o progresso.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] uppercase tracking-wide text-white/35 block mb-1">
+                Foco
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ['BALANCED', 'Equilíbrio'],
+                    ['MECHANICS', 'Mecânica'],
+                    ['MENTAL', 'Mental'],
+                    ['TEAMPLAY', 'Teamplay'],
+                    ['ROLE', 'Role'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    disabled={trainingBusy}
+                    onClick={async () => {
+                      setTrainingBusy(true);
+                      setTrainingMsg(null);
+                      try {
+                        await setTrainingPlan(id, training?.intensity || 'NORMAL');
+                        setTrainingMsg(`Foco: ${label}`);
+                      } catch (e) {
+                        setTrainingMsg(e instanceof Error ? e.message : 'Erro');
+                      } finally {
+                        setTrainingBusy(false);
+                      }
+                    }}
+                    className={`text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border ${
+                      (training?.focus || 'BALANCED') === id
+                        ? 'border-sky-400/50 bg-sky-950/40 text-sky-200'
+                        : 'border-white/10 text-white/40 hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] uppercase tracking-wide text-white/35 block mb-1">
+                Intensidade
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ['LIGHT', 'Leve'],
+                    ['NORMAL', 'Normal'],
+                    ['HARD', 'Intenso'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    disabled={trainingBusy}
+                    onClick={async () => {
+                      setTrainingBusy(true);
+                      setTrainingMsg(null);
+                      try {
+                        await setTrainingPlan(training?.focus || 'BALANCED', id);
+                        setTrainingMsg(`Intensidade: ${label}`);
+                      } catch (e) {
+                        setTrainingMsg(e instanceof Error ? e.message : 'Erro');
+                      } finally {
+                        setTrainingBusy(false);
+                      }
+                    }}
+                    className={`text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border ${
+                      (training?.intensity || 'NORMAL') === id
+                        ? 'border-amber-400/50 bg-amber-950/30 text-amber-200'
+                        : 'border-white/10 text-white/40 hover:border-white/25'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {(lastTrainingEvent || training?.last_session) && (
+            <div className="rounded-sm border border-white/5 bg-black/30 p-2.5">
+              <p className="text-[10px] uppercase tracking-wide text-white/40 mb-1.5">
+                Última sessão
+                {(lastTrainingEvent?.day_type || training?.last_session?.day_type) && (
+                  <span className="font-mono text-white/30 ml-1">
+                    · {lastTrainingEvent?.day_type || training?.last_session?.day_type}
+                  </span>
+                )}
+              </p>
+              <p className="text-[11px] font-mono text-white/70">
+                +
+                {lastTrainingEvent?.ca_gains ?? training?.last_session?.ca_gains ?? 0} CA ·{' '}
+                {lastTrainingEvent?.attr_gains ?? training?.last_session?.attr_gains ?? 0} attrs ·{' '}
+                {lastTrainingEvent?.players_trained ??
+                  training?.last_session?.players_trained ??
+                  0}{' '}
+                atletas
+              </p>
+              <ul className="mt-1.5 space-y-0.5 max-h-24 overflow-y-auto">
+                {(
+                  lastTrainingEvent?.gains ||
+                  training?.last_session?.gains ||
+                  []
+                )
+                  .slice(0, 8)
+                  .map((g, i) => (
+                    <li key={`${g.player_name}-${i}`} className="text-[10px] font-mono text-white/50">
+                      <span className="text-white/75">{g.player_name}</span>
+                      {g.ca_delta ? (
+                        <span className="text-emerald-400">
+                          {' '}
+                          CA {g.ca_before}→{g.ca_after}
+                        </span>
+                      ) : null}
+                      {g.attr_deltas &&
+                        Object.keys(g.attr_deltas).length > 0 && (
+                          <span className="text-sky-300/80">
+                            {' '}
+                            ·{' '}
+                            {Object.entries(g.attr_deltas)
+                              .map(([k, v]) => `${k}+${v}`)
+                              .join(', ')}
+                          </span>
+                        )}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+          {trainingMsg && (
+            <p className="text-[10px] font-mono text-sky-300/80">{trainingMsg}</p>
+          )}
         </div>
       </div>
 

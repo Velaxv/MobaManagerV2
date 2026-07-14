@@ -739,8 +739,19 @@ class MatchEngineService:
             from src.core.config import get_settings
             _settings = get_settings()
 
+            from src.modules.career.training_service import TrainingService
+            from sqlalchemy.orm import selectinload
+
+            training_svc = TrainingService(db)
+
             for team_id in (state.blue_team_id, state.red_team_id):
-                team = await db.get(Team, uuid.UUID(team_id))
+                # Reload com players (get_starters precisa do roster)
+                tq = await db.execute(
+                    select(Team)
+                    .where(Team.id == uuid.UUID(team_id))
+                    .options(selectinload(Team.players))
+                )
+                team = tq.scalar_one_or_none()
                 if not team:
                     continue
                 for player in team.get_starters():
@@ -764,7 +775,15 @@ class MatchEngineService:
                     if contract:
                         contract.rookie_games_played += 1
                         contract.check_and_trigger_rookie_extension()
-                    
+
+                # XP de partida: chance de CA/attrs nos titulares
+                try:
+                    await training_svc.apply_match_xp_for_starters(team)
+                except Exception as te:
+                    logger.warning(
+                        f"[MatchEngineService] Match XP falhou ({team.name}): {te}"
+                    )
+
             await db.commit()
             logger.info(
                 f"[MatchEngineService] Partida {state.match_id} persistida; "

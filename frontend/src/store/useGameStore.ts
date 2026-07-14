@@ -175,6 +175,42 @@ interface GameState {
     insolvent?: boolean;
     released?: string[];
   } | null;
+  training: {
+    focus: string;
+    intensity: string;
+    last_session: {
+      day_type?: string;
+      focus?: string;
+      intensity?: string;
+      ca_gains?: number;
+      attr_gains?: number;
+      players_trained?: number;
+      gains?: {
+        player_name?: string;
+        role?: string;
+        ca_delta?: number;
+        ca_before?: number;
+        ca_after?: number;
+        attr_deltas?: Record<string, number>;
+      }[];
+    } | null;
+  } | null;
+  lastTrainingEvent: {
+    focus?: string;
+    intensity?: string;
+    ca_gains?: number;
+    attr_gains?: number;
+    players_trained?: number;
+    gains?: {
+      player_name?: string;
+      role?: string;
+      ca_delta?: number;
+      ca_before?: number;
+      ca_after?: number;
+      attr_deltas?: Record<string, number>;
+    }[];
+    day_type?: string;
+  } | null;
   myPlayers: Player[];
   marketPlayers: Player[];
   playersCache: Player[]; // Compat: myPlayers + market (legado de telas)
@@ -264,6 +300,8 @@ interface GameState {
   }[];
   refreshOffseason: () => Promise<void>;
   refreshFinance: () => Promise<void>;
+  refreshTraining: () => Promise<void>;
+  setTrainingPlan: (focus: string, intensity: string) => Promise<void>;
   renewContract: (playerId: string, seasons?: number) => Promise<void>;
   releasePlayer: (playerId: string) => Promise<void>;
   startNewSplit: () => Promise<void>;
@@ -395,6 +433,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   myBudget: 0,
   finance: null,
   lastFinanceEvent: null,
+  training: null,
+  lastTrainingEvent: null,
   myPlayers: [],
   marketPlayers: [],
   playersCache: [],
@@ -469,6 +509,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshRoundResults();
         void get().refreshOffseason();
         void get().refreshFinance();
+        void get().refreshTraining();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -484,6 +525,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             lastFinanceEvent: dayInfo.managed_finance,
             myBudget:
               dayInfo.managed_finance.budget_after ?? get().myBudget,
+          });
+        }
+        if (dayInfo.managed_training) {
+          set({
+            lastTrainingEvent: dayInfo.managed_training,
+            training: {
+              focus: dayInfo.managed_training.focus || get().training?.focus || 'BALANCED',
+              intensity:
+                dayInfo.managed_training.intensity || get().training?.intensity || 'NORMAL',
+              last_session: dayInfo.managed_training,
+            },
           });
         }
         const roundResults =
@@ -876,6 +928,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         myTeamName: myTeam?.name ?? get().myTeamName,
       });
       void get().refreshFinance();
+      void get().refreshTraining();
     } catch (err) {
       console.error('Falha ao atualizar elenco/mercado:', err);
     }
@@ -903,6 +956,39 @@ export const useGameStore = create<GameState>((set, get) => ({
     } catch (e) {
       console.warn('Finanças indisponíveis:', e);
     }
+  },
+
+  refreshTraining: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) {
+      set({ training: null });
+      return;
+    }
+    try {
+      const snap = await api.getTeamTraining(teamId);
+      set({
+        training: {
+          focus: snap.focus || 'BALANCED',
+          intensity: snap.intensity || 'NORMAL',
+          last_session: snap.last_session || null,
+        },
+      });
+    } catch (e) {
+      console.warn('Treino indisponível:', e);
+    }
+  },
+
+  setTrainingPlan: async (focus: string, intensity: string) => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time gerenciado.');
+    await api.setTeamTraining(teamId, focus, intensity);
+    set({
+      training: {
+        focus,
+        intensity,
+        last_session: get().training?.last_session ?? null,
+      },
+    });
   },
 
   refreshPlayoffs: async () => {

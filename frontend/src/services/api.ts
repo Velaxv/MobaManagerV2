@@ -227,6 +227,48 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch players');
   },
 
+  getTeamTraining: async (teamId: string): Promise<{
+    team_id: string;
+    team_name?: string;
+    focus: string;
+    intensity: string;
+    source?: string;
+    focuses?: string[];
+    intensities?: string[];
+    last_session?: {
+      day_type?: string;
+      focus?: string;
+      intensity?: string;
+      ca_gains?: number;
+      attr_gains?: number;
+      players_trained?: number;
+      gains?: {
+        player_name?: string;
+        role?: string;
+        ca_delta?: number;
+        ca_before?: number;
+        ca_after?: number;
+        attr_deltas?: Record<string, number>;
+      }[];
+    } | null;
+  }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/training`);
+    return parseJsonOrThrow(response, 'Failed to fetch training plan');
+  },
+
+  setTeamTraining: async (
+    teamId: string,
+    focus: string,
+    intensity: string
+  ): Promise<{ focus: string; intensity: string; message?: string }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/training`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ focus, intensity }),
+    });
+    return parseJsonOrThrow(response, 'Failed to set training plan');
+  },
+
   getChampions: async (): Promise<Champion[]> => {
     const response = await fetch(`${API_BASE}/champions`);
     return parseJsonOrThrow(response, 'Failed to fetch champions');

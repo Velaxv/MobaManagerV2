@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P3-1 modularização API)  
+**Última atualização:** 2026-07-14 (P2-3 treino CA→PA)  
 **Branch:** `main`  
-**Estado:** P3-1 feito — `main.py` slim + `src/api/routes/*`  
+**Estado:** P2-3 feito — treino/desenvolvimento de elenco  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -10,12 +10,12 @@
 3. Este arquivo — stack + como rodar  
 
 ### Entregue nesta jornada (fechado)
-P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências · **P3-1 modularizar API**  
-**Testes: 56 passed** · OpenAPI: 35 paths  
+P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências · P3-1 modularizar API · **P2-3 treino CA→PA**  
+**Testes: 65 passed** · `npm run build` OK  
 
 ### Próxima sessão
-1. **P2-3** Treino / CA→PA  
-2. **P2-4** Scouting / atributos ocultos  
+1. **P2-4** Scouting / atributos ocultos  
+2. **P2-5** Academy e subidas  
 3. `git push origin main` (backup remoto opcional)  
 
 ```bat
@@ -207,8 +207,8 @@ CONTINUIDADE.md  (este arquivo)
 - [x] Save/load de carreira (manager name + team + progresso)
 - [x] Renovações de contrato / free agents no offseason
 - [x] Playoffs e transição de fase completa na UI
-- [ ] Treino / desenvolvimento CA→PA (**P2-3** próximo)
-- [ ] Scouting / atributos ocultos (**P2-4**)
+- [x] Treino / desenvolvimento CA→PA (**P2-3** feito)
+- [ ] Scouting / atributos ocultos (**P2-4** próximo)
 - [ ] Migrar warnings Pydantic v2 (`ConfigDict`, lifespan)
 
 ### P3 — longo prazo
