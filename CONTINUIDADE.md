@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (sessão salva / handoff)  
+**Última atualização:** 2026-07-14 (P3-1 modularização API)  
 **Branch:** `main`  
-**Estado:** **salvo** — working tree limpa; 13 commits locais ahead de origin  
+**Estado:** P3-1 feito — `main.py` slim + `src/api/routes/*`  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -10,12 +10,12 @@
 3. Este arquivo — stack + como rodar  
 
 ### Entregue nesta jornada (fechado)
-P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências  
-**Testes: 56 passed** · `npm run build` OK  
+P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências · **P3-1 modularizar API**  
+**Testes: 56 passed** · OpenAPI: 35 paths  
 
 ### Próxima sessão
-1. **P3-1** Modularizar `main.py`  
-2. **P2-3** Treino / CA→PA  
+1. **P2-3** Treino / CA→PA  
+2. **P2-4** Scouting / atributos ocultos  
 3. `git push origin main` (backup remoto opcional)  
 
 ```bat
@@ -203,10 +203,12 @@ CONTINUIDADE.md  (este arquivo)
 - [x] Save/load
 
 ### P2 — médio prazo
-- [ ] Modularizar `src/main.py` em routers (`api/calendar.py`, `api/matches.py`, …)
-- [ ] Save/load de carreira (manager name + team + progresso)
-- [ ] Renovações de contrato / free agents no offseason
-- [ ] Playoffs e transição de fase completa na UI
+- [x] Modularizar `src/main.py` em routers (`src/api/routes/*`) — **P3-1 feito**
+- [x] Save/load de carreira (manager name + team + progresso)
+- [x] Renovações de contrato / free agents no offseason
+- [x] Playoffs e transição de fase completa na UI
+- [ ] Treino / desenvolvimento CA→PA (**P2-3** próximo)
+- [ ] Scouting / atributos ocultos (**P2-4**)
 - [ ] Migrar warnings Pydantic v2 (`ConfigDict`, lifespan)
 
 ### P3 — longo prazo
@@ -226,7 +228,7 @@ CONTINUIDADE.md  (este arquivo)
 | Draft FE | Manager joga o próprio lado; oponente usa DraftAI backend (fallback aleatório se API falhar) |
 | Seed drop_all | `POST /db/seed` **apaga** o banco SQLite e invalida saves (UUIDs mudam) |
 | Save/Load | JSON em `saves/`; exige o **mesmo** DB/seed em que salvou |
-| monólito | Quase toda a API ainda está em `main.py` |
+| monólito | ✅ Resolvido — rotas em `src/api/routes/` |
 | Times sem academy | Roster mínimo 6 (validate_roster_size); academy = 11 |
 | Filter age mercado | FE bloqueia &lt;16; label LEC ainda fala 18 |
 

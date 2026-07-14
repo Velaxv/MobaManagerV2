@@ -61,10 +61,15 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P3-1** — Modularizar `src/main.py` em routers  
-2. **P2-3** — Treino / desenvolvimento (CA→PA)  
-3. **P2-4** — Scouting / atributos ocultos  
+1. **P2-3** — Treino / desenvolvimento (CA→PA)  
+2. **P2-4** — Scouting / atributos ocultos  
+3. **P3-2** — Testes de integração API (httpx) — agora mais fácil com routers  
 4. Push remoto se ainda não fez: `git push origin main`
+
+### Feito nesta retomada
+| ID | Entrega | Notas |
+|----|---------|-------|
+| P3-1 | Modularizar `main.py` | `src/api/` — schemas, serializers, routes por domínio; `main.py` ~70 linhas |
 
 ---
 

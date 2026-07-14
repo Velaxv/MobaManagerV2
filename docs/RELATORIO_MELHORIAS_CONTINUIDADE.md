@@ -66,7 +66,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 
 | ID | Melhoria | Por quê | Esforço | Critério de pronto |
 |----|----------|---------|---------|-------------------|
-| P3-1 | **Modularizar `main.py`** em routers | Manutenção e testes de API | Médio | `api/calendar.py`, `matches.py`, `teams.py`, `seed.py` |
+| P3-1 | **Modularizar `main.py`** em routers | Manutenção e testes de API | Médio | ✅ Feito (2026-07-14) — `src/api/routes/*` + `main.py` slim |
 | P3-2 | **Testes de integração API** (httpx) | Unitários não cobrem seed→advance→match | Médio | Suite seed + advance + standings verde |
 | P3-3 | **Testes frontend** (Vitest) store + componentes chave | UI quebra sem rede de segurança | Médio | Testes do store e mapeamento de players |
 | P3-4 | **Pydantic v2 / lifespan FastAPI** | Warnings e deprecações | Baixo | Zero warnings nos testes |
