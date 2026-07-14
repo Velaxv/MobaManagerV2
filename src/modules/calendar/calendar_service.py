@@ -234,6 +234,56 @@ class CalendarService:
                     exc_info=True,
                 )
 
+            # Prática: scrims / VOD + moral & chemistry
+            try:
+                from src.modules.career.practice_service import PracticeService
+
+                # Próximo adversário do manager (calendário da semana)
+                next_opp_id = None
+                next_opp_name = None
+                if managed_team_id:
+                    for d in day_info.get("week_calendar") or []:
+                        if d.get("opponentId") or d.get("opponent_id"):
+                            next_opp_id = d.get("opponentId") or d.get("opponent_id")
+                            next_opp_name = d.get("opponentName") or d.get("opponent_name")
+                            if d.get("isToday") or d.get("type") == "MATCH_DAY":
+                                break
+                    # Prefer opponent of next match day after today
+                    for d in day_info.get("week_calendar") or []:
+                        if (d.get("type") or "").upper() == "MATCH_DAY" and (
+                            d.get("opponentId") or d.get("opponent_id")
+                        ):
+                            next_opp_id = d.get("opponentId") or d.get("opponent_id")
+                            next_opp_name = d.get("opponentName") or d.get("opponent_name")
+                            break
+
+                prac = PracticeService(self.db)
+                practice_results = await prac.process_league_day(
+                    teams_in_league,
+                    day_info["day_type"],
+                    managed_team_id=managed_team_id,
+                    managed_next_opponent_id=str(next_opp_id) if next_opp_id else None,
+                    managed_next_opponent_name=next_opp_name,
+                )
+                day_info["practice_results"] = practice_results
+                if managed_team_id and practice_results:
+                    mine_pr = next(
+                        (
+                            p
+                            for p in practice_results
+                            if p.get("team_id") == str(managed_team_id)
+                        ),
+                        None,
+                    )
+                    if mine_pr:
+                        day_info["managed_practice"] = mine_pr
+                        day_info["managed_morale"] = mine_pr.get("morale")
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Erro na prática/morale da liga '{league.name}': {exc}",
+                    exc_info=True,
+                )
+
             # Finanças: tick mensal (a cada 28 dias de calendário)
             try:
                 from src.modules.career.finance_service import FinanceService

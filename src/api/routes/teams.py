@@ -177,6 +177,28 @@ async def get_team_scouting(team_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/teams/{team_id}/practice", status_code=status.HTTP_200_OK)
+async def get_team_practice(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Scrims, VOD e intel de oponente + moral/chemistry."""
+    from src.modules.career.practice_service import PracticeService
+
+    try:
+        return await PracticeService(db).get_status(team_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/teams/{team_id}/morale", status_code=status.HTTP_200_OK)
+async def get_team_morale(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Moral, chemistry e sinergias do elenco."""
+    from src.modules.career.morale_service import MoraleService
+
+    try:
+        return await MoraleService(db).get_public(team_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/teams/{team_id}/scouting/assign", status_code=status.HTTP_200_OK)
 async def assign_scout(
     team_id: str,

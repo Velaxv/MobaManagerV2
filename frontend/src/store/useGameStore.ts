@@ -249,6 +249,23 @@ interface GameState {
     }[];
     day_type?: string;
   } | null;
+  practice: {
+    last_scrim?: Record<string, unknown> | null;
+    last_vod?: Record<string, unknown> | null;
+    opponent_intel?: Record<string, unknown> | null;
+    morale?: {
+      team_morale?: number;
+      chemistry?: number;
+      bot_synergy?: number;
+      jg_mid_synergy?: number;
+      morale_label?: string;
+      chemistry_label?: string;
+      win_streak?: number;
+      loss_streak?: number;
+      last_events?: { text: string; kind?: string }[];
+    } | null;
+  } | null;
+  lastPracticeEvent: Record<string, unknown> | null;
   scouting: {
     assignment: {
       player_id?: string;
@@ -431,6 +448,7 @@ interface GameState {
   refreshFinance: () => Promise<void>;
   refreshTraining: () => Promise<void>;
   setTrainingPlan: (focus: string, intensity: string) => Promise<void>;
+  refreshPractice: () => Promise<void>;
   refreshScouting: () => Promise<void>;
   assignScout: (playerId: string, focus?: string) => Promise<void>;
   clearScout: () => Promise<void>;
@@ -577,6 +595,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastFinanceEvent: null,
   training: null,
   lastTrainingEvent: null,
+  practice: null,
+  lastPracticeEvent: null,
   scouting: null,
   lastScoutingEvent: null,
   myPlayers: [],
@@ -657,6 +677,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshFinance();
         void get().refreshTraining();
         void get().refreshScouting();
+        void get().refreshPractice();
         void get().refreshPatch();
       }
 
@@ -693,6 +714,23 @@ export const useGameStore = create<GameState>((set, get) => ({
               assignment: dayInfo.managed_scouting.assignment || null,
               staff_power: get().scouting?.staff_power,
               knowledge_count: get().scouting?.knowledge_count,
+            },
+          });
+        }
+        if (dayInfo.managed_practice || dayInfo.managed_morale) {
+          const prev = get().practice || {};
+          set({
+            lastPracticeEvent: dayInfo.managed_practice || null,
+            practice: {
+              ...prev,
+              last_scrim:
+                dayInfo.managed_practice?.scrim || prev.last_scrim || null,
+              last_vod: dayInfo.managed_practice?.vod || prev.last_vod || null,
+              morale:
+                dayInfo.managed_morale ||
+                dayInfo.managed_practice?.morale ||
+                prev.morale ||
+                null,
             },
           });
         }
@@ -1190,6 +1228,27 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
     } catch (e) {
       console.warn('Treino indisponível:', e);
+    }
+  },
+
+  refreshPractice: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) {
+      set({ practice: null });
+      return;
+    }
+    try {
+      const snap = await api.getTeamPractice(teamId);
+      set({
+        practice: {
+          last_scrim: snap.last_scrim || null,
+          last_vod: snap.last_vod || null,
+          opponent_intel: snap.opponent_intel || null,
+          morale: snap.morale || null,
+        },
+      });
+    } catch (e) {
+      console.warn('Prática/morale indisponível:', e);
     }
   },
 

@@ -760,6 +760,27 @@ class MatchEngineService:
                     red_lt.points += 3
                     blue_lt.losses += 1
 
+            # Moral do elenco (vitória/derrota oficial)
+            try:
+                from src.modules.career.morale_service import MoraleService
+
+                ms = MoraleService(db)
+                blue_won = state.winner_side == "BLUE"
+                await ms.on_match_result(
+                    state.blue_team_id,
+                    won=blue_won,
+                    is_playoff=bool(state.is_playoff),
+                    opponent_name=state.red_team_name,
+                )
+                await ms.on_match_result(
+                    state.red_team_id,
+                    won=not blue_won,
+                    is_playoff=bool(state.is_playoff),
+                    opponent_name=state.blue_team_name,
+                )
+            except Exception as me:
+                logger.warning(f"[MatchEngineService] morale: {me}")
+
             # Playoffs: resolve série no bracket (Redis)
             if state.is_playoff:
                 try:

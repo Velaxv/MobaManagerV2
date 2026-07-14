@@ -179,6 +179,17 @@ class BurnoutService:
                 f"Burnout +4 → {new_burnout:.1f}"
             )
 
+        elif day_type == CalendarDayType.MEDIA:
+            # VOD / mídia: leve cansaço mental (análise), pouco físico
+            new_burnout = clamp(float(player.burnout_meter) + 1.5, 0.0, 100.0)
+            new_visual = clamp(float(player.visual_fatigue) + 4.0, 0.0, 100.0)
+            new_mental = clamp(float(player.mental_fatigue) + 3.0, 0.0, 100.0)
+            updates = {
+                "burnout_meter": new_burnout,
+                "visual_fatigue": new_visual,
+                "mental_fatigue": new_mental,
+            }
+
         elif day_type == CalendarDayType.MATCH_DAY or is_match_day:
             # Dia de partida: máxima penalidade + fadiga visual e mental intensas
             # Adrenalina + concentração prolongada + estresse competitivo

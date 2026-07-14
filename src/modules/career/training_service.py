@@ -221,6 +221,13 @@ class TrainingService:
             "gains": gains,
             "skipped": False,
         }
+        if intensity_v == "HARD" and source == "calendar":
+            try:
+                from src.modules.career.morale_service import MoraleService
+
+                await MoraleService(self.db).on_hard_training(str(team.id))
+            except Exception:
+                pass
         await redis_client.set_generic(self._log_key(str(team.id)), session)
         return session
 

@@ -18,6 +18,9 @@ import {
   FileCode2,
   Briefcase,
   UserPlus,
+  Heart,
+  Target,
+  Clapperboard,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -62,6 +65,9 @@ export function Dashboard() {
     lastScoutingEvent,
     clearScout,
     patchStatus,
+    practice,
+    lastPracticeEvent,
+    refreshPractice,
   } = useGameStore();
   const [trainingBusy, setTrainingBusy] = useState(false);
   const [trainingMsg, setTrainingMsg] = useState<string | null>(null);
@@ -95,6 +101,7 @@ export function Dashboard() {
 
   useEffect(() => {
     void reloadStaff();
+    void refreshPractice?.();
     if (isOffseason && myTeamId) {
       api
         .getFreeAgents({ managedTeamId: myTeamId })
@@ -481,6 +488,157 @@ export function Dashboard() {
           >
             [Dev] Forçar offseason
           </button>
+        </div>
+      )}
+
+      {/* Moral + prática pro */}
+      {myTeamId && (
+        <div className="grid lg:grid-cols-3 gap-3">
+          <div className="panel-lol border-rose-500/20 bg-rose-950/15">
+            <div className="panel-lol-header">
+              <div className="flex items-center gap-2">
+                <Heart className="w-4 h-4 text-rose-300" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-rose-200">
+                  Moral & chemistry
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-white/35">
+                {practice?.morale?.morale_label || '—'} /{' '}
+                {practice?.morale?.chemistry_label || '—'}
+              </span>
+            </div>
+            <div className="p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                  <div className="text-white/35 text-[9px] uppercase">Moral</div>
+                  <div className="font-mono text-rose-200 text-lg">
+                    {practice?.morale?.team_morale != null
+                      ? Math.round(practice.morale.team_morale)
+                      : '—'}
+                  </div>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                  <div className="text-white/35 text-[9px] uppercase">Chemistry</div>
+                  <div className="font-mono text-violet-200 text-lg">
+                    {practice?.morale?.chemistry != null
+                      ? Math.round(practice.morale.chemistry)
+                      : '—'}
+                  </div>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                  <div className="text-white/35 text-[9px] uppercase">Bot duo</div>
+                  <div className="font-mono text-white/80">
+                    {practice?.morale?.bot_synergy != null
+                      ? Math.round(practice.morale.bot_synergy)
+                      : '—'}
+                  </div>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                  <div className="text-white/35 text-[9px] uppercase">JG–MID</div>
+                  <div className="font-mono text-white/80">
+                    {practice?.morale?.jg_mid_synergy != null
+                      ? Math.round(practice.morale.jg_mid_synergy)
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+              {(practice?.morale?.win_streak || practice?.morale?.loss_streak) ? (
+                <p className="text-[9px] font-mono text-white/40">
+                  Streak V{practice?.morale?.win_streak || 0} / D
+                  {practice?.morale?.loss_streak || 0}
+                </p>
+              ) : null}
+              <ul className="space-y-1 max-h-[72px] overflow-y-auto">
+                {(practice?.morale?.last_events || []).slice(-3).map((e, i) => (
+                  <li key={i} className="text-[10px] text-white/45 leading-snug">
+                    · {e.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="panel-lol border-orange-500/20 bg-orange-950/15">
+            <div className="panel-lol-header">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-orange-300" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-orange-200">
+                  Último scrim
+                </span>
+              </div>
+            </div>
+            <div className="p-3 text-[11px] space-y-1.5">
+              {practice?.last_scrim ? (
+                <>
+                  <p className="font-semibold text-white/90">
+                    {(practice.last_scrim as { result?: string }).result === 'WIN' ? (
+                      <span className="text-emerald-400">Vitória</span>
+                    ) : (
+                      <span className="text-red-400">Derrota</span>
+                    )}{' '}
+                    vs {(practice.last_scrim as { opponent_abbr?: string }).opponent_abbr}{' '}
+                    <span className="font-mono text-white/40">
+                      {(practice.last_scrim as { score?: string }).score}
+                    </span>
+                  </p>
+                  <p className="text-white/50 leading-relaxed">
+                    {(practice.last_scrim as { notes?: string }).notes}
+                  </p>
+                  {(practice.last_scrim as { intel_gained?: { ban_suggestion?: string } })
+                    .intel_gained?.ban_suggestion && (
+                    <p className="text-[10px] text-orange-200/80 font-mono">
+                      Tip ban:{' '}
+                      {
+                        (practice.last_scrim as { intel_gained?: { ban_suggestion?: string } })
+                          .intel_gained?.ban_suggestion
+                      }
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-white/35 font-mono">
+                  Avance um dia de SCRIM (qui na regular) para treinar vs orgs da liga.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="panel-lol border-sky-500/20 bg-sky-950/15">
+            <div className="panel-lol-header">
+              <div className="flex items-center gap-2">
+                <Clapperboard className="w-4 h-4 text-sky-300" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                  VOD / intel
+                </span>
+              </div>
+            </div>
+            <div className="p-3 text-[11px] space-y-1.5">
+              {practice?.last_vod ? (
+                <>
+                  <p className="font-semibold text-white/90">
+                    Review vs {(practice.last_vod as { opponent_name?: string }).opponent_name}
+                  </p>
+                  <p className="text-white/50 leading-relaxed">
+                    {(practice.last_vod as { summary?: string }).summary}
+                  </p>
+                  <p className="text-[10px] text-sky-200/80 font-mono">
+                    Estilo {(practice.last_vod as { likely_style?: string }).likely_style} ·
+                    fraqueza {(practice.last_vod as { weak_role?: string }).weak_role} · ban{' '}
+                    {(practice.last_vod as { ban_suggestion?: string }).ban_suggestion}
+                  </p>
+                </>
+              ) : (
+                <p className="text-white/35 font-mono">
+                  Dias MEDIA / TRAINING geram VOD do próximo adversário.
+                </p>
+              )}
+              {lastPracticeEvent && (
+                <p className="text-[9px] text-white/30 font-mono pt-1 border-t border-white/5">
+                  Último evento de prática registrado no advance day.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

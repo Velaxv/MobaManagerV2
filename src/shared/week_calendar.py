@@ -15,23 +15,23 @@ from src.shared.round_robin import get_round_pairs, match_day_round_index
 
 DAY_LABELS = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"]
 
-# Regular season: Qua/Sáb = match day; Dom = rest
+# Regular season: Qua/Sáb = match day; Qui = scrim; Sex = treino/VOD
 _REGULAR_WEEK_TYPES = [
     CalendarDayType.TRAINING,
     CalendarDayType.TRAINING,
     CalendarDayType.MATCH_DAY,
     CalendarDayType.SCRIM,
-    CalendarDayType.TRAINING,
+    CalendarDayType.MEDIA,  # VOD review
     CalendarDayType.MATCH_DAY,
     CalendarDayType.REST,
 ]
 
-# Playoffs: Qui/Dom = match day (alinhado à SM)
+# Playoffs: Qui/Dom = match day; scrim/VOD entre mapas
 _PLAYOFF_WEEK_TYPES = [
     CalendarDayType.TRAINING,
-    CalendarDayType.REST,
+    CalendarDayType.SCRIM,
     CalendarDayType.TRAINING,
-    CalendarDayType.TRAINING,
+    CalendarDayType.MEDIA,  # VOD / análise
     CalendarDayType.MATCH_DAY,
     CalendarDayType.TRAINING,
     CalendarDayType.MATCH_DAY,

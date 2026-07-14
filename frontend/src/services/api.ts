@@ -754,6 +754,16 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch staff');
   },
 
+  getTeamPractice: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/practice`);
+    return parseJsonOrThrow(response, 'Failed to fetch practice status');
+  },
+
+  getTeamMorale: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/morale`);
+    return parseJsonOrThrow(response, 'Failed to fetch morale');
+  },
+
   getStaffCandidates: async (teamId: string): Promise<{
     candidates: StaffCandidate[];
     budget: number;
