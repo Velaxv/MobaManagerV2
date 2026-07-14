@@ -1,9 +1,9 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (S1–S3 salvos; S4 em implementação)  
-**Branch:** `main` (= `origin/main`)  
+**Última atualização:** 2026-07-14 (S1–S4 implementados; playtest OK)  
+**Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Estado:** **salvo** — working tree limpa no handoff; pode jogar com `run_game.bat`
+**Estado:** **salvo** — jogar com `run_game.bat`
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist + o que testar  
@@ -21,8 +21,8 @@
 **Testes:** 120+ passed · push GitHub OK  
 
 ### Próximo
-- **S4** dono da org: sponsors, board, facility  
-- Playtest manual + notas  
+- Playtest S1–S4 + notas de melhorias  
+- Opcional: Vitest (P3-3), scrim jogável  
 
 ```bat
 run_game.bat

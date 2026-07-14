@@ -21,6 +21,8 @@ import {
   Heart,
   Target,
   Clapperboard,
+  Building2,
+  Landmark,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -80,8 +82,21 @@ export function Dashboard() {
     scout_mult?: number;
   } | null>(null);
   const [faCount, setFaCount] = useState<number | null>(null);
+  const [org, setOrg] = useState<Record<string, unknown> | null>(null);
+  const [orgBusy, setOrgBusy] = useState<string | null>(null);
+  const [orgMsg, setOrgMsg] = useState<string | null>(null);
 
   const myTeamId = manager?.teamId;
+
+  const reloadOrg = async () => {
+    if (!myTeamId) return;
+    try {
+      const o = await api.getTeamOrg(myTeamId);
+      setOrg(o);
+    } catch {
+      /* ignore */
+    }
+  };
   const isOffseason = splitPhase === SplitPhase.OFFSEASON;
 
   const reloadStaff = async () => {
@@ -102,6 +117,7 @@ export function Dashboard() {
   useEffect(() => {
     void reloadStaff();
     void refreshPractice?.();
+    void reloadOrg();
     if (isOffseason && myTeamId) {
       api
         .getFreeAgents({ managedTeamId: myTeamId })
@@ -488,6 +504,242 @@ export function Dashboard() {
           >
             [Dev] Forçar offseason
           </button>
+        </div>
+      )}
+
+      {/* S4 — Dono da org */}
+      {myTeamId && org && (
+        <div
+          className={`panel-lol ${
+            org.fired
+              ? 'border-red-600/50 bg-red-950/40'
+              : 'border-amber-500/25 bg-amber-950/15'
+          }`}
+        >
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-amber-300" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-amber-200">
+                Organização · Board & Sponsors
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-white/40">
+              Brand {Math.round(Number(org.brand) || 0)} · Confiança{' '}
+              {String(org.board_confidence_label || '—')}
+            </span>
+          </div>
+          <div className="p-3 space-y-3">
+            {org.fired ? (
+              <p className="text-sm text-red-300 font-semibold">
+                Você foi demitido pela diretoria. Inicie uma nova carreira.
+              </p>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-3 gap-2 text-[11px]">
+                  <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                    <div className="text-white/35 text-[9px] uppercase">Board</div>
+                    <div className="font-mono text-amber-200 text-lg">
+                      {Math.round(Number(org.board_confidence) || 0)}
+                    </div>
+                    <div className="text-[9px] text-white/40">
+                      {String(org.board_goal_label || '')}
+                    </div>
+                  </div>
+                  <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                    <div className="text-white/35 text-[9px] uppercase flex items-center gap-1">
+                      <Building2 className="w-3 h-3" /> Facility Nv.
+                      {(org.facility as { level?: number })?.level ?? 1}
+                    </div>
+                    <div className="text-white/80 text-[10px] mt-0.5">
+                      {(org.facility as { name?: string })?.name}
+                    </div>
+                    <div className="font-mono text-[9px] text-white/35">
+                      −€{Math.round(Number(org.facility_monthly_cost) || 0).toLocaleString('pt-BR')}
+                      /mês
+                    </div>
+                  </div>
+                  <div className="bg-black/30 border border-white/5 rounded-sm p-2">
+                    <div className="text-white/35 text-[9px] uppercase">Sponsors</div>
+                    <div className="font-mono text-emerald-300 text-lg">
+                      +€
+                      {Math.round(Number(org.sponsor_monthly_income) || 0).toLocaleString(
+                        'pt-BR'
+                      )}
+                    </div>
+                    <div className="text-[9px] text-white/40">/mês líquido org</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    (org.goals_available as { id: string; label: string }[]) || []
+                  ).map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      disabled={!!orgBusy || org.board_goal === g.id}
+                      onClick={async () => {
+                        setOrgBusy(g.id);
+                        setOrgMsg(null);
+                        try {
+                          const o = await api.setBoardGoal(myTeamId, g.id);
+                          setOrg(o);
+                          setOrgMsg(`Meta: ${g.label}`);
+                        } catch (e) {
+                          setOrgMsg(e instanceof Error ? e.message : 'Erro meta');
+                        } finally {
+                          setOrgBusy(null);
+                        }
+                      }}
+                      className={`text-[9px] uppercase px-2 py-1 rounded-sm border ${
+                        org.board_goal === g.id
+                          ? 'border-amber-400/50 bg-amber-950/40 text-amber-200'
+                          : 'border-white/10 text-white/45 hover:border-amber-500/30'
+                      } disabled:opacity-40`}
+                    >
+                      {g.id}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[9px] uppercase text-white/35">Ativos</div>
+                  {((org.sponsors as { id: string; name: string; monthly_payout: number; months_left?: number }[]) ||
+                    []
+                  ).length === 0 && (
+                    <p className="text-[10px] text-white/35">Nenhum sponsor ativo.</p>
+                  )}
+                  {(
+                    (org.sponsors as {
+                      id: string;
+                      name: string;
+                      monthly_payout: number;
+                      months_left?: number;
+                    }[]) || []
+                  ).map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-2 text-[10px] bg-black/25 border border-white/5 rounded-sm px-2 py-1"
+                    >
+                      <span className="font-semibold text-white/85">{s.name}</span>
+                      <span className="font-mono text-emerald-400/90">
+                        +€{Math.round(s.monthly_payout).toLocaleString('pt-BR')}
+                      </span>
+                      <span className="text-white/30">{s.months_left ?? '—'}m</span>
+                      <button
+                        type="button"
+                        className="ml-auto text-red-400/80 hover:text-red-300"
+                        disabled={!!orgBusy}
+                        onClick={async () => {
+                          if (!confirm(`Encerrar ${s.name}?`)) return;
+                          setOrgBusy(s.id);
+                          try {
+                            setOrg(await api.dropSponsor(myTeamId, s.id));
+                          } catch (e) {
+                            setOrgMsg(e instanceof Error ? e.message : 'Erro');
+                          } finally {
+                            setOrgBusy(null);
+                          }
+                        }}
+                      >
+                        Encerrar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[9px] uppercase text-white/35">Ofertas</div>
+                  {(
+                    (org.sponsor_offers as {
+                      offer_id: string;
+                      name: string;
+                      monthly_payout: number;
+                      goal_label?: string;
+                      tier?: string;
+                    }[]) || []
+                  ).map((o) => (
+                    <div
+                      key={o.offer_id}
+                      className="flex flex-wrap items-center gap-2 text-[10px] border border-amber-500/15 bg-black/20 rounded-sm px-2 py-1.5"
+                    >
+                      <span className="font-semibold">{o.name}</span>
+                      <span className="text-white/30">T{o.tier}</span>
+                      <span className="font-mono text-emerald-300">
+                        +€{Math.round(o.monthly_payout).toLocaleString('pt-BR')}/m
+                      </span>
+                      <span className="text-white/35 truncate max-w-[10rem]">
+                        {o.goal_label}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!!orgBusy}
+                        className="ml-auto text-[9px] uppercase text-emerald-400 border border-emerald-700/40 px-2 py-0.5 rounded-sm"
+                        onClick={async () => {
+                          setOrgBusy(o.offer_id);
+                          try {
+                            setOrg(await api.acceptSponsor(myTeamId, o.offer_id));
+                            setOrgMsg(`Sponsor: ${o.name}`);
+                          } catch (e) {
+                            setOrgMsg(e instanceof Error ? e.message : 'Erro');
+                          } finally {
+                            setOrgBusy(null);
+                          }
+                        }}
+                      >
+                        Aceitar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {(org.facility as { next_upgrade_cost?: number; next_name?: string })
+                  ?.next_upgrade_cost != null && (
+                  <button
+                    type="button"
+                    disabled={!!orgBusy}
+                    className="btn-lol-primary text-[10px] py-1.5 px-3"
+                    onClick={async () => {
+                      setOrgBusy('fac');
+                      setOrgMsg(null);
+                      try {
+                        const o = await api.upgradeFacility(myTeamId);
+                        setOrg(o);
+                        if (o.team_budget != null) {
+                          /* budget refresh */
+                          void useGameStore.getState().refreshRosterAndMarket?.();
+                          void useGameStore.getState().refreshFinance?.();
+                        }
+                        setOrgMsg(
+                          `Sede: ${(o.facility as { name?: string })?.name || 'upgrade'}`
+                        );
+                      } catch (e) {
+                        setOrgMsg(e instanceof Error ? e.message : 'Erro upgrade');
+                      } finally {
+                        setOrgBusy(null);
+                      }
+                    }}
+                  >
+                    Upgrade sede → {(org.facility as { next_name?: string }).next_name} (€
+                    {Math.round(
+                      Number((org.facility as { next_upgrade_cost?: number }).next_upgrade_cost) ||
+                        0
+                    ).toLocaleString('pt-BR')}
+                    )
+                  </button>
+                )}
+
+                {orgMsg && (
+                  <p className="text-[10px] font-mono text-white/45">{orgMsg}</p>
+                )}
+                <ul className="text-[9px] text-white/35 space-y-0.5 max-h-[60px] overflow-y-auto">
+                  {((org.last_events as { text: string }[]) || []).slice(-4).map((e, i) => (
+                    <li key={i}>· {e.text}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </div>
       )}
 

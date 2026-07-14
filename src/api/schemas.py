@@ -101,6 +101,14 @@ class FireStaffRequest(BaseModel):
     staff_id: str
 
 
+class BoardGoalRequest(BaseModel):
+    goal: str  # MID_TABLE | PLAYOFFS | TOP4 | TITLE
+
+
+class AcceptSponsorRequest(BaseModel):
+    offer_id: str
+
+
 class CareerSaveRequest(BaseModel):
     slot: str = "slot1"
     manager_name: str

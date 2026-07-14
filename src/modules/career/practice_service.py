@@ -160,12 +160,24 @@ class PracticeService:
         notes = rng.choice(SCRIM_NOTES_WIN if won else SCRIM_NOTES_LOSS)
         style = rng.choice(STYLES)
 
+        # Facility bonus (S4)
+        chem_bonus = 0.0
+        try:
+            from src.modules.career.org_service import OrgService
+
+            ost = await OrgService(self.db).get_state(str(team.id))
+            chem_bonus = float(
+                OrgService(self.db).facility_bonuses(ost).get("scrim_chem_bonus") or 0
+            )
+        except Exception:
+            pass
+
         # Moral / chemistry
         if won:
             await self.morale.apply_delta(
                 str(team.id),
                 morale=3.5,
-                chemistry=4.0,
+                chemistry=4.0 + chem_bonus,
                 bot_synergy=2.0,
                 jg_mid_synergy=2.0,
                 event=f"Scrim vitória vs {opp.abbreviation}: {notes}",
@@ -175,7 +187,7 @@ class PracticeService:
             await self.morale.apply_delta(
                 str(team.id),
                 morale=-2.0,
-                chemistry=3.0,  # scrim ruim ainda treina coesão
+                chemistry=3.0 + chem_bonus,  # scrim ruim ainda treina coesão
                 bot_synergy=1.0,
                 jg_mid_synergy=1.0,
                 event=f"Scrim derrota vs {opp.abbreviation}: {notes}",

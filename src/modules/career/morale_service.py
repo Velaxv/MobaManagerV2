@@ -133,11 +133,22 @@ class MoraleService:
         return state
 
     async def on_rest_day(self, team_id: str) -> Dict[str, Any]:
+        extra = 0.0
+        try:
+            from src.modules.career.org_service import OrgService
+
+            ost = await OrgService(self.db).get_state(team_id)
+            extra = float(
+                OrgService(self.db).facility_bonuses(ost).get("rest_morale_bonus") or 0
+            )
+        except Exception:
+            pass
         return await self.apply_delta(
             team_id,
-            morale=2.5,
+            morale=2.5 + extra,
             chemistry=1.0,
-            event="Dia de descanso: elenco recuperou o humor",
+            event="Dia de descanso: elenco recuperou o humor"
+            + (f" (+facility {extra:.0f})" if extra else ""),
             kind="good",
         )
 

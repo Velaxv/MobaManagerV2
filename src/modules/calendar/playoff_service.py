@@ -720,6 +720,13 @@ class PlayoffService:
             f"({champion_id}). Placements aplicados."
         )
 
+        try:
+            from src.modules.career.org_service import OrgService
+
+            await OrgService(self.db).on_champion(str(champion_id))
+        except Exception as ce:
+            logger.warning(f"[PlayoffService] org champion: {ce}")
+
         # Abre offseason automaticamente após coroar o campeão
         try:
             from src.modules.career.offseason_service import OffseasonService

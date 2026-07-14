@@ -764,6 +764,44 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch morale');
   },
 
+  getTeamOrg: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/org`);
+    return parseJsonOrThrow(response, 'Failed to fetch org');
+  },
+
+  setBoardGoal: async (teamId: string, goal: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/org/board-goal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal }),
+    });
+    return parseJsonOrThrow(response, 'Failed to set board goal');
+  },
+
+  acceptSponsor: async (teamId: string, offerId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/org/sponsors/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer_id: offerId }),
+    });
+    return parseJsonOrThrow(response, 'Failed to accept sponsor');
+  },
+
+  dropSponsor: async (teamId: string, sponsorId: string) => {
+    const response = await fetch(
+      `${API_BASE}/teams/${teamId}/org/sponsors/${sponsorId}/drop`,
+      { method: 'POST' }
+    );
+    return parseJsonOrThrow(response, 'Failed to drop sponsor');
+  },
+
+  upgradeFacility: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/org/facility/upgrade`, {
+      method: 'POST',
+    });
+    return parseJsonOrThrow(response, 'Failed to upgrade facility');
+  },
+
   getStaffCandidates: async (teamId: string): Promise<{
     candidates: StaffCandidate[];
     budget: number;

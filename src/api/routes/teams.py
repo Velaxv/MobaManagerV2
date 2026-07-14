@@ -15,6 +15,8 @@ from src.api.schemas import (
     LineupRequest,
     HireStaffRequest,
     FireStaffRequest,
+    BoardGoalRequest,
+    AcceptSponsorRequest,
 )
 from src.api.serializers import serialize_player
 from src.core.database import get_db
@@ -196,6 +198,61 @@ async def get_team_morale(team_id: str, db: AsyncSession = Depends(get_db)):
     try:
         return await MoraleService(db).get_public(team_id)
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/teams/{team_id}/org", status_code=status.HTTP_200_OK)
+async def get_team_org(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Board, sponsors e facility (S4)."""
+    from src.modules.career.org_service import OrgService
+
+    try:
+        return await OrgService(db).get_public(team_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/teams/{team_id}/org/board-goal", status_code=status.HTTP_200_OK)
+async def set_board_goal(
+    team_id: str, req: BoardGoalRequest, db: AsyncSession = Depends(get_db)
+):
+    from src.modules.career.org_service import OrgService
+
+    try:
+        return await OrgService(db).set_board_goal(team_id, req.goal)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/teams/{team_id}/org/sponsors/accept", status_code=status.HTTP_200_OK)
+async def accept_sponsor(
+    team_id: str, req: AcceptSponsorRequest, db: AsyncSession = Depends(get_db)
+):
+    from src.modules.career.org_service import OrgService
+
+    try:
+        return await OrgService(db).accept_sponsor(team_id, req.offer_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/teams/{team_id}/org/sponsors/{sponsor_id}/drop", status_code=status.HTTP_200_OK)
+async def drop_sponsor(team_id: str, sponsor_id: str, db: AsyncSession = Depends(get_db)):
+    from src.modules.career.org_service import OrgService
+
+    try:
+        return await OrgService(db).drop_sponsor(team_id, sponsor_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/teams/{team_id}/org/facility/upgrade", status_code=status.HTTP_200_OK)
+async def upgrade_facility(team_id: str, db: AsyncSession = Depends(get_db)):
+    from src.modules.career.org_service import OrgService
+
+    try:
+        return await OrgService(db).upgrade_facility(team_id)
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

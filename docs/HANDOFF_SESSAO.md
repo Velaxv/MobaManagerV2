@@ -2,8 +2,8 @@
 
 **Status:** salvo — working tree limpa; `main` = `origin/main`.  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Último commit base:** `93115c0` — scrims, VOD, moral/chemistry (S3)  
-**Testes:** **120 passed** (pytest)
+**Último commit base:** S4 org (sponsors/board/facility) após `93115c0` S3  
+**Testes:** **127 passed** (pytest)
 
 ---
 
@@ -33,6 +33,7 @@
 | **S1 Offseason** | Janela de mercado (full/FA-only/fechada), free agents, staff hire/fire |
 | **S2 Playoffs** | Séries BO3/BO5 multi-map, fearless, momentum, placar no bracket |
 | **S3 Prática** | Scrims, VOD/intel, moral + chemistry + sinergias no hub |
+| **S4 Org** | Sponsors, board confidence/metas, facility 3 níveis, demissão |
 
 ### Stack
 - Backend: FastAPI + SQLite + MockRedis  
@@ -65,20 +66,17 @@
 - Avançar até dia **SCRIM** (qui) ou **MEDIA** (sex)  
 - Painel: cards Moral · Scrim · VOD  
 
+### S4 — Org
+- Painel **Organização · Board & Sponsors**  
+- Aceitar sponsors, mudar meta board, upgrade facility  
+- Tick mensal (a cada 28 dias) aplica sponsor − facility  
+- Confiança board ≤15 → demissão  
+
 ---
 
 ## Calendário regular (S3)
 
 `SEG treino · TER treino · QUA match · QUI scrim · SEX VOD · SAB match · DOM rest`
-
----
-
-## Próximo (S4 — a implementar / em curso)
-
-**Dono da org (MVP):**
-1. Sponsors (receita + metas)  
-2. Board confidence (metas do split + risco de demissão)  
-3. Facility 3 níveis (custo mensal + bônus scrim/recovery)  
 
 ---
 
