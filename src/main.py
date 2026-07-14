@@ -172,16 +172,20 @@ async def _build_week_calendar_for_league(
     from src.shared.week_calendar import build_week_calendar
 
     phase = league.current_phase.value if league.current_phase else "OFFSEASON"
-    day_of_week = max(0, (league.current_day - 1) % 7)
+    day_of_week = max(0, (int(league.current_day or 1) - 1) % 7)
     current_week = int(league.current_week or 0)
+    current_day = int(league.current_day or 0)
 
+    # Usa a SM da liga já carregada (evita re-query UUID string vs UUID column)
     calendar_service = CalendarService(db)
-    sm_status = await calendar_service.get_league_calendar_status(str(league.id))
-    if sm_status:
-        day_of_week = int(sm_status.get("day_of_week") or 0)
-        current_week = int(sm_status.get("week") or 0)
-        if sm_status.get("state"):
-            phase = sm_status["state"]
+    sm = await calendar_service._get_or_create_sm(league)
+    if sm.is_initialized and sm.context is not None:
+        ctx = sm.context
+        day_of_week = int(ctx.current_day_of_week or 0)
+        current_week = int(ctx.current_week or 0)
+        current_day = int(ctx.total_days_elapsed or current_day)
+        if ctx.current_state_name:
+            phase = ctx.current_state_name
 
     team_rows = await _teams_for_week_calendar(db, league.id)
     week_calendar = build_week_calendar(
@@ -208,7 +212,7 @@ async def _build_week_calendar_for_league(
             break
 
     return {
-        "current_day": league.current_day if not sm_status else sm_status.get("total_days", league.current_day),
+        "current_day": current_day,
         "current_week": current_week,
         "current_phase": phase,
         "day_of_week": day_of_week,

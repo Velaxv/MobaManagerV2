@@ -461,8 +461,16 @@ class CalendarService:
         Returns:
             Dict com o estado atual ou None se a liga não existir.
         """
+        import uuid as uuid_mod
+
+        try:
+            league_uuid = uuid_mod.UUID(str(league_id))
+        except (ValueError, TypeError):
+            logger.warning(f"[CalendarService] league_id inválido: {league_id!r}")
+            return None
+
         result = await self.db.execute(
-            select(League).where(League.id == league_id)
+            select(League).where(League.id == league_uuid)
         )
         league = result.scalar_one_or_none()
 
