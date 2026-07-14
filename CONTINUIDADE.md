@@ -1,31 +1,22 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P2-2 transferências)  
+**Última atualização:** 2026-07-14 (sessão salva / handoff)  
 **Branch:** `main`  
-**Estado:** P1 + finanças + negociação de transferências  
+**Estado:** **salvo** — working tree limpa; 13 commits locais ahead de origin  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
 2. [`docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`](docs/RELATORIO_MELHORIAS_CONTINUIDADE.md) — o que fazer a seguir  
-3. [`docs/RELATORIO_ESTADO_ATUAL.md`](docs/RELATORIO_ESTADO_ATUAL.md) — como o jogo está  
+3. Este arquivo — stack + como rodar  
 
-### Entregue nesta jornada
-- Seed CBLOL 2026 (8 times) · loop carreira FE↔API  
-- UI: hub FM + draft LoL + live + wizard  
-- Live speed · burnout · round-robin · calendário RR  
-- **P1-1:** Playoffs top 6 (bye 1–2, QF/SF/Final, campeão + prêmios)  
-- **P1-6:** Resultados da rodada no hub + `GET /leagues/{id}/matches` + ver log  
-- **P1-3:** Save/Load JSON (`saves/`) · botão Salvar no hub · Carregar no menu  
-- **P1-2:** Offseason — renovar/liberar + iniciar novo split  
-- **P1-4:** Draft AI backend no oponente (`POST /draft/ai-decision`)  
-- **P1-5:** Táticas pós-draft (estilo Early/Mid/Late, lineup, coach comms)  
-- **Fotos de jogadores:** 42/45 com retrato real (Leaguepedia); 3 silhueta (Ayu, Curse, Envy)  
-- **P2-1:** Finanças — receita − folha a cada 28 dias; painel no hub; insolvência  
-- **P2-2:** Negociação de transferência (taxa + salário + duração, contra-oferta)  
-- Testes: **56 passed** · `npm run build` OK  
+### Entregue nesta jornada (fechado)
+P0 calendário RR · P1 playoffs/resultados/save/offseason/draftAI/táticas · fotos · P2 finanças + transferências  
+**Testes: 56 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P3-1 modularizar API · P2-3 treino · scouting  
+1. **P3-1** Modularizar `main.py`  
+2. **P2-3** Treino / CA→PA  
+3. `git push origin main` (backup remoto opcional)  
 
 ```bat
 run_game.bat

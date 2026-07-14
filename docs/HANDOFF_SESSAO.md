@@ -1,7 +1,8 @@
 # Handoff de sessão — 2026-07-14
 
-**Status:** trabalho salvo localmente (commit em `main`).  
-**Pode fechar a sessão com segurança.**
+**Status:** sessão encerrada com segurança — tudo commitado em `main` (local).  
+**Working tree:** limpa.  
+**Branch:** `main` **ahead of origin by 13** (após este handoff).
 
 ---
 
@@ -10,60 +11,60 @@
 1. Abrir a pasta do projeto  
 2. Ler este arquivo + `CONTINUIDADE.md`  
 3. Roadmap: `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`  
-4. Estado do jogo: `docs/RELATORIO_ESTADO_ATUAL.md`  
-5. Rodar:
+4. Rodar testes: deve dar **56 passed**
+   ```bat
+   set PYTHONPATH=.
+   venv\Scripts\python -m pytest tests -q
+   ```
+5. Jogar:
    ```bat
    run_game.bat
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. Verificar: `pytest` deve dar **56 passed**
+6. **Opcional (backup remoto):**
+   ```bat
+   git push origin main
+   ```
 
 ---
 
-## O que foi entregue nesta jornada (resumo)
+## O que está pronto (jornada 2026-07-14)
 
-### Backend
-- Seed **CBLOL 2026 Split 1** (8 times oficiais) em `src/shared/cblol_2026_data.py`
-- API players/mercado/transferências/calendário/`managed_team_id`
-- Live match: standings + **burnout** nos titulares ao fim
-- **Velocidade live** 1x / 2x / 4x / instant (`POST /matches/live/{id}/speed`)
-- **Round-robin** determinístico (`src/shared/round_robin.py`)
-- Auto-sim de jogos de terceiros no match day
+| ID | Entrega | Commit (ref) |
+|----|---------|--------------|
+| P0-3 | Calendário visual com adversário RR | `a9f00b2` + fix UUID |
+| P1-1 | Playoffs top 6 + campeão | `6fb1f27` |
+| P1-6 | Resultados da rodada + ver log | `67b685f` |
+| P1-3 | Save/Load JSON (`saves/`) | `0d923ce` |
+| P1-2 | Offseason renovar/liberar + novo split | `39a8c9a` |
+| P1-4 | Draft AI backend no oponente | `e3a3470` |
+| P1-5 | Táticas pré-partida | `7b2f3cb` |
+| — | Fotos reais + silhueta | `b6dd6cf` |
+| P2-1 | Finanças (folha/receita/tick 28d) | `6590620` |
+| P2-2 | Negociação transferência | `19dd0fc` |
 
-### Frontend
-- Hub estilo Football Manager (`GameShell` + Painel/Elenco/Tabela/Mercado)
-- Draft estilo cliente LoL (splash, lock-in, role icons, Data Dragon)
-- Live match polida (scoreboard, victory, speed controls)
-- New Game Wizard em 3 passos com preview de elenco
-- Menu principal imersivo
+### Stack / como rodar
+- Backend: FastAPI + SQLite + MockRedis  
+- Frontend: React/Vite/Tailwind  
+- Seed: `POST /db/seed` ou `seed_runner.py` (**apaga DB e invalida saves**)  
+- Save/load: pasta `saves/` — não rode seed entre save e load  
 
-### Docs
-- `CONTINUIDADE.md` — como rodar + log
-- `docs/RELATORIO_ESTADO_ATUAL.md` — como o jogo está
-- `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md` — backlog P0–P4
-- Este handoff
-
-### Testes
-- **36 passed** (unitários backend)
-
-### P1-1 Playoffs (sessão atual)
-- `src/modules/calendar/playoff_service.py` — bracket top 6
-- `GET/POST /leagues/{id}/playoffs` (+ `/start` forçado para playtest)
-- Standings com seed/placement; Dashboard banner + chave na Tabela
+### Armadilhas
+| Item | Detalhe |
+|------|---------|
+| Seed | Recria UUIDs → saves quebram |
+| MockRedis | Live/calendário/playoffs em memória somem se reiniciar uvicorn mid-session |
+| Fotos | 42/45 OK; Ayu, Curse, Envy = silhueta |
 
 ---
 
 ## Próxima sessão (prioridade)
 
-1. **P3-1** — Modularizar `main.py`  
-2. **P2-3** — Treino / desenvolvimento  
-3. **P2-2** — ✅ Negociação de transferência  
-4. **P2-1 / P1** — ✅  
-5. Commit local + **push para origin** se quiser backup remoto:
-   ```bat
-   git push origin main
-   ```
+1. **P3-1** — Modularizar `src/main.py` em routers  
+2. **P2-3** — Treino / desenvolvimento (CA→PA)  
+3. **P2-4** — Scouting / atributos ocultos  
+4. Push remoto se ainda não fez: `git push origin main`
 
 ---
 
@@ -84,8 +85,11 @@ venv\Scripts\python seed_runner.py
 :: Frontend
 cd frontend
 npm run dev
+
+:: Fotos (regerar mapa)
+venv\Scripts\python scripts\fetch_player_photos.py --missing
 ```
 
 ---
 
-*Sessão encerrada em estado jogável e documentado.*
+*Pode fechar a sessão. Retomar por `CONTINUIDADE.md` → este handoff.*
