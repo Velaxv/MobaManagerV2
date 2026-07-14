@@ -265,12 +265,18 @@ class CalendarService:
                 is_playoff=is_playoff,
             )
 
-        return await ps.dispatch_match_day(
+        interactive = await ps.dispatch_match_day(
             league=league,
             day_info=day_info,
             managed_team_id=managed_team_id,
             auto_simulate_fn=_auto,
         )
+        day_info["round_results"] = self._merge_round_results(
+            day_info.get("all_matches_today") or [],
+            day_info.get("auto_simulated_matches") or [],
+            day_info.get("scheduled_matches") or [],
+        )
+        return interactive
 
     async def _dispatch_match_day(
         self,
@@ -360,7 +366,58 @@ class CalendarService:
         day_info["scheduled_matches"] = interactive
         day_info["auto_simulated_matches"] = auto_results
         day_info["all_matches_today"] = all_matches
+        day_info["round_results"] = self._merge_round_results(
+            all_matches, auto_results, interactive
+        )
         return interactive
+
+    @staticmethod
+    def _merge_round_results(
+        all_matches: list[dict],
+        auto_results: list[dict],
+        interactive: list[dict],
+    ) -> list[dict]:
+        """Monta lista completa da rodada (auto-sim + pendentes do manager)."""
+        done_by_pair: dict[tuple, dict] = {}
+        for r in auto_results:
+            key = (r.get("blue_team_id"), r.get("red_team_id"))
+            done_by_pair[key] = r
+
+        pending_ids = {
+            (m.get("blue_team_id"), m.get("red_team_id")) for m in interactive
+        }
+        source = all_matches if all_matches else list(auto_results) + list(interactive)
+        rows: list[dict] = []
+        seen: set[tuple] = set()
+        for m in source:
+            key = (m.get("blue_team_id"), m.get("red_team_id"))
+            if key in seen or not key[0] or not key[1]:
+                continue
+            seen.add(key)
+            if key in done_by_pair:
+                done = done_by_pair[key]
+                rows.append({
+                    **m,
+                    **{k: done[k] for k in done if k not in ("blue_team_id", "red_team_id")},
+                    "status": "complete",
+                    "match_id": done.get("match_id"),
+                    "winner_team_id": done.get("winner_team_id"),
+                    "winner_name": done.get("winner_name"),
+                    "duration": done.get("duration"),
+                    "auto_simulated": True,
+                })
+            elif key in pending_ids:
+                rows.append({
+                    **m,
+                    "status": "pending",
+                    "match_id": None,
+                    "winner_team_id": None,
+                    "winner_name": None,
+                    "auto_simulated": False,
+                })
+            else:
+                rows.append({**m, "status": "unknown"})
+        return rows
 
     async def _auto_simulate_match(
         self,

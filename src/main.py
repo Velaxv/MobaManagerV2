@@ -1027,6 +1027,105 @@ async def force_start_playoffs(league_id: str, db: AsyncSession = Depends(get_db
     }
 
 
+def _match_summary_row(match_obj: Match, blue: Team, red: Team) -> dict:
+    """Serializa partida para lista de resultados da rodada."""
+    winner_id = str(match_obj.winner_team_id) if match_obj.winner_team_id else None
+    winner_name = None
+    if winner_id == str(blue.id):
+        winner_name = blue.name
+    elif winner_id == str(red.id):
+        winner_name = red.name
+    return {
+        "match_id": str(match_obj.id),
+        "blue_team_id": str(blue.id),
+        "blue_team_name": blue.name,
+        "blue_team_abbr": blue.abbreviation,
+        "red_team_id": str(red.id),
+        "red_team_name": red.name,
+        "red_team_abbr": red.abbreviation,
+        "winner_team_id": winner_id,
+        "winner_name": winner_name,
+        "duration": match_obj.match_duration_minutes,
+        "split_week": match_obj.split_week,
+        "split_phase": match_obj.split_phase.value if match_obj.split_phase else None,
+        "is_playoff": bool(match_obj.is_playoff),
+        "scheduled_at": match_obj.scheduled_at.isoformat() if match_obj.scheduled_at else None,
+        "status": "complete" if winner_id else "pending",
+    }
+
+
+@app.get("/leagues/{league_id}/matches", status_code=status.HTTP_200_OK)
+async def list_league_matches(
+    league_id: str,
+    week: Optional[int] = None,
+    is_playoff: Optional[bool] = None,
+    latest_round: bool = True,
+    limit: int = 40,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Lista partidas da liga (resultados da rodada).
+
+    - latest_round=true (default): só a semana mais recente que tem jogos.
+    - week=: filtra semana específica (ignora latest_round).
+    """
+    league = await db.get(League, uuid.UUID(league_id))
+    if not league:
+        raise HTTPException(status_code=404, detail="Liga não encontrada.")
+
+    limit = max(1, min(int(limit or 40), 100))
+    base = select(Match).where(Match.league_id == uuid.UUID(league_id))
+
+    if is_playoff is not None:
+        base = base.where(Match.is_playoff == is_playoff)
+
+    if week is not None:
+        base = base.where(Match.split_week == int(week))
+    elif latest_round:
+        # Semana mais recente com partidas (mesmo filtro playoff se houver)
+        sub = select(Match.split_week).where(Match.league_id == uuid.UUID(league_id))
+        if is_playoff is not None:
+            sub = sub.where(Match.is_playoff == is_playoff)
+        sub = sub.order_by(Match.split_week.desc(), Match.scheduled_at.desc()).limit(1)
+        latest = (await db.execute(sub)).scalar_one_or_none()
+        if latest is not None:
+            base = base.where(Match.split_week == latest)
+
+    query = await db.execute(
+        base.order_by(Match.scheduled_at.desc()).limit(limit)
+    )
+    matches = list(query.scalars().all())
+
+    # Prefetch times
+    team_ids = set()
+    for m in matches:
+        team_ids.add(m.blue_team_id)
+        team_ids.add(m.red_team_id)
+    teams_map: Dict[uuid.UUID, Team] = {}
+    if team_ids:
+        tq = await db.execute(select(Team).where(Team.id.in_(list(team_ids))))
+        for t in tq.scalars().all():
+            teams_map[t.id] = t
+
+    rows = []
+    for m in matches:
+        blue = teams_map.get(m.blue_team_id)
+        red = teams_map.get(m.red_team_id)
+        if not blue or not red:
+            continue
+        rows.append(_match_summary_row(m, blue, red))
+
+    # Exibe ordem da rodada (mais antigas primeiro na UI)
+    rows.reverse()
+
+    return {
+        "league_id": league_id,
+        "count": len(rows),
+        "week": rows[0]["split_week"] if rows else week,
+        "matches": rows,
+    }
+
+
 @app.get("/matches/{match_id}", status_code=status.HTTP_200_OK)
 async def get_match_details(match_id: str, db: AsyncSession = Depends(get_db)):
     """
@@ -1045,11 +1144,22 @@ async def get_match_details(match_id: str, db: AsyncSession = Depends(get_db)):
     if not match_obj:
         raise HTTPException(status_code=404, detail="Partida não encontrada.")
 
-    # Carrega nomes dos times
-    b_team_query = await db.execute(select(Team).where(Team.id == match_obj.blue_team_id))
-    b_name = b_team_query.scalar_one().name
-    r_team_query = await db.execute(select(Team).where(Team.id == match_obj.red_team_id))
-    r_name = r_team_query.scalar_one().name
+    blue = await db.get(Team, match_obj.blue_team_id)
+    red = await db.get(Team, match_obj.red_team_id)
+    b_name = blue.name if blue else "Blue"
+    r_name = red.name if red else "Red"
+
+    def _clip_logs(logs, n=8):
+        if not logs or not isinstance(logs, list):
+            return []
+        return logs[-n:]
+
+    winner_id = match_obj.winner_team_id
+    winner_name = None
+    if winner_id and blue and winner_id == blue.id:
+        winner_name = b_name
+    elif winner_id and red and winner_id == red.id:
+        winner_name = r_name
 
     return {
         "source": "database",
@@ -1057,15 +1167,27 @@ async def get_match_details(match_id: str, db: AsyncSession = Depends(get_db)):
             "match_id": str(match_obj.id),
             "blue_team": b_name,
             "red_team": r_name,
-            "winner_team_id": str(match_obj.winner_team_id),
+            "blue_team_id": str(match_obj.blue_team_id),
+            "red_team_id": str(match_obj.red_team_id),
+            "blue_team_abbr": blue.abbreviation if blue else None,
+            "red_team_abbr": red.abbreviation if red else None,
+            "winner_team_id": str(winner_id) if winner_id else None,
+            "winner_name": winner_name,
             "blue_result": match_obj.blue_result.value if match_obj.blue_result else None,
             "red_result": match_obj.red_result.value if match_obj.red_result else None,
             "duration": match_obj.match_duration_minutes,
             "blue_win_probability": match_obj.blue_win_probability,
+            "split_week": match_obj.split_week,
+            "is_playoff": bool(match_obj.is_playoff),
             "early_game": match_obj.early_game_log,
             "mid_game": match_obj.mid_game_log,
             "late_game": match_obj.late_game_log,
-            "draft": match_obj.draft_log
+            "draft": match_obj.draft_log,
+            "log_preview": (
+                _clip_logs(match_obj.early_game_log, 3)
+                + _clip_logs(match_obj.mid_game_log, 3)
+                + _clip_logs(match_obj.late_game_log, 4)
+            ),
         }
     }
 

@@ -145,7 +145,15 @@ interface GameState {
   leagueId: string | null;
   standings: StandingRow[];
   playoffBracket: import('../services/api').PlayoffBracket | null;
-  lastAutoResults: { winner_name?: string; blue_team_name?: string; red_team_name?: string }[];
+  /** @deprecated use roundResults — mantido para compat */
+  lastAutoResults: import('../services/api').RoundMatchResult[];
+  roundResults: import('../services/api').RoundMatchResult[];
+  roundResultsWeek: number | null;
+  matchLogPreview: {
+    matchId: string;
+    title: string;
+    lines: string[];
+  } | null;
   myTeamName: string;
   myBudget: number;
   myPlayers: Player[];
@@ -200,6 +208,9 @@ interface GameState {
   loadData: () => Promise<void>;
   refreshRosterAndMarket: () => Promise<void>;
   refreshPlayoffs: () => Promise<void>;
+  refreshRoundResults: () => Promise<void>;
+  openMatchLog: (matchId: string) => Promise<void>;
+  closeMatchLog: () => void;
   startPlayoffsDev: () => Promise<void>;
   setCalendarDayType: (dayIndex: number, type: CalendarDayType) => void;
   triggerCoachComm: () => void;
@@ -301,6 +312,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   standings: [],
   playoffBracket: null,
   lastAutoResults: [],
+  roundResults: [],
+  roundResultsWeek: null,
+  matchLogPreview: null,
   myTeamName: "Moba Manager Club", // Default
   myBudget: 0,
   myPlayers: [],
@@ -369,6 +383,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           console.warn('Standings indisponíveis:', e);
         }
         void get().refreshPlayoffs();
+        void get().refreshRoundResults();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -376,12 +391,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ playoffBracket: advanceResponse.results[0].playoff_bracket });
       }
 
-      // Intercepta dias de jogo do manager + resultados auto-simulados
+      // Intercepta dias de jogo do manager + resultados da rodada
       if (advanceResponse?.results?.length > 0) {
         const dayInfo = advanceResponse.results[0];
-        const autoResults = dayInfo.auto_simulated_matches || [];
-        if (autoResults.length) {
-          set({ lastAutoResults: autoResults });
+        const roundResults =
+          dayInfo.round_results ||
+          dayInfo.auto_simulated_matches ||
+          [];
+        if (roundResults.length) {
+          set({
+            roundResults,
+            lastAutoResults: roundResults,
+            roundResultsWeek: dayInfo.week ?? get().currentWeek,
+          });
         }
 
         if (dayInfo.is_match_day && dayInfo.scheduled_matches?.length) {
@@ -704,6 +726,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       if (leagueId) {
         void get().refreshPlayoffs();
+        void get().refreshRoundResults();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);
@@ -755,6 +778,59 @@ export const useGameStore = create<GameState>((set, get) => ({
       console.warn('Playoffs indisponíveis:', e);
     }
   },
+
+  refreshRoundResults: async () => {
+    const leagueId = get().leagueId;
+    if (!leagueId) return;
+    try {
+      const res = await api.getLeagueMatches(leagueId, { latest_round: true, limit: 20 });
+      const matches = res.matches || [];
+      set({
+        roundResults: matches,
+        lastAutoResults: matches,
+        roundResultsWeek: res.week ?? null,
+      });
+    } catch (e) {
+      console.warn('Resultados da rodada indisponíveis:', e);
+    }
+  },
+
+  openMatchLog: async (matchId: string) => {
+    try {
+      const res = await api.getMatchDetails(matchId);
+      const data = res.data || res;
+      const preview = data.log_preview || [];
+      const lines = (Array.isArray(preview) ? preview : [])
+        .map((entry: unknown) => {
+          if (typeof entry === 'string') return entry;
+          if (entry && typeof entry === 'object') {
+            const e = entry as { message?: string; text?: string; event?: string; phase?: string };
+            return e.message || e.text || e.event || JSON.stringify(entry);
+          }
+          return String(entry);
+        })
+        .filter(Boolean);
+      const title = `${data.blue_team_abbr || data.blue_team || 'Blue'} vs ${
+        data.red_team_abbr || data.red_team || 'Red'
+      }${data.winner_name ? ` · ${data.winner_name}` : ''}`;
+      set({
+        matchLogPreview: {
+          matchId,
+          title,
+          lines: lines.length
+            ? lines
+            : [
+                `Duração: ${data.duration ?? '—'} min`,
+                data.winner_name ? `Vencedor: ${data.winner_name}` : 'Sem vencedor',
+              ],
+        },
+      });
+    } catch (e) {
+      console.error('Falha ao carregar log da partida:', e);
+    }
+  },
+
+  closeMatchLog: () => set({ matchLogPreview: null }),
 
   startPlayoffsDev: async () => {
     const leagueId = get().leagueId;

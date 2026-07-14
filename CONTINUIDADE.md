@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-1 Playoffs top 6)  
+**Última atualização:** 2026-07-14 (P1-6 resultados da rodada)  
 **Branch:** `main`  
-**Estado:** P1-1 playoffs implementado (bracket + campeão)  
+**Estado:** P1-1 + P1-6 entregues  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -14,10 +14,11 @@
 - UI: hub FM + draft LoL + live + wizard  
 - Live speed · burnout · round-robin · calendário RR  
 - **P1-1:** Playoffs top 6 (bye 1–2, QF/SF/Final, campeão + prêmios)  
-- Testes: **36 passed** · `npm run build` OK  
+- **P1-6:** Resultados da rodada no hub + `GET /leagues/{id}/matches` + ver log  
+- Testes: **37 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-6 resultados da rodada → P1-3 save/load → P1-2 offseason  
+P1-3 save/load → P1-2 offseason → P1-4 DraftAI  
 
 ```bat
 run_game.bat

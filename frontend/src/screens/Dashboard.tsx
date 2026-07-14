@@ -31,10 +31,17 @@ export function Dashboard() {
     activeMatch,
     setCurrentScreen,
     standings,
-    lastAutoResults,
+    roundResults,
+    roundResultsWeek,
+    matchLogPreview,
+    openMatchLog,
+    closeMatchLog,
+    manager,
     splitPhase,
     playoffBracket,
   } = useGameStore();
+
+  const myTeamId = manager?.teamId;
 
   const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
   const myStanding = standings.find((s) => s.team_name === myTeamName);
@@ -431,32 +438,122 @@ export function Dashboard() {
 
         <div className="panel-lol">
           <div className="panel-lol-header">
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
-              Resultados da rodada (IA)
+            <div className="flex items-center gap-2">
+              <Swords className="w-4 h-4 text-lol-gold" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+                Resultados da rodada
+              </span>
+            </div>
+            <span className="text-[10px] text-white/30 font-mono">
+              {roundResultsWeek != null ? `Sem ${roundResultsWeek}` : '—'}
+              {roundResults.length ? ` · ${roundResults.length} jogos` : ''}
             </span>
           </div>
           <div className="p-3">
-            {lastAutoResults.length === 0 ? (
+            {roundResults.length === 0 ? (
               <p className="text-xs text-white/40 font-mono leading-relaxed">
-                Partidas de outros times são simuladas no match day. Seu confronto abre o draft estilo
-                cliente.
+                Avance um match day para ver todos os confrontos da rodada. Partidas de terceiros
+                simulam automaticamente; a sua abre o draft.
               </p>
             ) : (
-              <ul className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto">
-                {lastAutoResults.map((r, i) => (
-                  <li
-                    key={i}
-                    className="text-[11px] font-mono p-2.5 border border-white/5 bg-black/30 rounded-sm text-white/70 flex flex-wrap items-center gap-x-2"
-                  >
-                    <span className="text-white/40">
-                      {(r as { blue_team_name?: string }).blue_team_name || 'Blue'} vs{' '}
-                      {(r as { red_team_name?: string }).red_team_name || 'Red'}
-                    </span>
-                    <span className="text-lol-gold">→</span>
-                    <span className="text-emerald-400 font-bold">{r.winner_name || '—'}</span>
-                  </li>
-                ))}
+              <ul className="flex flex-col gap-1.5 max-h-[280px] overflow-y-auto">
+                {roundResults.map((r, i) => {
+                  const involvesMe =
+                    !!myTeamId &&
+                    (r.blue_team_id === myTeamId || r.red_team_id === myTeamId);
+                  const pending = r.status === 'pending' || (!r.winner_name && !r.match_id);
+                  const blueTag = r.blue_team_abbr || r.blue_team_name || 'Blue';
+                  const redTag = r.red_team_abbr || r.red_team_name || 'Red';
+                  const iWon =
+                    involvesMe &&
+                    r.winner_team_id &&
+                    r.winner_team_id === myTeamId;
+                  const iLost =
+                    involvesMe &&
+                    r.winner_team_id &&
+                    r.winner_team_id !== myTeamId;
+                  return (
+                    <li
+                      key={r.match_id || `${blueTag}-${redTag}-${i}`}
+                      className={`text-[11px] font-mono p-2.5 border rounded-sm flex flex-col gap-1 ${
+                        involvesMe
+                          ? 'border-lol-gold/35 bg-lol-gold/5'
+                          : 'border-white/5 bg-black/30'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className={involvesMe ? 'text-white/90 font-semibold' : 'text-white/55'}>
+                          {blueTag}
+                          <span className="text-white/25 mx-1">vs</span>
+                          {redTag}
+                        </span>
+                        {r.is_playoff && (
+                          <span className="text-[9px] uppercase text-lol-gold/70 border border-lol-gold/20 px-1 rounded-sm">
+                            PO
+                          </span>
+                        )}
+                        {pending ? (
+                          <span className="text-amber-400/90 text-[10px]">Pendente</span>
+                        ) : (
+                          <>
+                            <span className="text-lol-gold/60">→</span>
+                            <span
+                              className={
+                                iWon
+                                  ? 'text-emerald-400 font-bold'
+                                  : iLost
+                                    ? 'text-lol-red-side font-bold'
+                                    : 'text-emerald-400/90 font-bold'
+                              }
+                            >
+                              {r.winner_name || '—'}
+                            </span>
+                            {r.duration != null && (
+                              <span className="text-white/25">{Math.round(Number(r.duration))}′</span>
+                            )}
+                          </>
+                        )}
+                        {r.match_id && (
+                          <button
+                            type="button"
+                            onClick={() => void openMatchLog(r.match_id!)}
+                            className="ml-auto text-[9px] uppercase tracking-wide text-lol-gold/80 hover:text-lol-gold border border-lol-gold/20 px-1.5 py-0.5 rounded-sm"
+                          >
+                            Ver log
+                          </button>
+                        )}
+                      </div>
+                      {r.series_label && (
+                        <span className="text-[9px] text-white/30">{r.series_label}</span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
+            )}
+
+            {matchLogPreview && (
+              <div className="mt-3 border border-lol-gold/25 bg-black/50 rounded-sm p-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-lol-gold-soft">
+                    {matchLogPreview.title}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => closeMatchLog()}
+                    className="text-[9px] text-white/40 hover:text-white uppercase"
+                  >
+                    Fechar
+                  </button>
+                </div>
+                <ul className="max-h-36 overflow-y-auto space-y-1">
+                  {matchLogPreview.lines.map((line, idx) => (
+                    <li key={idx} className="text-[10px] font-mono text-white/50 leading-snug">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         </div>

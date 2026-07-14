@@ -121,6 +121,24 @@ export interface StandingRow {
   prize_earned?: number;
 }
 
+export interface RoundMatchResult {
+  match_id?: string | null;
+  blue_team_id?: string;
+  blue_team_name?: string;
+  blue_team_abbr?: string;
+  red_team_id?: string;
+  red_team_name?: string;
+  red_team_abbr?: string;
+  winner_team_id?: string | null;
+  winner_name?: string | null;
+  duration?: number | null;
+  split_week?: number;
+  is_playoff?: boolean;
+  status?: string;
+  auto_simulated?: boolean;
+  series_label?: string;
+}
+
 export interface PlayoffSeriesSide {
   team_id?: string | null;
   team_name?: string | null;
@@ -201,6 +219,29 @@ export const api = {
   getStandings: async (leagueId: string): Promise<StandingRow[]> => {
     const response = await fetch(`${API_BASE}/leagues/${leagueId}/standings`);
     return parseJsonOrThrow(response, 'Failed to fetch standings');
+  },
+
+  getLeagueMatches: async (
+    leagueId: string,
+    opts?: { latest_round?: boolean; week?: number; limit?: number }
+  ): Promise<{
+    league_id: string;
+    count: number;
+    week: number | null;
+    matches: RoundMatchResult[];
+  }> => {
+    const params = new URLSearchParams();
+    if (opts?.latest_round === false) params.set('latest_round', 'false');
+    if (opts?.week != null) params.set('week', String(opts.week));
+    if (opts?.limit != null) params.set('limit', String(opts.limit));
+    const qs = params.toString() ? `?${params}` : '';
+    const response = await fetch(`${API_BASE}/leagues/${leagueId}/matches${qs}`);
+    return parseJsonOrThrow(response, 'Failed to fetch league matches');
+  },
+
+  getMatchDetails: async (matchId: string) => {
+    const response = await fetch(`${API_BASE}/matches/${matchId}`);
+    return parseJsonOrThrow(response, 'Failed to fetch match details');
   },
 
   getPlayoffs: async (leagueId: string): Promise<PlayoffsResponse> => {
