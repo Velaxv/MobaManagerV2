@@ -218,11 +218,23 @@ class PatchService:
 
         logger.info(f"Carregando modificadores do patch {active_patch.version} em memória virtual...")
 
-        stats_stmt = select(ChampionRoleStats).join(Champion)
+        stats_stmt = (
+            select(ChampionRoleStats)
+            .options(selectinload(ChampionRoleStats.champion))
+            .join(Champion)
+        )
         stats_result = await self.db.execute(stats_stmt)
         all_stats = stats_result.scalars().all()
 
-        meta_stmt = select(ChampionPatchMeta).where(ChampionPatchMeta.patch_id == active_patch.id)
+        meta_stmt = (
+            select(ChampionPatchMeta)
+            .where(ChampionPatchMeta.patch_id == active_patch.id)
+            .options(
+                selectinload(ChampionPatchMeta.role_stats).selectinload(
+                    ChampionRoleStats.champion
+                )
+            )
+        )
         meta_result = await self.db.execute(meta_stmt)
         patch_metas = meta_result.scalars().all()
 
@@ -232,7 +244,10 @@ class PatchService:
 
         compiled_meta: Dict[str, Dict[str, float]] = {}
         for stat in all_stats:
-            key = f"{stat.champion.name.lower()}:{stat.role.upper()}"
+            champ = getattr(stat, "champion", None)
+            if not champ:
+                continue
+            key = f"{champ.name.lower()}:{str(stat.role).upper()}"
             
             modifier = meta_map.get(str(stat.id))
             dmg_mod = modifier.damage_modifier if modifier else 1.0

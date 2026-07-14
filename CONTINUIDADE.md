@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P2-6 patches)  
+**Última atualização:** 2026-07-14 (P3-2 testes integração API)  
 **Branch:** `main`  
-**Estado:** P2-6 feito — patch notes, meta no draft e motor  
+**Estado:** P3-2 feito — suite httpx seed→advance→standings  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -10,12 +10,12 @@
 3. Este arquivo — stack + como rodar  
 
 ### Entregue nesta jornada (fechado)
-P0…P2-5 · **P2-6 patches jogáveis**  
-**Testes: 84 passed** · `npm run build` OK  
+P0…P2-6 · **P3-2 testes integração API**  
+**Testes: 92+ passed** · `npm run build` OK  
 
 ### Próxima sessão
-1. **P3-2** Testes integração API  
-2. **P3-4** Pydantic v2 / lifespan  
+1. **P3-4** Pydantic v2 / lifespan  
+2. **P3-6** CI GitHub Actions  
 3. `git push origin main` (backup remoto opcional)  
 
 ```bat
@@ -211,7 +211,7 @@ CONTINUIDADE.md  (este arquivo)
 - [x] Scouting / atributos ocultos (**P2-4** feito)
 - [x] Academy e subidas (**P2-5** feito)
 - [x] Patches jogáveis (**P2-6** feito)
-- [ ] Testes integração API (**P3-2**)
+- [x] Testes integração API (**P3-2** feito) — `tests/test_api_integration.py`
 - [ ] Migrar warnings Pydantic v2 (`ConfigDict`, lifespan)
 
 ### P3 — longo prazo
