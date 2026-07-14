@@ -943,12 +943,88 @@ async def get_league_standings(league_id: str, db: AsyncSession = Depends(get_db
             "wins": lt.wins,
             "losses": lt.losses,
             "points": lt.points,
-            "win_rate": f"{lt.win_rate * 100:.1f}%"
+            "win_rate": f"{lt.win_rate * 100:.1f}%",
+            "is_in_playoffs": bool(lt.is_in_playoffs),
+            "playoff_seed": lt.playoff_seed,
+            "final_placement": lt.final_placement,
+            "prize_earned": float(lt.prize_earned or 0),
         })
     
-    # Ordena por pontos e depois vitórias
-    standings.sort(key=lambda x: (x["points"], x["wins"]), reverse=True)
+    # Ordena: placements finais (pós-playoffs) ou points/wins
+    if any(s.get("final_placement") for s in standings):
+        standings.sort(
+            key=lambda x: (
+                x["final_placement"] is None,
+                x["final_placement"] if x["final_placement"] is not None else 99,
+                -x["points"],
+                -x["wins"],
+            )
+        )
+    else:
+        standings.sort(key=lambda x: (x["points"], x["wins"]), reverse=True)
     return standings
+
+
+@app.get("/leagues/{league_id}/playoffs", status_code=status.HTTP_200_OK)
+async def get_league_playoffs(league_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Bracket de playoffs (top 6). Gera sob demanda se a fase já for PLAYOFFS.
+    """
+    from src.modules.calendar.playoff_service import PlayoffService
+
+    league = await db.get(League, uuid.UUID(league_id))
+    if not league:
+        raise HTTPException(status_code=404, detail="Liga não encontrada.")
+
+    ps = PlayoffService(db)
+    bracket = await ps.get_bracket(league_id)
+
+    if not bracket and league.current_phase == SplitPhase.PLAYOFFS:
+        try:
+            bracket = await ps.ensure_bracket(league)
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Falha ao gerar bracket: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail=str(e))
+
+    if not bracket:
+        return {
+            "status": "not_started",
+            "message": "Playoffs ainda não iniciados. Avance a temporada regular até o fim.",
+            "bracket": None,
+        }
+
+    return {"status": bracket.get("status", "active"), "bracket": bracket}
+
+
+@app.post("/leagues/{league_id}/playoffs/start", status_code=status.HTTP_201_CREATED)
+async def force_start_playoffs(league_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Dev/playtest: força PLAYOFFS + bracket top 6 sem avançar semanas.
+    """
+    from src.modules.calendar.playoff_service import PlayoffService
+
+    league = await db.get(League, uuid.UUID(league_id))
+    if not league:
+        raise HTTPException(status_code=404, detail="Liga não encontrada.")
+
+    calendar_service = CalendarService(db)
+    sm = await calendar_service._get_or_create_sm(league)
+    await sm.force_transition_to("PLAYOFFS")
+
+    league.current_phase = SplitPhase.PLAYOFFS
+    league.current_week = 0
+
+    await redis_client.delete_playoff_state(str(league.id))
+    ps = PlayoffService(db)
+    bracket = await ps.initialize_from_standings(league)
+    await db.commit()
+
+    return {
+        "message": "Playoffs iniciados (forçado).",
+        "league_id": str(league.id),
+        "bracket": bracket,
+    }
 
 
 @app.get("/matches/{match_id}", status_code=status.HTTP_200_OK)
@@ -1033,13 +1109,18 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         
     # Cria ID único de partida
     match_id = str(uuid.uuid4())
+
+    # Playoffs: marca série se a liga já está na fase (mesmo que o FE esqueça o flag)
+    is_playoff = bool(req.is_playoff) or (
+        league.current_phase == SplitPhase.PLAYOFFS
+    )
     
     # Inicializa simulação
     live_state = await match_engine_service.start_live_simulation(
         match_id=match_id,
         league_id=str(league.id),
         split_week=req.split_week,
-        is_playoff=req.is_playoff,
+        is_playoff=is_playoff,
         blue_team=blue_team,
         red_team=red_team,
         blue_draft=req.blue_draft,

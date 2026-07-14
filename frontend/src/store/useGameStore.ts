@@ -144,6 +144,7 @@ interface GameState {
   teams: Team[];
   leagueId: string | null;
   standings: StandingRow[];
+  playoffBracket: import('../services/api').PlayoffBracket | null;
   lastAutoResults: { winner_name?: string; blue_team_name?: string; red_team_name?: string }[];
   myTeamName: string;
   myBudget: number;
@@ -158,6 +159,9 @@ interface GameState {
     redTeam: string;
     blueTeamId?: string;
     redTeamId?: string;
+    isPlayoff?: boolean;
+    seriesId?: string;
+    seriesLabel?: string;
     blueScore: number;
     redScore: number;
     currentPhase: 'DRAFT' | 'DRAFT_COMPLETE' | 'EARLY_GAME' | 'MID_GAME' | 'LATE_GAME' | 'COMPLETE' | 'FINISHED' | 'SETUP';
@@ -195,6 +199,8 @@ interface GameState {
   setCurrentScreen: (screen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS') => void;
   loadData: () => Promise<void>;
   refreshRosterAndMarket: () => Promise<void>;
+  refreshPlayoffs: () => Promise<void>;
+  startPlayoffsDev: () => Promise<void>;
   setCalendarDayType: (dayIndex: number, type: CalendarDayType) => void;
   triggerCoachComm: () => void;
   startSimulation: (blueTeam: string, redTeam: string, blueTeamId?: string, redTeamId?: string) => void;
@@ -293,6 +299,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   teams: [],
   leagueId: null,
   standings: [],
+  playoffBracket: null,
   lastAutoResults: [],
   myTeamName: "Moba Manager Club", // Default
   myBudget: 0,
@@ -361,6 +368,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         } catch (e) {
           console.warn('Standings indisponíveis:', e);
         }
+        void get().refreshPlayoffs();
+      }
+
+      // Bracket vindo no advance (transição / match day playoff)
+      if (advanceResponse?.results?.[0]?.playoff_bracket) {
+        set({ playoffBracket: advanceResponse.results[0].playoff_bracket });
       }
 
       // Intercepta dias de jogo do manager + resultados auto-simulados
@@ -378,6 +391,9 @@ export const useGameStore = create<GameState>((set, get) => ({
           );
 
           if (myMatch) {
+            const isPo = !!(myMatch as { is_playoff?: boolean }).is_playoff;
+            const seriesLabel = (myMatch as { series_label?: string }).series_label;
+            const seriesId = (myMatch as { series_id?: string }).series_id;
             set({
               activeMatch: {
                 matchId: undefined,
@@ -385,13 +401,18 @@ export const useGameStore = create<GameState>((set, get) => ({
                 redTeam: myMatch.red_team_name,
                 blueTeamId: myMatch.blue_team_id,
                 redTeamId: myMatch.red_team_id,
+                isPlayoff: isPo,
+                seriesId,
+                seriesLabel,
                 blueScore: 0,
                 redScore: 0,
                 currentPhase: 'DRAFT',
                 logs: [
                   {
                     phase: 'DRAFT',
-                    text: `Match day: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}. Vá para Táticas/Draft.`,
+                    text: isPo
+                      ? `Playoffs${seriesLabel ? ` · ${seriesLabel}` : ''}: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}. Vá para Draft.`
+                      : `Match day: ${myMatch.blue_team_name} vs ${myMatch.red_team_name}. Vá para Táticas/Draft.`,
                     timestamp: '00:00',
                     type: 'alert',
                   },
@@ -680,6 +701,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         calendar: weekCalendar,
         isDataLoaded: true,
       });
+
+      if (leagueId) {
+        void get().refreshPlayoffs();
+      }
     } catch (error) {
       console.error('Failed to load game data:', error);
       // Fallback offline
@@ -720,6 +745,44 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
+  refreshPlayoffs: async () => {
+    const leagueId = get().leagueId;
+    if (!leagueId) return;
+    try {
+      const res = await api.getPlayoffs(leagueId);
+      set({ playoffBracket: res.bracket || null });
+    } catch (e) {
+      console.warn('Playoffs indisponíveis:', e);
+    }
+  },
+
+  startPlayoffsDev: async () => {
+    const leagueId = get().leagueId;
+    if (!leagueId) return;
+    try {
+      const res = await api.startPlayoffs(leagueId);
+      set({
+        playoffBracket: res.bracket || null,
+        splitPhase: SplitPhase.PLAYOFFS,
+        currentWeek: 0,
+      });
+      const standings = await api.getStandings(leagueId);
+      set({ standings });
+      const calendarData = await api.getCalendar(get().manager?.teamId);
+      set({
+        currentWeek: calendarData.current_week,
+        splitPhase: calendarData.current_phase as SplitPhase,
+        currentDayIndex: calendarData.day_of_week ?? 0,
+        calendar: calendarData.week_calendar
+          ? mapWeekCalendar(calendarData.week_calendar)
+          : get().calendar,
+      });
+    } catch (e) {
+      console.error('Falha ao iniciar playoffs:', e);
+      throw e;
+    }
+  },
+
   submitDraftAndStartMatch: async (speed = '2x') => {
     const { draft, activeMatch, teams } = get();
     if (!activeMatch) return;
@@ -729,10 +792,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       const blueTeamId = activeMatch.blueTeamId || teams.find(t => activeMatch.blueTeam.includes(t.name))?.id || teams[0].id;
       const redTeamId = activeMatch.redTeamId || teams.find(t => activeMatch.redTeam.includes(t.name))?.id || teams[1].id;
 
+      const isPlayoff =
+        !!activeMatch.isPlayoff || get().splitPhase === SplitPhase.PLAYOFFS;
+
       const response = await api.startLiveMatch({
         blue_team_id: blueTeamId,
         red_team_id: redTeamId,
-        is_playoff: false,
+        is_playoff: isPlayoff,
         split_week: get().currentWeek,
         blue_draft: draft.bluePicks.map(p => ({ champion: p.champion, role: p.role })),
         red_draft: draft.redPicks.map(p => ({ champion: p.champion, role: p.role })),

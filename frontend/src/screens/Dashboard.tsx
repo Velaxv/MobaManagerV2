@@ -11,8 +11,9 @@ import {
   Users,
   Wallet,
   Activity,
+  Trophy,
 } from 'lucide-react';
-import { CalendarDayType } from '../types/game';
+import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
 import { RoleIcon } from '../components/RoleIcon';
 import { ChampionImage } from '../components/ChampionImage';
@@ -32,6 +33,7 @@ export function Dashboard() {
     standings,
     lastAutoResults,
     splitPhase,
+    playoffBracket,
   } = useGameStore();
 
   const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
@@ -120,6 +122,33 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Playoffs banner */}
+      {(splitPhase === SplitPhase.PLAYOFFS || playoffBracket) && (
+        <div className="panel-lol border-lol-gold/25 bg-lol-gold/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-lol-gold" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-lol-gold-soft">
+                {playoffBracket?.champion_name
+                  ? `Campeão: ${playoffBracket.champion_name}`
+                  : 'Playoffs CBLOL — Top 6'}
+              </p>
+              <p className="text-[10px] text-white/40 font-mono">
+                {playoffBracket?.current_round?.replace(/_/g, ' ') || 'Bracket ativo'}
+                {activeMatch?.seriesLabel ? ` · ${activeMatch.seriesLabel}` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCurrentScreen('STANDINGS')}
+            className="text-[10px] uppercase tracking-wide text-lol-gold border border-lol-gold/30 px-3 py-1.5 rounded-sm hover:bg-lol-gold/10"
+          >
+            Ver chave →
+          </button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

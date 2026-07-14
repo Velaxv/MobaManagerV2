@@ -166,13 +166,38 @@ class CalendarService:
                         exc_info=True,
                     )
 
-            # Despacha partidas se for dia de jogo
+            # Despacha partidas se for dia de jogo (regular RR ou playoffs)
             if day_info["is_match_day"]:
-                await self._dispatch_match_day(
-                    league=league,
-                    day_info=day_info,
-                    managed_team_id=managed_team_id,
-                )
+                phase_name = day_info.get("state") or ""
+                if phase_name == "PLAYOFFS" or (
+                    league.current_phase and league.current_phase.value == "PLAYOFFS"
+                ):
+                    await self._dispatch_playoff_day(
+                        league=league,
+                        day_info=day_info,
+                        managed_team_id=managed_team_id,
+                    )
+                else:
+                    await self._dispatch_match_day(
+                        league=league,
+                        day_info=day_info,
+                        managed_team_id=managed_team_id,
+                    )
+
+            # Ao entrar em playoffs (transição no mesmo advance), gera bracket
+            if day_info.get("state_changed") and day_info.get("state") == "PLAYOFFS":
+                try:
+                    from src.modules.calendar.playoff_service import PlayoffService
+
+                    ps = PlayoffService(self.db)
+                    bracket = await ps.ensure_bracket(league)
+                    day_info["playoff_bracket"] = bracket
+                    day_info["playoffs_started"] = True
+                except Exception as exc:
+                    logger.error(
+                        f"[CalendarService] Falha ao iniciar playoffs: {exc}",
+                        exc_info=True,
+                    )
 
         # Atualiza o cache do patch ativo para a data atual do calendário
         from src.modules.simulation.patch_service import PatchService
@@ -216,6 +241,37 @@ class CalendarService:
         )
         return result.scalars().all()
 
+    async def _dispatch_playoff_day(
+        self,
+        league: League,
+        day_info: dict,
+        managed_team_id: Optional[str] = None,
+    ) -> list[dict]:
+        """Despacha séries de playoffs (top 6) no match day."""
+        from src.modules.calendar.playoff_service import PlayoffService
+
+        logger.info(
+            f"[CalendarService] PLAYOFF MATCH DAY | {league.name} | "
+            f"Semana {day_info.get('week')} | Dia {day_info.get('total_days')}"
+        )
+        ps = PlayoffService(self.db)
+
+        async def _auto(blue_id: str, red_id: str, week: int, is_playoff: bool):
+            return await self._auto_simulate_match(
+                league=league,
+                blue_team_id=blue_id,
+                red_team_id=red_id,
+                week=week,
+                is_playoff=is_playoff,
+            )
+
+        return await ps.dispatch_match_day(
+            league=league,
+            day_info=day_info,
+            managed_team_id=managed_team_id,
+            auto_simulate_fn=_auto,
+        )
+
     async def _dispatch_match_day(
         self,
         league: League,
@@ -225,7 +281,7 @@ class CalendarService:
         """
         Despacha o processamento de partidas para um dia de jogo.
 
-        - Agenda confrontos (pareamento aleatório).
+        - Agenda confrontos (round-robin determinístico).
         - Auto-simula confrontos em que o time gerenciado NÃO participa (liga viva).
         - Mantém em scheduled_matches as partidas do time do jogador (interativas).
 
@@ -312,9 +368,11 @@ class CalendarService:
         blue_team_id: str,
         red_team_id: str,
         week: int,
+        is_playoff: bool = False,
     ) -> dict:
         """
-        Simula uma partida IA vs IA (draft + MatchEngine) e atualiza standings.
+        Simula uma partida IA vs IA (draft + MatchEngine) e atualiza standings
+        (standings de pontos só na fase regular).
         """
         import uuid as uuid_mod
         from datetime import datetime
@@ -372,7 +430,7 @@ class CalendarService:
                 red_team=red_team,
                 blue_draft=draft_state.blue_picks,
                 red_draft=draft_state.red_picks,
-                is_playoff=False,
+                is_playoff=is_playoff,
                 match_id=str(match_uuid),
                 blue_draft_penalty=blue_penalty,
                 red_draft_penalty=red_penalty,
@@ -387,16 +445,18 @@ class CalendarService:
             else uuid_mod.UUID(blue_team_id)
         )
 
-        await self.db.execute(
-            update(LeagueTeam)
-            .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == winner_id)
-            .values(wins=LeagueTeam.wins + 1, points=LeagueTeam.points + 3)
-        )
-        await self.db.execute(
-            update(LeagueTeam)
-            .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == loser_id)
-            .values(losses=LeagueTeam.losses + 1)
-        )
+        # Standings de pontos apenas na fase regular
+        if not is_playoff:
+            await self.db.execute(
+                update(LeagueTeam)
+                .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == winner_id)
+                .values(wins=LeagueTeam.wins + 1, points=LeagueTeam.points + 3)
+            )
+            await self.db.execute(
+                update(LeagueTeam)
+                .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == loser_id)
+                .values(losses=LeagueTeam.losses + 1)
+            )
 
         for player in (blue_team.get_starters() + red_team.get_starters()):
             player.games_played_this_split = (player.games_played_this_split or 0) + 1
@@ -415,8 +475,8 @@ class CalendarService:
             id=match_uuid,
             league_id=league.id,
             split_week=week,
-            split_phase=SplitPhase.REGULAR_SEASON,
-            is_playoff=False,
+            split_phase=SplitPhase.PLAYOFFS if is_playoff else SplitPhase.REGULAR_SEASON,
+            is_playoff=is_playoff,
             scheduled_at=datetime.utcnow(),
             blue_team_id=blue_team.id,
             red_team_id=red_team.id,
@@ -439,6 +499,7 @@ class CalendarService:
             "winner_name": blue_team.name if winner_id == blue_team.id else red_team.name,
             "duration": sim_result.match_duration_minutes,
             "auto_simulated": True,
+            "is_playoff": is_playoff,
         }
 
     @staticmethod

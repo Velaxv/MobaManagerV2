@@ -660,7 +660,8 @@ class MatchEngineService:
             )
             red_lt = red_lt_query.scalar_one_or_none()
             
-            if blue_lt and red_lt:
+            # Standings de pontos: só na fase regular
+            if blue_lt and red_lt and not state.is_playoff:
                 if state.winner_side == "BLUE":
                     blue_lt.wins += 1
                     blue_lt.points += 3
@@ -669,6 +670,25 @@ class MatchEngineService:
                     red_lt.wins += 1
                     red_lt.points += 3
                     blue_lt.losses += 1
+
+            # Playoffs: resolve série no bracket (Redis)
+            if state.is_playoff:
+                try:
+                    from src.modules.calendar.playoff_service import PlayoffService
+
+                    ps = PlayoffService(db)
+                    await ps.resolve_match_result(
+                        league_id=state.league_id,
+                        blue_team_id=state.blue_team_id,
+                        red_team_id=state.red_team_id,
+                        winner_team_id=str(winner_id),
+                        series_id=getattr(state, "series_id", None),
+                    )
+                except Exception as pe:
+                    logger.error(
+                        f"[MatchEngineService] Falha ao resolver série de playoff: {pe}",
+                        exc_info=True,
+                    )
 
             # 3. Incrementa games_played e contratos rookie dos titulares
             # 4. Aplica burnout de MATCH_DAY nos titulares (consequência da partida)

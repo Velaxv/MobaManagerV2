@@ -115,6 +115,52 @@ export interface StandingRow {
   losses: number;
   points: number;
   win_rate: string;
+  is_in_playoffs?: boolean;
+  playoff_seed?: number | null;
+  final_placement?: number | null;
+  prize_earned?: number;
+}
+
+export interface PlayoffSeriesSide {
+  team_id?: string | null;
+  team_name?: string | null;
+  team_abbr?: string | null;
+  seed?: number | null;
+}
+
+export interface PlayoffSeries {
+  id: string;
+  round: string;
+  label: string;
+  best_of: number;
+  home: PlayoffSeriesSide;
+  away: PlayoffSeriesSide;
+  winner_team_id?: string | null;
+  status: string;
+  feeds_into?: string | null;
+  feeds_slot?: string | null;
+}
+
+export interface PlayoffBracket {
+  status: string;
+  format?: string;
+  champion_team_id?: string | null;
+  champion_name?: string | null;
+  seeds?: {
+    seed: number;
+    team_id: string;
+    team_name: string;
+    team_abbr: string;
+  }[];
+  series?: PlayoffSeries[];
+  current_round?: string;
+  eliminated?: { team_id: string; team_name?: string; eliminated_in?: string }[];
+}
+
+export interface PlayoffsResponse {
+  status: string;
+  message?: string;
+  bracket: PlayoffBracket | null;
 }
 
 async function parseJsonOrThrow(response: Response, fallback: string) {
@@ -155,6 +201,18 @@ export const api = {
   getStandings: async (leagueId: string): Promise<StandingRow[]> => {
     const response = await fetch(`${API_BASE}/leagues/${leagueId}/standings`);
     return parseJsonOrThrow(response, 'Failed to fetch standings');
+  },
+
+  getPlayoffs: async (leagueId: string): Promise<PlayoffsResponse> => {
+    const response = await fetch(`${API_BASE}/leagues/${leagueId}/playoffs`);
+    return parseJsonOrThrow(response, 'Failed to fetch playoffs');
+  },
+
+  startPlayoffs: async (leagueId: string): Promise<{ bracket: PlayoffBracket; message: string }> => {
+    const response = await fetch(`${API_BASE}/leagues/${leagueId}/playoffs/start`, {
+      method: 'POST',
+    });
+    return parseJsonOrThrow(response, 'Failed to start playoffs');
   },
 
   getMarketPlayers: async (excludeTeamId?: string): Promise<ApiPlayer[]> => {

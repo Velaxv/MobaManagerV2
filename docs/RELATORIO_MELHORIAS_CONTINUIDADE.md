@@ -44,7 +44,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 
 | ID | Melhoria | Por quê | Esforço | Critério de pronto |
 |----|----------|---------|---------|-------------------|
-| P1-1 | **Playoffs** (top 6, chave, BO) | Split sem desfecho | Alto | Campeão definido e standings de playoff |
+| P1-1 | **Playoffs** (top 6, chave, BO) | Split sem desfecho | Alto | ✅ Feito (2026-07-14) — bracket Redis, QF/SF/Final, campeão + prize |
 | P1-2 | **Offseason / renovação** | Contratos e rookies só fazem sentido com ciclo | Alto | Tela de renovar/liberar + avanço de split |
 | P1-3 | **Save / Load de carreira** | Sem isso cada sessão recomeça do zero | Alto | JSON ou DB com manager, time, dia, standings |
 | P1-4 | **Draft adversário via backend DraftAI** | Hoje IA do FE é fraca vs motor real | Médio | Picks RED/blue AI usam `/` serviço backend |

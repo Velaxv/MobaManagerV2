@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P0-3 calendário visual RR)  
+**Última atualização:** 2026-07-14 (P1-1 Playoffs top 6)  
 **Branch:** `main`  
-**Estado:** P0-3 implementado nesta sessão (calendário = adversário real)  
+**Estado:** P1-1 playoffs implementado (bracket + campeão)  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -12,12 +12,12 @@
 ### Entregue nesta jornada
 - Seed CBLOL 2026 (8 times) · loop carreira FE↔API  
 - UI: hub FM + draft LoL + live + wizard  
-- Live speed 1x/2x/4x/instant · burnout pós-live · round-robin  
-- **P0-3:** grade semanal com adversário real do RR (`week_calendar.py` + `?managed_team_id=`)  
-- Testes: **30 passed** · `npm run build` OK  
+- Live speed · burnout · round-robin · calendário RR  
+- **P1-1:** Playoffs top 6 (bye 1–2, QF/SF/Final, campeão + prêmios)  
+- Testes: **36 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-1 playoffs top 6 → P1-3 save/load → P1-6 resultados da rodada  
+P1-6 resultados da rodada → P1-3 save/load → P1-2 offseason  
 
 ```bat
 run_game.bat
@@ -200,7 +200,8 @@ CONTINUIDADE.md  (este arquivo)
 - [ ] Draft: auto-fill do lado RED (IA) quando o manager joga BLUE (hoje o FE controla os 20 turns manualmente)
 - [ ] Mapear `primary_role` dos champions no FE (draft picker por role real do seed)
 - [ ] Exibir standings também após live match sem depender só de clearActiveMatch
-- [ ] Playoffs top 6 + save/load
+- [x] Playoffs top 6
+- [ ] Save/load
 
 ### P2 — médio prazo
 - [ ] Modularizar `src/main.py` em routers (`api/calendar.py`, `api/matches.py`, …)

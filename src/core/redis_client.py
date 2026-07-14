@@ -113,6 +113,19 @@ class RedisClient:
         key = f"match:result:{match_id}"
         data = await self.client.get(key)
         return json.loads(data) if data else None
+
+    async def set_playoff_state(self, league_id: str, bracket: dict, ttl: int = 86400 * 60) -> None:
+        key = f"playoffs:league:{league_id}"
+        await self.client.setex(key, ttl, json.dumps(bracket))
+
+    async def get_playoff_state(self, league_id: str) -> Optional[dict]:
+        key = f"playoffs:league:{league_id}"
+        data = await self.client.get(key)
+        return json.loads(data) if data else None
+
+    async def delete_playoff_state(self, league_id: str) -> None:
+        key = f"playoffs:league:{league_id}"
+        await self.client.delete(key)
     
     async def increment_burnout_counter(self, player_id: str, field: str, amount: int = 5) -> int:
         key = f"burnout:player:{player_id}:{field}"
