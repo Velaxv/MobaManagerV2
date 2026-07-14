@@ -6,13 +6,38 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Dict, Any, Tuple, Optional
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from src.core.database import AsyncSessionLocal
 from src.core.redis_client import redis_client
 from src.models import Team, Player, Match, LeagueTeam, Champion, Staff
-from src.shared.enums import MatchPhase, MatchResult, PlayerRole, ClassType, DamageType
+from src.shared.enums import MatchPhase, MatchResult, PlayerRole, ClassType, DamageType, SplitPhase, ContractStatus
 from src.shared.math_utils import clamp, normalize_attribute, stochastic_roll, gold_advantage_to_probability, sigmoid
 from src.modules.draft.draft_analyzer import DraftAnalyzer
+from src.models.contract import Contract
+
+
+def _state_to_dict(state: "LiveMatchState") -> Dict[str, Any]:
+    """Serializa LiveMatchState de forma compatível com Pydantic v1/v2."""
+    if hasattr(state, "model_dump"):
+        return state.model_dump()
+    return state.dict()
+
+
+def _normalize_event_log(log: Dict[str, Any]) -> Dict[str, Any]:
+    """Garante campos message/severity esperados pelo frontend."""
+    normalized = dict(log)
+    if "message" not in normalized:
+        normalized["message"] = normalized.get("description", "")
+    if "severity" not in normalized:
+        event_type = str(normalized.get("event_type", "")).upper()
+        if event_type in {"SOLO_KILL", "TEAMFIGHT", "BARON_SECURED", "SNOWBALL", "VICTORY"}:
+            normalized["severity"] = "high"
+        elif event_type in {"DRAGON_SECURED", "TURRET_DESTROYED", "COACH_COMM"}:
+            normalized["severity"] = "medium"
+        else:
+            normalized["severity"] = "low"
+    return normalized
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +83,19 @@ class LiveMatchState(BaseModel):
     blue_focus_debuffs: Dict[str, float] = {}  # player_id -> debuff
     red_focus_debuffs: Dict[str, float] = {}
 
+    # Velocidade: ms reais por minuto de jogo (0 = instantâneo)
+    tick_ms: int = 2000
+    speed_label: str = "1x"
+
+
+# Speeds permitidas (label → tick_ms)
+LIVE_SPEED_PRESETS: Dict[str, int] = {
+    "1x": 2000,
+    "2x": 1000,
+    "4x": 500,
+    "instant": 0,
+}
+
 
 class MatchEngineService:
     """
@@ -74,7 +112,16 @@ class MatchEngineService:
     async def get_live_state(self, match_id: str) -> Optional[Dict[str, Any]]:
         """Lê o estado da partida ao vivo do Redis Simulado."""
         key = f"live_match:{match_id}"
-        return await redis_client.get_generic(key)
+        state = await redis_client.get_generic(key)
+        if not state:
+            return None
+        # Normaliza logs e fase para o frontend (message/severity + COMPLETE)
+        logs = state.get("event_logs") or []
+        state["event_logs"] = [_normalize_event_log(log) for log in logs]
+        if state.get("phase") in ("FINISHED", "COMPLETE") or state.get("is_complete"):
+            state["phase"] = "COMPLETE"
+            state["is_complete"] = True
+        return state
 
     async def start_live_simulation(
         self,
@@ -85,9 +132,20 @@ class MatchEngineService:
         blue_team: Team,
         red_team: Team,
         blue_draft: List[Dict[str, str]],
-        red_draft: List[Dict[str, str]]
+        red_draft: List[Dict[str, str]],
+        speed: str = "1x",
+        tick_ms: Optional[int] = None,
     ) -> LiveMatchState:
         """Inicializa o estado da partida ao vivo no Redis e dispara a background task do loop de ticks."""
+        label = speed if speed in LIVE_SPEED_PRESETS else "1x"
+        resolved_tick = LIVE_SPEED_PRESETS[label] if tick_ms is None else max(0, int(tick_ms))
+        # Se tick_ms custom, deriva label aproximado
+        if tick_ms is not None:
+            label = next(
+                (k for k, v in LIVE_SPEED_PRESETS.items() if v == resolved_tick),
+                f"{resolved_tick}ms",
+            )
+
         state = LiveMatchState(
             match_id=match_id,
             league_id=league_id,
@@ -98,17 +156,45 @@ class MatchEngineService:
             blue_team_name=blue_team.name,
             red_team_name=red_team.name,
             blue_draft=blue_draft,
-            red_draft=red_draft
+            red_draft=red_draft,
+            tick_ms=resolved_tick,
+            speed_label=label,
         )
         
         # Grava estado inicial
         key = f"live_match:{match_id}"
-        await redis_client.set_generic(key, state.dict())
+        await redis_client.set_generic(key, _state_to_dict(state))
         
         # Dispara background task para simulação em tempo real
         asyncio.create_task(self._run_simulation_loop(match_id))
         
         return state
+
+    async def set_live_speed(self, match_id: str, speed: str) -> Dict[str, Any]:
+        """
+        Altera a velocidade da partida ao vivo (lida a cada tick).
+        speed: 1x | 2x | 4x | instant
+        """
+        if speed not in LIVE_SPEED_PRESETS:
+            return {
+                "error": f"Velocidade inválida. Use: {', '.join(LIVE_SPEED_PRESETS.keys())}"
+            }
+        key = f"live_match:{match_id}"
+        state_data = await redis_client.get_generic(key)
+        if not state_data:
+            return {"error": "Partida não encontrada."}
+        state = LiveMatchState(**state_data)
+        if state.is_complete:
+            return {"error": "Partida já encerrada."}
+        state.tick_ms = LIVE_SPEED_PRESETS[speed]
+        state.speed_label = speed
+        await redis_client.set_generic(key, _state_to_dict(state))
+        return {
+            "success": True,
+            "match_id": match_id,
+            "speed": speed,
+            "tick_ms": state.tick_ms,
+        }
 
     async def apply_coach_comm(self, match_id: str, team_side: str) -> Dict[str, Any]:
         """
@@ -176,16 +262,21 @@ class MatchEngineService:
                 if confusion_debuff > 0:
                     state.red_focus_debuffs[str(mid_player.id)] = state.red_focus_debuffs.get(str(mid_player.id), 0.0) + confusion_debuff
                     
-            state.event_logs.append({
+            state.event_logs.append(_normalize_event_log({
                 "timestamp": f"{state.current_minute:02d}:00",
                 "phase": "EARLY_GAME",
                 "event_type": "COACH_COMM",
                 "description": log_desc,
                 "impact": impact
-            })
+            }))
             
-            await redis_client.set_generic(key, state.dict())
-            return {"success": True, "log": log_desc, "comms_used": comms_used + 1}
+            await redis_client.set_generic(key, _state_to_dict(state))
+            return {
+                "success": True,
+                "message": log_desc,
+                "log": log_desc,
+                "comms_used": comms_used + 1,
+            }
 
     async def _run_simulation_loop(self, match_id: str):
         """Loop de simulação em tempo real orientado a ticks (intervalo de 2.0 segundos reais por minuto do jogo)."""
@@ -218,7 +309,7 @@ class MatchEngineService:
             red_draft_report = self.draft_analyzer.analyze_composition(red_champions)
             
             state.phase = "EARLY_GAME"
-            state.event_logs.append({
+            state.event_logs.append(_normalize_event_log({
                 "timestamp": "00:00",
                 "phase": "SETUP",
                 "event_type": "SETUP",
@@ -227,16 +318,27 @@ class MatchEngineService:
                     "blue_comp": blue_draft_report["power_curve"]["archetype"],
                     "red_comp": red_draft_report["power_curve"]["archetype"]
                 }
-            })
-            await redis_client.set_generic(key, state.dict())
+            }))
+            await redis_client.set_generic(key, _state_to_dict(state))
             
             # Loop de Minutos (0 a 40 minutos)
             for minute in range(1, 41):
-                await asyncio.sleep(2.0)  # 2 segundos reais = 1 minuto de jogo
+                # Relê tick_ms (permite mudar velocidade mid-match)
+                peek = await redis_client.get_generic(key)
+                if peek:
+                    tick_ms = int(peek.get("tick_ms", 2000) or 0)
+                else:
+                    tick_ms = 2000
+                if tick_ms > 0:
+                    await asyncio.sleep(tick_ms / 1000.0)
                 
-                # Relê estado para pegar possíveis coach comms concorrentes
+                # Relê estado para pegar possíveis coach comms / speed concorrentes
                 state_data = await redis_client.get_generic(key)
+                if not state_data:
+                    return
                 state = LiveMatchState(**state_data)
+                if state.is_complete:
+                    break
                 state.current_minute = minute
                 
                 # Define Fase e pesos matemáticos
@@ -256,38 +358,39 @@ class MatchEngineService:
                     winning_side = "BLUE" if state.gold_difference > 0 else "RED"
                     winning_name = state.blue_team_name if winning_side == "BLUE" else state.red_team_name
                     
-                    state.event_logs.append({
+                    state.event_logs.append(_normalize_event_log({
                         "timestamp": f"{minute:02d}:00",
                         "phase": state.phase,
                         "event_type": "SNOWBALL",
                         "description": f"Inibidor do time inimigo destruido! {winning_name} abre vantagem avassaladora.",
                         "impact": {"gold_diff": f"{state.gold_difference:+d}"}
-                    })
+                    }))
                     state.is_complete = True
                     state.winner_side = winning_side
-                    state.phase = "FINISHED"
-                    await redis_client.set_generic(key, state.dict())
+                    # COMPLETE = alias consumido pelo frontend; FINISHED mantido no payload bruto
+                    state.phase = "COMPLETE"
+                    await redis_client.set_generic(key, _state_to_dict(state))
                     break
                     
-                await redis_client.set_generic(key, state.dict())
+                await redis_client.set_generic(key, _state_to_dict(state))
                 
             # Fim do jogo por tempo limite se não terminou em snowball
             if not state.is_complete:
                 winning_side = "BLUE" if state.blue_gold > state.red_gold else "RED"
                 state.is_complete = True
                 state.winner_side = winning_side
-                state.phase = "FINISHED"
+                state.phase = "COMPLETE"
                 
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": "40:00",
-                    "phase": "FINISHED",
+                    "phase": "COMPLETE",
                     "event_type": "VICTORY",
-                    "description": f"Fim de jogo! Vitória decidida por vantagem estratégica de recursos.",
-                    "impact": {"winner": "BLUE" if winning_side == "BLUE" else "RED"}
-                })
-                await redis_client.set_generic(key, state.dict())
+                    "description": "Fim de jogo! Vitória decidida por vantagem estratégica de recursos.",
+                    "impact": {"winner": winning_side}
+                }))
+                await redis_client.set_generic(key, _state_to_dict(state))
                 
-            # 5. Persiste resultado final no SQLite
+            # 5. Persiste resultado + standings + rookie + burnout de MATCH_DAY
             await self._persist_match_result(db, state)
 
     def _simulate_early_tick(self, state: LiveMatchState, blue_team: Team, red_team: Team, blue_champs: List[Champion], red_champs: List[Champion]):
@@ -318,35 +421,35 @@ class MatchEngineService:
             if val_blue > val_red + 15.0:
                 state.blue_kills += 1
                 state.blue_gold += (gold_swing + 300)
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "EARLY_GAME",
                     "event_type": "SOLO_KILL",
                     "description": f"[{active_role.value}] {p_blue.name} executou um solo kill em {p_red.name} devido a superioridade mecanica!",
                     "impact": {"blue_gold": f"+{gold_swing+300}", "red_kills": "+0"}
-                })
+                }))
             elif val_red > val_blue + 15.0:
                 state.red_kills += 1
                 state.red_gold += (gold_swing + 300)
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "EARLY_GAME",
                     "event_type": "SOLO_KILL",
                     "description": f"[{active_role.value}] {p_red.name} abateu {p_blue.name} em duelo mecanico de rota!",
                     "impact": {"red_gold": f"+{gold_swing+300}", "blue_kills": "+0"}
-                })
+                }))
             else:
                 # Farm de rotina
                 state.blue_gold += gold_swing
                 state.red_gold += gold_swing
                 if self.rng.random() < 0.20:
-                    state.event_logs.append({
+                    state.event_logs.append(_normalize_event_log({
                         "timestamp": f"{state.current_minute:02d}:00",
                         "phase": "EARLY_GAME",
                         "event_type": "FARM",
                         "description": f"[{active_role.value}] Luta equilibrada. {p_blue.name} e {p_red.name} disputam controle de barricadas.",
                         "impact": {}
-                    })
+                    }))
 
     def _simulate_mid_tick(self, state: LiveMatchState, blue_team: Team, red_team: Team, blue_champs: List[Champion], red_champs: List[Champion], blue_draft: dict, red_draft: dict):
         """Simulação de Objetivos no Mid Game (min 15-28). Foco: 60% Mentais (Teamwork, Decision), 40% Técnicos."""
@@ -369,45 +472,45 @@ class MatchEngineService:
             if score_blue > score_red:
                 state.blue_dragons += 1
                 state.blue_gold += gold_swing
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "MID_GAME",
                     "event_type": "DRAGON_SECURED",
                     "description": f"Dragão conquistado pela {state.blue_team_name}! Ótima rotação coletiva.",
                     "impact": {"blue_gold": f"+{gold_swing}", "dragons": "BLUE +1"}
-                })
+                }))
             else:
                 state.red_dragons += 1
                 state.red_gold += gold_swing
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "MID_GAME",
                     "event_type": "DRAGON_SECURED",
                     "description": f"Dragão abatido pela {state.red_team_name} após controle de mapa.",
                     "impact": {"red_gold": f"+{gold_swing}", "dragons": "RED +1"}
-                })
+                }))
         else:
             # Luta por torres / rotas
             if score_blue > score_red + 30.0:
                 state.blue_gold += (gold_swing + 500)
                 state.blue_kills += 1
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "MID_GAME",
                     "event_type": "TURRET_DESTROYED",
                     "description": f"Torre destruida no Mid pela {state.blue_team_name} após pickoff no caçador inimigo.",
                     "impact": {"blue_gold": f"+{gold_swing+500}"}
-                })
+                }))
             elif score_red > score_blue + 30.0:
                 state.red_gold += (gold_swing + 500)
                 state.red_kills += 1
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "MID_GAME",
                     "event_type": "TURRET_DESTROYED",
                     "description": f"Defesa falha! {state.red_team_name} derruba a torre tier 1 da rota lateral.",
                     "impact": {"red_gold": f"+{gold_swing+500}"}
-                })
+                }))
             else:
                 # Controle de visão equilibrado
                 state.blue_gold += 200
@@ -443,46 +546,46 @@ class MatchEngineService:
                 state.blue_barons += 1
                 state.blue_gold += gold_swing
                 state.blue_kills += 2
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "LATE_GAME",
                     "event_type": "BARON_SECURED",
                     "description": f"BARON NASHOR abatido pela {state.blue_team_name}! Ace parcial na teamfight final.",
                     "impact": {"blue_gold": f"+{gold_swing}", "blue_kills": "+2"}
-                })
+                }))
             else:
                 state.red_barons += 1
                 state.red_gold += gold_swing
                 state.red_kills += 2
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "LATE_GAME",
                     "event_type": "BARON_SECURED",
                     "description": f"BARON roubado pela {state.red_team_name}! Roubo espetacular de objetivo.",
                     "impact": {"red_gold": f"+{gold_swing}", "red_kills": "+2"}
-                })
+                }))
         else:
             # Teamfight Geral
             if score_blue > score_red + 50.0:
                 state.blue_gold += gold_swing
                 state.blue_kills += 3
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "LATE_GAME",
                     "event_type": "TEAMFIGHT",
                     "description": f"Ace para a {state.blue_team_name}! Luta perfeita de posicionamento e dano massivo.",
                     "impact": {"blue_gold": f"+{gold_swing}", "blue_kills": "+3"}
-                })
+                }))
             elif score_red > score_blue + 50.0:
                 state.red_gold += gold_swing
                 state.red_kills += 3
-                state.event_logs.append({
+                state.event_logs.append(_normalize_event_log({
                     "timestamp": f"{state.current_minute:02d}:00",
                     "phase": "LATE_GAME",
                     "event_type": "TEAMFIGHT",
                     "description": f"Ace para a {state.red_team_name}! Erro de posicionamento custa caro no late game.",
                     "impact": {"red_gold": f"+{gold_swing}", "red_kills": "+3"}
-                })
+                }))
 
     def _resolve_duel(self, player: Player, champion: Champion, focus_val: float, tech_weight: float, mental_weight: float) -> float:
         """Fórmula estocástica básica para duelos individuais cruzando atributos e conforto."""
@@ -514,15 +617,16 @@ class MatchEngineService:
             red_res = MatchResult.WIN if state.winner_side == "RED" else MatchResult.LOSS
             
             # Filtra logs por fase
-            early_logs = [l for l in state.event_logs if l["phase"] == "EARLY_GAME"]
-            mid_logs = [l for l in state.event_logs if l["phase"] == "MID_GAME"]
-            late_logs = [l for l in state.event_logs if l["phase"] == "LATE_GAME"]
+            early_logs = [l for l in state.event_logs if l.get("phase") == "EARLY_GAME"]
+            mid_logs = [l for l in state.event_logs if l.get("phase") == "MID_GAME"]
+            late_logs = [l for l in state.event_logs if l.get("phase") in ("LATE_GAME", "COMPLETE", "FINISHED")]
             
+            total_gold = max(1, state.blue_gold + state.red_gold)
             match = Match(
                 id=uuid.UUID(state.match_id),
                 league_id=uuid.UUID(state.league_id),
                 split_week=state.split_week,
-                split_phase="REGULAR_SEASON",
+                split_phase=SplitPhase.PLAYOFFS if state.is_playoff else SplitPhase.REGULAR_SEASON,
                 is_playoff=state.is_playoff,
                 scheduled_at=datetime.utcnow(),
                 blue_team_id=uuid.UUID(state.blue_team_id),
@@ -531,7 +635,7 @@ class MatchEngineService:
                 blue_result=blue_res,
                 red_result=red_res,
                 match_duration_minutes=float(state.current_minute),
-                blue_win_probability=float(state.blue_gold / (state.blue_gold + state.red_gold)),
+                blue_win_probability=float(state.blue_gold / total_gold),
                 draft_log={"blue": state.blue_draft, "red": state.red_draft},
                 early_game_log=early_logs,
                 mid_game_log=mid_logs,
@@ -565,9 +669,44 @@ class MatchEngineService:
                     red_lt.wins += 1
                     red_lt.points += 3
                     blue_lt.losses += 1
+
+            # 3. Incrementa games_played e contratos rookie dos titulares
+            # 4. Aplica burnout de MATCH_DAY nos titulares (consequência da partida)
+            from src.shared.math_utils import clamp as _clamp
+            from src.core.config import get_settings
+            _settings = get_settings()
+
+            for team_id in (state.blue_team_id, state.red_team_id):
+                team = await db.get(Team, uuid.UUID(team_id))
+                if not team:
+                    continue
+                for player in team.get_starters():
+                    player.games_played_this_split = (player.games_played_this_split or 0) + 1
+                    # Burnout de partida oficial (alinha com BurnoutService MATCH_DAY)
+                    player.burnout_meter = _clamp(
+                        float(player.burnout_meter) + float(_settings.burnout_daily_penalty),
+                        0.0,
+                        100.0,
+                    )
+                    player.visual_fatigue = _clamp(float(player.visual_fatigue) + 12.0, 0.0, 100.0)
+                    player.mental_fatigue = _clamp(float(player.mental_fatigue) + 8.0, 0.0, 100.0)
+
+                    contract_query = await db.execute(
+                        select(Contract).where(
+                            Contract.player_id == player.id,
+                            Contract.status == ContractStatus.ACTIVE,
+                        )
+                    )
+                    contract = contract_query.scalar_one_or_none()
+                    if contract:
+                        contract.rookie_games_played += 1
+                        contract.check_and_trigger_rookie_extension()
                     
             await db.commit()
-            logger.info(f"[MatchEngineService] Partida {state.match_id} persistida no SQLite e standings atualizados.")
+            logger.info(
+                f"[MatchEngineService] Partida {state.match_id} persistida; "
+                f"standings e burnout de titulares atualizados."
+            )
         except Exception as e:
             await db.rollback()
             logger.error(f"[MatchEngineService] Erro ao persistir resultado da partida: {e}", exc_info=True)

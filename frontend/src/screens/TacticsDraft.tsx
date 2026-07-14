@@ -1,333 +1,670 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { Sparkles, Ban, RotateCcw } from 'lucide-react';
+import { Ban, RotateCcw, Swords, Sparkles, Volume2 } from 'lucide-react';
 import { PlayerRole, ChampionPoolTier, DraftTeam, DraftAction } from '../types/game';
+import { ChampionImage } from '../components/ChampionImage';
+import { RoleIcon } from '../components/RoleIcon';
+import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
+
+const DRAFT_SEQUENCES = [
+  { team: DraftTeam.BLUE, action: DraftAction.BAN },
+  { team: DraftTeam.RED, action: DraftAction.BAN },
+  { team: DraftTeam.BLUE, action: DraftAction.BAN },
+  { team: DraftTeam.RED, action: DraftAction.BAN },
+  { team: DraftTeam.BLUE, action: DraftAction.BAN },
+  { team: DraftTeam.RED, action: DraftAction.BAN },
+  { team: DraftTeam.BLUE, action: DraftAction.PICK },
+  { team: DraftTeam.RED, action: DraftAction.PICK },
+  { team: DraftTeam.RED, action: DraftAction.PICK },
+  { team: DraftTeam.BLUE, action: DraftAction.PICK },
+  { team: DraftTeam.BLUE, action: DraftAction.PICK },
+  { team: DraftTeam.RED, action: DraftAction.PICK },
+  { team: DraftTeam.RED, action: DraftAction.BAN },
+  { team: DraftTeam.BLUE, action: DraftAction.BAN },
+  { team: DraftTeam.RED, action: DraftAction.BAN },
+  { team: DraftTeam.BLUE, action: DraftAction.BAN },
+  { team: DraftTeam.RED, action: DraftAction.PICK },
+  { team: DraftTeam.BLUE, action: DraftAction.PICK },
+  { team: DraftTeam.BLUE, action: DraftAction.PICK },
+  { team: DraftTeam.RED, action: DraftAction.PICK },
+];
+
+const ROLES_ORDER = [
+  PlayerRole.TOP,
+  PlayerRole.JUNGLE,
+  PlayerRole.MID,
+  PlayerRole.BOT,
+  PlayerRole.SUPPORT,
+];
+
+const LOCK_IN_MS = 950;
+
+type LockInState = {
+  champion: string;
+  action: DraftAction;
+  team: DraftTeam;
+  role?: PlayerRole;
+};
+
+function BanSlot({ name, justBanned }: { name?: string; justBanned?: boolean }) {
+  return (
+    <div className={`relative ${justBanned ? 'animate-ban-stamp' : ''}`}>
+      <ChampionImage name={name} variant="ban" banned={!!name} emptyLabel="?" />
+    </div>
+  );
+}
+
+function PickSlot({
+  champion,
+  role,
+  side,
+  playerName,
+  isActiveSlot,
+}: {
+  champion?: string;
+  role: PlayerRole;
+  side: 'blue' | 'red';
+  playerName?: string;
+  isActiveSlot?: boolean;
+}) {
+  const border = champion
+    ? side === 'blue'
+      ? 'border-lol-blue-side/60 shadow-[0_0_12px_rgba(0,150,255,0.2)]'
+      : 'border-lol-red-side/60 shadow-[0_0_12px_rgba(255,70,85,0.2)]'
+    : isActiveSlot
+      ? 'border-lol-gold/50 animate-pulse'
+      : side === 'blue'
+        ? 'border-lol-blue-side/25'
+        : 'border-lol-red-side/25';
+  const accent = side === 'blue' ? 'text-lol-blue-side' : 'text-lol-red-side';
+
+  return (
+    <div
+      className={`flex items-center gap-2 p-1.5 bg-black/45 border rounded-sm transition-all duration-300 ${border} ${
+        champion ? 'animate-fade-in' : ''
+      }`}
+    >
+      <ChampionImage
+        name={champion}
+        variant="pick"
+        locked={!!champion}
+        emptyLabel=""
+        className={!champion ? 'opacity-40' : ''}
+      />
+      <div className="min-w-0 flex-1">
+        <div className={`flex items-center gap-1 text-[10px] font-mono uppercase ${accent}`}>
+          <RoleIcon role={role} size={12} className={accent} />
+          {ROLE_LABELS[role] || role}
+        </div>
+        <div className="text-xs font-semibold text-white/90 truncate">
+          {champion || <span className="text-white/25 italic">Aguardando…</span>}
+        </div>
+        {playerName && <div className="text-[10px] text-white/40 truncate">{playerName}</div>}
+      </div>
+      {champion && (
+        <span className="text-[8px] font-bold uppercase tracking-wider text-lol-gold/80 border border-lol-gold/30 px-1 py-0.5 rounded-sm">
+          Lock
+        </span>
+      )}
+    </div>
+  );
+}
+
+function LockInOverlay({ state }: { state: LockInState }) {
+  const isBan = state.action === DraftAction.BAN;
+  return (
+    <div className="lock-in-overlay">
+      <div className="lock-in-card">
+        {/* Splash blur atrás */}
+        <div
+          className="absolute -inset-20 opacity-40 blur-sm bg-cover bg-center -z-10"
+          style={{ backgroundImage: `url(${championSplashUrl(state.champion)})` }}
+        />
+        <ChampionImage name={state.champion} variant="loading" className="shadow-2xl ring-2 ring-lol-gold/60" />
+        <div className={isBan ? 'ban-stamp-label animate-ban-stamp' : 'lock-in-label text-lol-gold'}>
+          {isBan ? 'BANNED' : 'LOCKED IN'}
+        </div>
+        <div className="text-sm font-display text-lol-gold-soft tracking-wide">{state.champion}</div>
+        <div
+          className={`text-[10px] font-mono uppercase tracking-widest ${
+            state.team === DraftTeam.BLUE ? 'text-lol-blue-side' : 'text-lol-red-side'
+          }`}
+        >
+          {state.team} side
+          {state.role ? ` · ${ROLE_LABELS[state.role] || state.role}` : ''}
+        </div>
+        <div className="w-40 h-0.5 bg-white/10 rounded-full overflow-hidden mt-1">
+          <div className="h-full bg-lol-gold animate-draft-bar" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function TacticsDraft() {
-  const { draft, playersCache, processDraftAction, resetDraft, champions, submitDraftAndStartMatch } = useGameStore();
+  const draft = useGameStore((s) => s.draft);
+  const myPlayers = useGameStore((s) => s.myPlayers);
+  const processDraftAction = useGameStore((s) => s.processDraftAction);
+  const resetDraft = useGameStore((s) => s.resetDraft);
+  const champions = useGameStore((s) => s.champions);
+  const submitDraftAndStartMatch = useGameStore((s) => s.submitDraftAndStartMatch);
+  const myTeamName = useGameStore((s) => s.myTeamName);
+  const activeMatch = useGameStore((s) => s.activeMatch);
+  const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
 
   const [selectedRole, setSelectedRole] = useState<PlayerRole>(PlayerRole.MID);
-  const [selectedChamp, setSelectedChamp] = useState<string>("");
+  const [selectedChamp, setSelectedChamp] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [lockIn, setLockIn] = useState<LockInState | null>(null);
+  const [lastBanned, setLastBanned] = useState<string | null>(null);
+  const [isStartingMatch, setIsStartingMatch] = useState(false);
 
-  // Pega os jogadores titulares
-  const myPlayers = playersCache.slice(0, 5);
-
-  // Mapeamento de ações do draft
-  const currentActionIndex = draft.currentTurn;
+  const starters = myPlayers.slice(0, 5);
   const isComplete = draft.isComplete;
-  
-  // Ordem de ações oficiais
-  const DRAFT_SEQUENCES = [
-    // Bans 1
-    { team: DraftTeam.BLUE, action: DraftAction.BAN },
-    { team: DraftTeam.RED, action: DraftAction.BAN },
-    { team: DraftTeam.BLUE, action: DraftAction.BAN },
-    { team: DraftTeam.RED, action: DraftAction.BAN },
-    { team: DraftTeam.BLUE, action: DraftAction.BAN },
-    { team: DraftTeam.RED, action: DraftAction.BAN },
-    // Picks 1
-    { team: DraftTeam.BLUE, action: DraftAction.PICK },
-    { team: DraftTeam.RED, action: DraftAction.PICK },
-    { team: DraftTeam.RED, action: DraftAction.PICK },
-    { team: DraftTeam.BLUE, action: DraftAction.PICK },
-    { team: DraftTeam.BLUE, action: DraftAction.PICK },
-    { team: DraftTeam.RED, action: DraftAction.PICK },
-    // Bans 2
-    { team: DraftTeam.RED, action: DraftAction.BAN },
-    { team: DraftTeam.BLUE, action: DraftAction.BAN },
-    { team: DraftTeam.RED, action: DraftAction.BAN },
-    { team: DraftTeam.BLUE, action: DraftAction.BAN },
-    // Picks 2
-    { team: DraftTeam.RED, action: DraftAction.PICK },
-    { team: DraftTeam.BLUE, action: DraftAction.PICK },
-    { team: DraftTeam.BLUE, action: DraftAction.PICK },
-    { team: DraftTeam.RED, action: DraftAction.PICK },
-  ];
+  const currentStep =
+    !isComplete && draft.currentTurn < 20 ? DRAFT_SEQUENCES[draft.currentTurn] : null;
+  const isBusy = !!lockIn;
 
-  const currentStep = !isComplete && currentActionIndex < 20 ? DRAFT_SEQUENCES[currentActionIndex] : null;
+  const resolvedSide: DraftTeam = useMemo(() => {
+    if (!activeMatch) return DraftTeam.BLUE;
+    if (activeMatch.blueTeam === myTeamName) return DraftTeam.BLUE;
+    if (activeMatch.redTeam === myTeamName) return DraftTeam.RED;
+    return DraftTeam.BLUE;
+  }, [activeMatch, myTeamName]);
 
-  const myTeamName = useGameStore(state => state.myTeamName);
-  const activeMatch = useGameStore(state => state.activeMatch);
-  
-  // Determina o lado do jogador
-  const myTeamSide = activeMatch?.blueTeam === myTeamName ? DraftTeam.BLUE : DraftTeam.RED;
-  const isMyTurn = currentStep && currentStep.team === myTeamSide;
+  const isMyTurn = !!(currentStep && currentStep.team === resolvedSide && !isBusy);
 
-  // Lista de campeões disponíveis para a role selecionada da base real
-  const championsList = champions
-    .filter(c => c.primary_role === selectedRole || c.secondary_role === selectedRole)
-    .map(c => c.name)
-    .sort();
+  const usedChamps = useMemo(
+    () =>
+      new Set([
+        ...draft.blueBans,
+        ...draft.redBans,
+        ...draft.bluePicks.map((p) => p.champion),
+        ...draft.redPicks.map((p) => p.champion),
+      ]),
+    [draft]
+  );
 
-  // Verifica o nível de conforto do jogador titular da role com o campeão selecionado
+  const championsList = useMemo(() => {
+    let list = champions.filter(
+      (c) =>
+        (c.primary_role === selectedRole || c.secondary_role === selectedRole) &&
+        !usedChamps.has(c.name)
+    );
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((c) => c.name.toLowerCase().includes(q));
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [champions, selectedRole, usedChamps, search]);
+
   const getComfortLevel = (championName: string, role: PlayerRole) => {
-    const player = myPlayers.find(p => p.role === role);
+    const player = starters.find((p) => p.role === role);
     if (!player) return ChampionPoolTier.OFF_POOL;
-    
-    const pool = player.championPool || [];
-    const entry = pool.find(c => c.champion.toLowerCase() === championName.toLowerCase());
+    const entry = (player.championPool || []).find(
+      (c) => c.champion.toLowerCase() === championName.toLowerCase()
+    );
     return entry ? entry.tier : ChampionPoolTier.OFF_POOL;
   };
 
-  const handleApplyAction = () => {
-    if (!selectedChamp || isComplete || !isMyTurn) return;
-    
-    // Executa a ação do draft no Zustand store
-    processDraftAction(selectedChamp, selectedRole);
-    setSelectedChamp("");
+  /** Splash de fundo: seleção atual → último pick → Azir */
+  const splashChampion = useMemo(() => {
+    if (selectedChamp) return selectedChamp;
+    if (lockIn) return lockIn.champion;
+    const allPicks = [...draft.bluePicks, ...draft.redPicks];
+    if (allPicks.length) return allPicks[allPicks.length - 1].champion;
+    if (draft.blueBans.length) return draft.blueBans[draft.blueBans.length - 1];
+    if (draft.redBans.length) return draft.redBans[draft.redBans.length - 1];
+    return 'Aatrox';
+  }, [selectedChamp, lockIn, draft.bluePicks, draft.redPicks, draft.blueBans, draft.redBans]);
+
+  const runLockIn = useCallback(
+    (champion: string, action: DraftAction, team: DraftTeam, role?: PlayerRole) => {
+      return new Promise<void>((resolve) => {
+        setLockIn({ champion, action, team, role });
+        if (action === DraftAction.BAN) {
+          setLastBanned(champion);
+          setTimeout(() => setLastBanned(null), 1200);
+        }
+        setTimeout(() => {
+          processDraftAction(champion, role || selectedRole);
+          setLockIn(null);
+          setSelectedChamp('');
+          resolve();
+        }, LOCK_IN_MS);
+      });
+    },
+    [processDraftAction, selectedRole]
+  );
+
+  const handleConfirm = async () => {
+    if (!selectedChamp || isComplete || !isMyTurn || !currentStep || isBusy) return;
+    await runLockIn(
+      selectedChamp,
+      currentStep.action,
+      currentStep.team,
+      currentStep.action === DraftAction.PICK ? selectedRole : undefined
+    );
   };
 
-  // --- IA de Draft Básica (Frontend-Heavy) ---
-  
+  // IA adversária com lock-in visual
   useEffect(() => {
-    if (!isComplete && currentStep && !isMyTurn) {
-      // Turno da IA
-      const timer = setTimeout(() => {
-        // Lógica burra de IA (pega qualquer campeão disponível que não foi banido/pickado)
-        const allUsed = [...draft.blueBans, ...draft.redBans, ...draft.bluePicks.map(p => p.champion), ...draft.redPicks.map(p => p.champion)];
-        const availableChamps = champions.filter(c => !allUsed.includes(c.name));
-        
-        if (currentStep.action === DraftAction.BAN) {
-          const randomChamp = availableChamps[Math.floor(Math.random() * availableChamps.length)].name;
-          processDraftAction(randomChamp, PlayerRole.MID);
-        } else {
-          // Achar uma role que a IA ainda não pickou
-          const aiPicks = currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
-          const rolesPicked = aiPicks.map(p => p.role);
-          const allRoles = Object.values(PlayerRole);
-          const availableRole = allRoles.find(r => !rolesPicked.includes(r)) || PlayerRole.MID;
-          
-          const roleChamps = availableChamps.filter(c => c.primary_role === availableRole || c.secondary_role === availableRole);
-          const champToPick = roleChamps.length > 0 ? roleChamps[Math.floor(Math.random() * roleChamps.length)].name : availableChamps[0].name;
-          
-          processDraftAction(champToPick, availableRole);
-        }
-      }, 1500); // Delay de 1.5s para simular pensamento
-      return () => clearTimeout(timer);
-    }
-  }, [draft.currentTurn, isComplete, currentStep, isMyTurn]);
+    if (isBusy || isComplete || !currentStep || isMyTurn || champions.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      const available = champions.filter((c) => !usedChamps.has(c.name));
+      if (!available.length) return;
+
+      if (currentStep.action === DraftAction.BAN) {
+        const pick = available[Math.floor(Math.random() * available.length)].name;
+        await runLockIn(pick, DraftAction.BAN, currentStep.team);
+      } else {
+        const aiPicks =
+          currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
+        const rolesPicked = aiPicks.map((p) => p.role);
+        const availableRole =
+          ROLES_ORDER.find((r) => !rolesPicked.includes(r)) || PlayerRole.MID;
+        const roleChamps = available.filter(
+          (c) => c.primary_role === availableRole || c.secondary_role === availableRole
+        );
+        const champ =
+          roleChamps.length > 0
+            ? roleChamps[Math.floor(Math.random() * roleChamps.length)].name
+            : available[0].name;
+        await runLockIn(champ, DraftAction.PICK, currentStep.team, availableRole);
+      }
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [
+    draft.currentTurn,
+    isComplete,
+    currentStep,
+    isMyTurn,
+    champions.length,
+    isBusy,
+    usedChamps,
+    runLockIn,
+    draft.bluePicks,
+    draft.redPicks,
+  ]);
+
+  const blueName = activeMatch?.blueTeam || 'Blue Side';
+  const redName = activeMatch?.redTeam || 'Red Side';
+
+  const pickForRole = (side: 'blue' | 'red', role: PlayerRole) => {
+    const picks = side === 'blue' ? draft.bluePicks : draft.redPicks;
+    return picks.find((p) => p.role === role)?.champion;
+  };
+
+  /** Role sendo pickada agora (slot piscando) */
+  const activePickRole = useMemo(() => {
+    if (!currentStep || currentStep.action !== DraftAction.PICK) return null;
+    const picks =
+      currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
+    const rolesPicked = picks.map((p) => p.role);
+    return ROLES_ORDER.find((r) => !rolesPicked.includes(r)) || null;
+  }, [currentStep, draft.bluePicks, draft.redPicks]);
+
+  const progressPct = (draft.currentTurn / 20) * 100;
+  const comfort = selectedChamp ? getComfortLevel(selectedChamp, selectedRole) : null;
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      {/* Top Banner */}
-      <div className="p-4 bg-neutral-950 border-2 border-neutral-800 flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(23,23,23,1)]">
-        <div>
-          <h2 className="text-xl font-bold font-mono tracking-tight text-white uppercase">Módulo de Táticas e Snake Draft</h2>
-          <p className="text-xs text-neutral-400 font-mono">
-            Execute os banimentos e seleções táticas de acordo com a sequência competitiva oficial do LoL.
-          </p>
-        </div>
-        <button
-          onClick={resetDraft}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-700 hover:border-red-500 hover:text-red-500 font-mono font-bold text-xs uppercase tracking-wider rounded transition-all"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Reiniciar
-        </button>
-      </div>
+    <div className="flex flex-col gap-3">
+      <div className="draft-stage min-h-[560px]">
+        {/* Splash de fundo dinâmico */}
+        <div
+          key={splashChampion}
+          className="draft-splash-bg transition-opacity duration-700"
+          style={{ backgroundImage: `url(${championSplashUrl(splashChampion)})` }}
+        />
+        <div className="draft-splash-veil" />
 
-      {/* Interface de Draft */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        {/* Lado Esquerdo: Blue Side Picks e Bans */}
-        <div className="lg:col-span-1 panel-brutal border-sky-950 bg-sky-950/5 flex flex-col gap-4">
-          <h3 className="text-md font-bold font-mono text-sky-400 border-b border-sky-950 pb-2 uppercase tracking-wider flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-sky-500 rounded-sm"></span>
-            Blue Side Picks
-          </h3>
-          
-          <div className="flex flex-col gap-2">
-            {myPlayers.map((player) => {
-              const pick = draft.bluePicks.find(p => p.role === player.role);
-              return (
-                <div key={player.id} className="p-3 bg-neutral-950 border border-neutral-800 flex flex-col gap-1.5 rounded-sm">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-neutral-300">{player.name}</span>
-                    <span className="font-mono text-neutral-500 font-semibold">{player.role}</span>
-                  </div>
-                  {pick ? (
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="font-mono text-sm text-sky-400 font-bold">{pick.champion}</span>
-                      <span className="text-[10px] font-mono font-bold px-1 bg-sky-950/40 text-sky-400 border border-sky-900/50 rounded uppercase">
-                        {getComfortLevel(pick.champion, player.role)}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-neutral-600 font-mono italic mt-1">Aguardando Pick...</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        {/* Overlay lock-in */}
+        {lockIn && <LockInOverlay state={lockIn} />}
 
-          <div className="mt-4 border-t border-sky-950/40 pt-2 flex flex-col gap-2">
-            <span className="text-xs font-mono text-neutral-500 uppercase">Blue Bans</span>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.blueBans.map((b, i) => (
-                <span key={i} className="text-xs font-mono bg-neutral-950 border border-neutral-800 text-neutral-400 px-2 py-0.5 rounded-sm flex items-center gap-1">
-                  <Ban className="w-3 h-3 text-red-500/80" />
-                  {b}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Centro: Controle do Draft */}
-        <div className="lg:col-span-2 panel-brutal flex flex-col gap-6">
-          <div className="border-b border-neutral-800 pb-3 flex justify-between items-center">
-            <h3 className="text-md font-bold font-mono uppercase tracking-wider text-neutral-200">
-              {isComplete ? "Draft Concluído!" : `Ação Tática #${draft.currentTurn + 1}`}
-            </h3>
-            {currentStep && (
-              <span className={`px-2 py-1 text-xs font-mono font-bold rounded-sm border ${
-                currentStep.team === DraftTeam.BLUE 
-                  ? 'bg-sky-950 text-sky-400 border-sky-900' 
-                  : 'bg-red-950 text-red-400 border-red-900'
-              }`}>
-                {currentStep.team} Side — {currentStep.action}
-              </span>
-            )}
-          </div>
-
-          {!isComplete && currentStep ? (
-            <div className="flex flex-col gap-4 bg-neutral-950 p-4 border border-neutral-800">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-neutral-500 font-mono uppercase block mb-1">Lane / Posição</label>
-                  <select
-                    value={selectedRole}
-                    onChange={(e) => {
-                      setSelectedRole(e.target.value as PlayerRole);
-                      setSelectedChamp("");
-                    }}
-                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-red-500 focus:outline-none px-3 py-1.5 font-mono text-sm rounded"
-                  >
-                    {Object.values(PlayerRole).map(role => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-neutral-500 font-mono uppercase block mb-1">Campeão</label>
-                  <select
-                    value={selectedChamp}
-                    onChange={(e) => setSelectedChamp(e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-800 focus:border-red-500 focus:outline-none px-3 py-1.5 font-mono text-sm rounded"
-                  >
-                    <option value="">Selecione o Campeão</option>
-                    {championsList.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-lol-gold/20 bg-black/40 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-sm bg-gradient-to-br from-lol-gold to-lol-gold-dim flex items-center justify-center shadow-lol-gold">
+                <Swords className="w-4 h-4 text-lol-void" />
               </div>
+              <div>
+                <h2 className="font-display font-bold text-lol-gold-soft tracking-wide uppercase text-sm sm:text-base">
+                  Champion Select
+                </h2>
+                <p className="text-[10px] text-white/45 font-mono flex items-center gap-1.5">
+                  <Volume2 className="w-3 h-3 opacity-50" />
+                  Snake Draft · Ação {Math.min(draft.currentTurn + 1, 20)}/20
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={resetDraft}
+              disabled={isBusy}
+              className="btn-lol flex items-center gap-1.5 py-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset
+            </button>
+          </div>
 
-              {selectedChamp && currentStep.action === DraftAction.PICK && (
-                <div className="p-3 bg-neutral-900 border border-neutral-800 flex flex-col gap-1.5 text-xs font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500 uppercase">Conforto do Jogador:</span>
-                    <span className={`font-bold ${
-                      getComfortLevel(selectedChamp, selectedRole) === ChampionPoolTier.MAIN ? 'text-emerald-400' :
-                      getComfortLevel(selectedChamp, selectedRole) === ChampionPoolTier.SECONDARY ? 'text-sky-400' : 'text-red-400'
-                    }`}>
-                      {getComfortLevel(selectedChamp, selectedRole)}
-                    </span>
+          {/* Barra de progresso do draft */}
+          <div className="h-1 bg-black/50">
+            <div
+              className="h-full bg-gradient-to-r from-lol-blue-side via-lol-gold to-lol-red-side transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
+          {/* Bans */}
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center px-3 sm:px-4 py-3 bg-black/35 border-b border-white/5 backdrop-blur-[2px]">
+            <div className="flex flex-col gap-1.5 items-start">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-lol-blue-side drop-shadow">
+                {blueName}
+              </span>
+              <div className="flex gap-1 flex-wrap">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <BanSlot
+                    key={i}
+                    name={draft.blueBans[i]}
+                    justBanned={draft.blueBans[i] === lastBanned}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="text-center px-1 sm:px-2 min-w-[7rem]">
+              {currentStep ? (
+                <div
+                  className={`px-3 py-2 rounded-sm border backdrop-blur-sm ${
+                    currentStep.team === DraftTeam.BLUE
+                      ? 'border-lol-blue-side/60 bg-lol-blue-side/15 text-lol-blue-side shadow-lol-blue'
+                      : 'border-lol-red-side/60 bg-lol-red-side/15 text-lol-red-side'
+                  }`}
+                >
+                  <div className="text-[9px] uppercase tracking-widest opacity-70">Turno</div>
+                  <div className="text-xs sm:text-sm font-bold font-display flex items-center justify-center gap-1">
+                    {currentStep.action === DraftAction.BAN ? (
+                      <Ban className="w-3.5 h-3.5" />
+                    ) : (
+                      <Swords className="w-3.5 h-3.5" />
+                    )}
+                    {currentStep.action}
                   </div>
-                  {getComfortLevel(selectedChamp, selectedRole) === ChampionPoolTier.OFF_POOL && (
-                    <p className="text-[10px] text-red-400 bg-red-950/20 border border-red-900/40 p-1.5 rounded font-sans">
-                      ⚠️ **Debuff de Champion Pool Ativo (-45% de Mecânica)**: O atleta selecionado não domina este campeão.
-                    </p>
-                  )}
+                  <div className="text-[9px] mt-0.5 opacity-90">
+                    {isBusy ? 'Travando…' : isMyTurn ? '● Sua vez' : '○ Oponente'}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-emerald-400 text-xs font-bold uppercase flex items-center gap-1 justify-center">
+                  <Sparkles className="w-4 h-4" /> Pronto
                 </div>
               )}
-
-              <button
-                onClick={handleApplyAction}
-                disabled={!selectedChamp}
-                className="w-full btn-brutal-active flex items-center justify-center gap-2"
-              >
-                Confirmar {currentStep.action === DraftAction.BAN ? "Banimento" : "Escolha"}
-              </button>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-8 bg-neutral-950 border border-neutral-800 text-center font-mono">
-              <Sparkles className="w-10 h-10 text-emerald-400 mb-2 animate-bounce" />
-              <span className="text-sm font-bold text-emerald-400 uppercase mb-4">Draft Concluído com Sucesso!</span>
-              
-              <button 
-                className="btn-brutal px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold tracking-wider"
-                onClick={async () => {
-                  try {
-                    await submitDraftAndStartMatch();
-                    useGameStore.getState().setCurrentScreen('SIMULATION');
-                  } catch (e) {
-                    console.error("Erro ao iniciar partida:", e);
-                    alert("Erro ao conectar com o motor de partida!");
+
+            <div className="flex flex-col gap-1.5 items-end">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-lol-red-side drop-shadow">
+                {redName}
+              </span>
+              <div className="flex gap-1 flex-wrap justify-end">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <BanSlot
+                    key={i}
+                    name={draft.redBans[i]}
+                    justBanned={draft.redBans[i] === lastBanned}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Picks + grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_220px] gap-0 flex-1">
+            {/* Blue */}
+            <div className="p-3 space-y-1.5 border-r border-white/5 bg-gradient-to-b from-lol-blue-side/10 to-black/20 order-2 lg:order-1 backdrop-blur-[1px]">
+              {ROLES_ORDER.map((role) => (
+                <PickSlot
+                  key={role}
+                  role={role}
+                  side="blue"
+                  champion={pickForRole('blue', role)}
+                  isActiveSlot={
+                    currentStep?.team === DraftTeam.BLUE &&
+                    currentStep.action === DraftAction.PICK &&
+                    activePickRole === role
                   }
-                }}
-              >
-                IR PARA A PARTIDA
-              </button>
-            </div>
-          )}
-
-          {/* Narrativa do Draft */}
-          <div className="flex-grow flex flex-col gap-2">
-            <span className="text-xs font-mono text-neutral-500 uppercase">Histórico do Log de Draft</span>
-            <div className="h-[200px] overflow-y-auto bg-neutral-950 border border-neutral-800 p-3 font-mono text-xs text-neutral-400 flex flex-col gap-1.5 scroll-smooth">
-              {draft.narrative.map((log, i) => (
-                <div key={i} className={`p-1.5 rounded-sm ${
-                  log.includes("⚠️") ? "bg-red-950/20 border border-red-900/40 text-red-400" : "bg-neutral-900/50"
-                }`}>
-                  {log}
-                </div>
+                  playerName={
+                    resolvedSide === DraftTeam.BLUE
+                      ? starters.find((p) => p.role === role)?.name
+                      : undefined
+                  }
+                />
               ))}
             </div>
-          </div>
-        </div>
 
-        {/* Lado Direito: Red Side Picks e Bans */}
-        <div className="lg:col-span-1 panel-brutal border-red-950 bg-red-950/5 flex flex-col gap-4">
-          <h3 className="text-md font-bold font-mono text-red-500 border-b border-red-950 pb-2 uppercase tracking-wider flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-red-500 rounded-sm"></span>
-            Red Side Picks
-          </h3>
-          
-          <div className="flex flex-col gap-2">
-            {myPlayers.map((player, idx) => {
-              const pick = draft.redPicks.find(p => p.role === player.role);
-              return (
-                <div key={player.id} className="p-3 bg-neutral-950 border border-neutral-800 flex flex-col gap-1.5 rounded-sm">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-neutral-300">Red Player {idx+1}</span>
-                    <span className="font-mono text-neutral-500 font-semibold">{player.role}</span>
+            {/* Centro */}
+            <div className="p-3 sm:p-4 flex flex-col gap-3 order-1 lg:order-2 min-h-[340px] bg-black/25 backdrop-blur-[1px]">
+              {!isComplete && currentStep ? (
+                <>
+                  {/* Role filters com ícones */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {ROLES_ORDER.map((role) => {
+                      const active = selectedRole === role;
+                      return (
+                        <button
+                          key={role}
+                          onClick={() => {
+                            setSelectedRole(role);
+                            setSelectedChamp('');
+                          }}
+                          disabled={isBusy}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm border transition-all ${
+                            active
+                              ? 'border-lol-gold bg-lol-gold/20 text-lol-gold shadow-lol-gold'
+                              : 'border-white/15 text-white/50 hover:border-white/35 hover:text-white/80 bg-black/30'
+                          }`}
+                        >
+                          <RoleIcon role={role} size={14} active={active} />
+                          <span className="hidden sm:inline">{ROLE_LABELS[role]}</span>
+                        </button>
+                      );
+                    })}
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar…"
+                      disabled={isBusy}
+                      className="ml-auto flex-1 min-w-[7rem] max-w-xs bg-black/55 border border-white/15 px-2 py-1.5 text-xs rounded-sm focus:border-lol-gold focus:outline-none placeholder:text-white/30"
+                    />
                   </div>
-                  {pick ? (
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="font-mono text-sm text-red-400 font-bold">{pick.champion}</span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-neutral-600 font-mono italic mt-1">Aguardando Pick...</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
 
-          <div className="mt-4 border-t border-red-950/40 pt-2 flex flex-col gap-2">
-            <span className="text-xs font-mono text-neutral-500 uppercase">Red Bans</span>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.redBans.map((b, i) => (
-                <span key={i} className="text-xs font-mono bg-neutral-950 border border-neutral-800 text-neutral-400 px-2 py-0.5 rounded-sm flex items-center gap-1">
-                  <Ban className="w-3 h-3 text-red-500/80" />
-                  {b}
-                </span>
+                  {/* Preview do campeão hover/selecionado (splash thumb) */}
+                  {selectedChamp && (
+                    <div className="relative h-16 sm:h-20 rounded-sm overflow-hidden border border-lol-gold/30 animate-fade-in">
+                      <div
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${championSplashUrl(selectedChamp)})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+                      <div className="relative h-full flex items-center gap-3 px-3">
+                        <ChampionImage name={selectedChamp} variant="portrait" highlighted />
+                        <div>
+                          <div className="font-display font-bold text-lol-gold-soft text-sm sm:text-base">
+                            {selectedChamp}
+                          </div>
+                          <div className="text-[10px] text-white/60 flex items-center gap-1">
+                            <RoleIcon role={selectedRole} size={11} className="text-lol-gold" />
+                            {ROLE_LABELS[selectedRole]}
+                            {currentStep.action === DraftAction.PICK && comfort && (
+                              <span
+                                className={`ml-2 ${
+                                  comfort === ChampionPoolTier.MAIN
+                                    ? 'text-emerald-400'
+                                    : comfort === ChampionPoolTier.SECONDARY
+                                      ? 'text-sky-400'
+                                      : 'text-lol-red-side'
+                                }`}
+                              >
+                                · {comfort}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grid de campeões */}
+                  <div className="flex-1 overflow-y-auto max-h-[280px] sm:max-h-[300px] grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 gap-1.5 p-1 content-start">
+                    {championsList.map((c) => (
+                      <ChampionImage
+                        key={c.id}
+                        name={c.name}
+                        variant="portrait"
+                        showName
+                        highlighted={selectedChamp === c.name}
+                        disabled={!isMyTurn || isBusy}
+                        onClick={() => isMyTurn && !isBusy && setSelectedChamp(c.name)}
+                        className="!w-full !h-auto aspect-square"
+                      />
+                    ))}
+                    {championsList.length === 0 && (
+                      <div className="col-span-full text-center text-white/40 text-xs py-10">
+                        Nenhum campeão disponível nesta role.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm bar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-black/55 border border-lol-gold/20 rounded-sm">
+                    {selectedChamp ? (
+                      <>
+                        <ChampionImage name={selectedChamp} variant="pick" highlighted />
+                        <div className="flex-1 min-w-0 text-xs text-white/55">
+                          {currentStep.action === DraftAction.BAN
+                            ? `Banir ${selectedChamp} do draft`
+                            : `Travar ${selectedChamp} como ${ROLE_LABELS[selectedRole]}`}
+                          {currentStep.action === DraftAction.PICK &&
+                            comfort === ChampionPoolTier.OFF_POOL && (
+                              <span className="block text-lol-red-side text-[10px] mt-0.5">
+                                ⚠ Off-pool — debuff de mecânica
+                              </span>
+                            )}
+                        </div>
+                        <button
+                          onClick={handleConfirm}
+                          disabled={!isMyTurn || isBusy}
+                          className={
+                            currentStep.action === DraftAction.BAN
+                              ? 'btn-lol-danger min-w-[9rem]'
+                              : 'btn-lol-primary min-w-[9rem]'
+                          }
+                        >
+                          {currentStep.action === DraftAction.BAN ? (
+                            <span className="flex items-center justify-center gap-1">
+                              <Ban className="w-3.5 h-3.5" /> Banir
+                            </span>
+                          ) : (
+                            'Lock In'
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-white/40 w-full text-center py-2 font-mono">
+                        {isMyTurn
+                          ? 'Selecione um campeão no grid para continuar'
+                          : 'Aguardando oponente…'}
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 gap-5 flex-1">
+                  <div className="flex gap-1.5 flex-wrap justify-center max-w-md">
+                    {draft.bluePicks.map((p) => (
+                      <ChampionImage key={`b-${p.champion}`} name={p.champion} variant="pick" locked />
+                    ))}
+                    <span className="self-center text-white/30 px-2 font-display">VS</span>
+                    {draft.redPicks.map((p) => (
+                      <ChampionImage key={`r-${p.champion}`} name={p.champion} variant="pick" locked />
+                    ))}
+                  </div>
+                  <Sparkles className="w-10 h-10 text-lol-gold animate-pulse" />
+                  <h3 className="font-display text-lg text-lol-gold-soft uppercase tracking-wide">
+                    Draft completo
+                  </h3>
+                  <p className="text-xs text-white/50 max-w-sm text-center">
+                    Composições travadas. Hora de entrar no Rift.
+                  </p>
+                  <button
+                    className="btn-lol-primary px-8 py-3 text-sm"
+                    disabled={isStartingMatch}
+                    onClick={async () => {
+                      setIsStartingMatch(true);
+                      try {
+                        await submitDraftAndStartMatch();
+                        setCurrentScreen('SIMULATION');
+                      } catch (e) {
+                        console.error(e);
+                        alert('Erro ao iniciar partida');
+                      } finally {
+                        setIsStartingMatch(false);
+                      }
+                    }}
+                  >
+                    {isStartingMatch ? 'Carregando…' : 'Entrar no Rift →'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Red */}
+            <div className="p-3 space-y-1.5 border-l border-white/5 bg-gradient-to-b from-lol-red-side/10 to-black/20 order-3 backdrop-blur-[1px]">
+              {ROLES_ORDER.map((role) => (
+                <PickSlot
+                  key={role}
+                  role={role}
+                  side="red"
+                  champion={pickForRole('red', role)}
+                  isActiveSlot={
+                    currentStep?.team === DraftTeam.RED &&
+                    currentStep.action === DraftAction.PICK &&
+                    activePickRole === role
+                  }
+                  playerName={
+                    resolvedSide === DraftTeam.RED
+                      ? starters.find((p) => p.role === role)?.name
+                      : undefined
+                  }
+                />
               ))}
             </div>
           </div>
         </div>
+      </div>
 
+      {/* Log */}
+      <div className="panel-lol">
+        <div className="panel-lol-header">
+          <span className="text-xs font-semibold uppercase tracking-wider text-white/60">
+            Log do draft
+          </span>
+          <span className="text-[10px] font-mono text-white/30">{draft.narrative.length} eventos</span>
+        </div>
+        <div className="max-h-28 overflow-y-auto p-2 font-mono text-[10px] text-white/45 space-y-0.5">
+          {draft.narrative.map((log, i) => (
+            <div
+              key={i}
+              className={`${log.includes('⚠️') ? 'text-lol-red-side' : ''} ${
+                i === draft.narrative.length - 1 ? 'text-lol-gold-soft' : ''
+              }`}
+            >
+              {log}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

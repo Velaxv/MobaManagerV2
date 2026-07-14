@@ -1,7 +1,21 @@
 import { useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { Calendar, AlertTriangle, Play, ShieldAlert, Loader2, Swords } from 'lucide-react';
+import {
+  Calendar,
+  AlertTriangle,
+  Play,
+  ShieldAlert,
+  Loader2,
+  Swords,
+  TrendingUp,
+  Users,
+  Wallet,
+  Activity,
+} from 'lucide-react';
 import { CalendarDayType } from '../types/game';
+import { ROLE_LABELS } from '../lib/champions';
+import { RoleIcon } from '../components/RoleIcon';
+import { ChampionImage } from '../components/ChampionImage';
 
 export function Dashboard() {
   const [isAdvancing, setIsAdvancing] = useState(false);
@@ -9,59 +23,82 @@ export function Dashboard() {
     currentWeek,
     currentDayIndex,
     calendar,
-    playersCache,
+    myPlayers,
     myTeamName,
     myBudget,
     advanceDay,
     activeMatch,
     setCurrentScreen,
+    standings,
+    lastAutoResults,
+    splitPhase,
   } = useGameStore();
 
-  // Usa o cache completo que já foi filtrado no loadData (são os jogadores do time atual)
-  const myPlayers = playersCache;
-
-  // Detecta jogadores sob alerta de burnout crítico (> 70)
-  const burnoutAlerts = myPlayers.filter(p => p.burnoutMeter > 70 || p.visualFatigue > 70);
+  const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
+  const myStanding = standings.find((s) => s.team_name === myTeamName);
+  const myRank = standings.findIndex((s) => s.team_name === myTeamName) + 1;
+  const starters = myPlayers.slice(0, 5);
+  const avgCa =
+    starters.length > 0
+      ? Math.round(starters.reduce((s, p) => s + p.currentAbility, 0) / starters.length)
+      : 0;
+  const avgBurnout =
+    myPlayers.length > 0
+      ? Math.round(myPlayers.reduce((s, p) => s + p.burnoutMeter, 0) / myPlayers.length)
+      : 0;
 
   const getDayTypeStyles = (type: CalendarDayType) => {
     switch (type) {
       case CalendarDayType.REST:
-        return "bg-emerald-950/40 text-emerald-400 border-emerald-800/80";
+        return 'border-emerald-700/40 bg-emerald-950/25 text-emerald-300';
       case CalendarDayType.MATCH_DAY:
-        return "bg-red-950/40 text-red-500 border-red-800/80";
+        return 'border-lol-gold/45 bg-lol-gold/10 text-lol-gold-soft';
       case CalendarDayType.TRAINING:
-        return "bg-neutral-900 text-neutral-300 border-neutral-700";
+        return 'border-lol-hextech-bright/25 bg-lol-hextech/25 text-white/75';
       case CalendarDayType.SCRIM:
-        return "bg-sky-950/40 text-sky-400 border-sky-850";
+        return 'border-sky-700/40 bg-sky-950/25 text-sky-300';
       default:
-        return "bg-neutral-900 border-neutral-700";
+        return 'border-white/10 bg-black/30 text-white/50';
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      {/* Top Status Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-neutral-950 border-2 border-neutral-800 shadow-[4px_4px_0px_0px_rgba(23,23,23,1)]">
-        <div>
-          <h2 className="text-xl font-bold font-mono tracking-tight text-white uppercase">{myTeamName}</h2>
-          <p className="text-xs text-neutral-400 font-mono">
-            Orçamento: <span className="text-emerald-400 font-bold">€{(myBudget / 1000000).toFixed(2)}M</span>
+    <div className="flex flex-col gap-4">
+      {/* Hero strip */}
+      <div className="panel-lol p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-lol-header pointer-events-none" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-lol-gold/50 to-transparent" />
+        <div className="relative">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-lol-gold/70 font-semibold mb-1">
+            Hub de gestão · CBLOL 2026
+          </p>
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-lol-gold-soft tracking-wide">
+            {myTeamName}
+          </h2>
+          <p className="text-xs text-white/45 mt-1 font-mono">
+            {splitPhase?.replace('_', ' ')}
+            {myStanding && (
+              <span className="text-lol-gold-soft">
+                {' '}
+                · #{myRank || '—'} · {myStanding.wins}V-{myStanding.losses}D · {myStanding.points} pts
+              </span>
+            )}
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <span className="text-xs text-neutral-500 font-mono uppercase block">Tempo de Jogo</span>
-            <span className="font-mono text-sm font-bold text-neutral-200">
-              SEMANA {currentWeek} — {calendar[currentDayIndex].dayOfWeek}
+        <div className="relative flex items-center gap-3 flex-wrap">
+          <div className="text-right hidden sm:block px-3 py-1.5 rounded-sm bg-black/30 border border-white/5">
+            <span className="text-[9px] uppercase text-white/35 block">Hoje</span>
+            <span className="font-mono text-sm font-bold text-white">
+              Sem {currentWeek} · {calendar[currentDayIndex]?.dayOfWeek ?? 'SEG'}
             </span>
           </div>
           {activeMatch && activeMatch.currentPhase === 'DRAFT' ? (
             <button
               onClick={() => setCurrentScreen('DRAFT')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-black border-2 border-black font-mono font-bold text-sm tracking-wider uppercase shadow-[3px_3px_0px_0px_rgba(255,255,255,0.15)] hover:bg-amber-400 active:translate-x-0.5 active:translate-y-0.5 transition-all"
+              className="btn-lol-primary flex items-center gap-2 py-2.5 px-4 shadow-lol-gold"
             >
-              <Swords className="w-4 h-4 fill-black" />
-              Iniciar Partida
+              <Swords className="w-4 h-4" />
+              Match Day — Draft
             </button>
           ) : (
             <button
@@ -71,42 +108,92 @@ export function Dashboard() {
                 await advanceDay();
                 setIsAdvancing(false);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-black border-2 border-black font-mono font-bold text-sm tracking-wider uppercase shadow-[3px_3px_0px_0px_rgba(255,255,255,0.15)] hover:bg-red-400 active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-wait"
+              className="btn-lol-primary flex items-center gap-2 py-2.5 px-4"
             >
-              {isAdvancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-black" />}
-              {isAdvancing ? 'Avançando...' : 'Avançar Dia'}
+              {isAdvancing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4 fill-current" />
+              )}
+              {isAdvancing ? 'Avançando…' : 'Avançar dia'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Calendário Progressivo */}
-      <div className="panel-brutal">
-        <div className="flex items-center gap-2 mb-4 border-b border-neutral-800 pb-2">
-          <Calendar className="w-5 h-5 text-red-500" />
-          <h3 className="text-md font-bold font-mono uppercase tracking-wider text-neutral-200">Calendário de Progresso Semanal</h3>
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="hub-stat-card">
+          <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
+            <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Orçamento
+          </div>
+          <div className="font-mono text-lg sm:text-xl font-bold text-emerald-400">
+            €{(myBudget / 1_000_000).toFixed(2)}M
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="hub-stat-card">
+          <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
+            <TrendingUp className="w-3.5 h-3.5 text-lol-gold" /> Posição
+          </div>
+          <div className="font-mono text-lg sm:text-xl font-bold text-lol-gold">
+            {myRank > 0 ? `#${myRank}` : '—'}
+            {myStanding && (
+              <span className="text-sm text-white/40 font-normal ml-1">
+                {myStanding.wins}V-{myStanding.losses}D
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="hub-stat-card">
+          <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
+            <Users className="w-3.5 h-3.5 text-sky-400" /> CA médio (titulares)
+          </div>
+          <div className="font-mono text-lg sm:text-xl font-bold text-sky-300">{avgCa || '—'}</div>
+        </div>
+        <div className="hub-stat-card">
+          <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
+            <Activity className="w-3.5 h-3.5 text-amber-400" /> Burnout médio
+          </div>
+          <div
+            className={`font-mono text-lg sm:text-xl font-bold ${
+              avgBurnout > 60 ? 'text-lol-red-side' : avgBurnout > 35 ? 'text-amber-400' : 'text-emerald-400'
+            }`}
+          >
+            {avgBurnout}%
+          </div>
+        </div>
+      </div>
+
+      {/* Calendário */}
+      <div className="panel-lol">
+        <div className="panel-lol-header">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-lol-gold" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Semana {currentWeek}
+            </span>
+          </div>
+          <span className="text-[10px] text-white/30 font-mono">Rotina do plantel</span>
+        </div>
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {calendar.map((day, idx) => {
             const isToday = idx === currentDayIndex;
             return (
               <div
                 key={day.dayIndex}
-                className={`flex flex-col p-3 border-2 transition-all relative ${
-                  isToday ? "border-red-500 ring-1 ring-red-500 shadow-[2px_2px_0px_0px_rgba(239,68,68,1)]" : "border-neutral-800"
-                } ${getDayTypeStyles(day.type)}`}
+                className={`hub-day-card ${getDayTypeStyles(day.type)} ${isToday ? 'hub-day-today' : 'opacity-80'}`}
               >
                 {isToday && (
-                  <span className="absolute top-1.5 right-1.5 text-[9px] font-mono font-bold bg-red-500 text-black px-1 uppercase rounded-sm">
-                    HOJE
+                  <span className="absolute top-1.5 right-1.5 text-[8px] font-bold bg-lol-gold text-lol-void px-1 rounded-sm uppercase">
+                    Hoje
                   </span>
                 )}
-                <span className="font-mono font-bold text-xs text-neutral-400">{day.dayOfWeek}</span>
-                <span className="font-mono text-[10px] font-semibold mt-1 tracking-wider uppercase opacity-80">
+                <span className="font-mono font-bold text-[10px] opacity-70">{day.dayOfWeek}</span>
+                <span className="text-[10px] font-semibold mt-1 uppercase tracking-wide">
                   {day.type.replace('_', ' ')}
                 </span>
-                <p className="text-[11px] font-sans mt-2 line-clamp-1 opacity-70">
-                  {day.eventName || "Treino diário"}
+                <p className="text-[10px] mt-auto pt-2 line-clamp-2 opacity-60 leading-snug">
+                  {day.eventName || 'Rotina'}
                 </p>
               </div>
             );
@@ -114,127 +201,219 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Grid Principal - Alertas de Burnout e Elenco */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Painel de Alerta de Burnout */}
-        <div className="lg:col-span-1 panel-brutal-alert border-red-900/60 bg-red-950/10 flex flex-col gap-4">
-          <div className="flex items-center gap-2 border-b border-red-900/40 pb-2">
-            <AlertTriangle className="w-5 h-5 text-red-400 animate-pulse" />
-            <h3 className="text-md font-bold font-mono uppercase tracking-wider text-red-400">Alertas de Burnout e Fadiga</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Forma física */}
+        <div className="panel-lol flex flex-col">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2 text-lol-red-side">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Forma física</span>
+            </div>
+            {burnoutAlerts.length > 0 && (
+              <span className="text-[10px] font-mono text-lol-red-side">{burnoutAlerts.length}</span>
+            )}
           </div>
-          
-          {burnoutAlerts.length > 0 ? (
-            <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1">
-              {burnoutAlerts.map(player => {
-                const isVisualAlert = player.visualFatigue > 70;
-                return (
+          <div className="p-3 flex-1">
+            {burnoutAlerts.length > 0 ? (
+              <div className="flex flex-col gap-2 max-h-[280px] overflow-y-auto">
+                {burnoutAlerts.map((player) => (
                   <div
                     key={player.id}
-                    className="p-3 bg-neutral-950/80 border border-red-900/60 flex flex-col gap-1.5"
+                    className="p-2.5 bg-black/40 border border-lol-red-side/30 rounded-sm"
                   >
-                    <div className="flex justify-between items-start">
-                      <span className="font-bold text-neutral-200 text-sm">{player.name}</span>
-                      <span className="text-[10px] font-mono bg-red-900/40 text-red-400 border border-red-700/50 px-1 rounded uppercase">
-                        {player.role}
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ChampionImage
+                          name={player.championPool?.[0]?.champion}
+                          variant="ban"
+                          className="!w-8 !h-8"
+                        />
+                        <span className="font-semibold text-sm text-white truncate">{player.name}</span>
+                      </div>
+                      <span className="flex items-center gap-1 role-pill shrink-0">
+                        <RoleIcon role={player.role} size={10} />
+                        {ROLE_LABELS[player.role] || player.role}
                       </span>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] font-mono">
                       <div>
-                        <span className="text-neutral-500 uppercase text-[10px] block">Burnout Geral</span>
-                        <span className={`font-bold ${player.burnoutMeter > 80 ? 'text-red-400' : 'text-amber-400'}`}>
-                          {player.burnoutMeter}%
-                        </span>
+                        <span className="text-white/40 block">Burnout</span>
+                        <div className="stat-bar mt-0.5">
+                          <div
+                            className="stat-bar-fill bg-lol-red-side"
+                            style={{ width: `${player.burnoutMeter}%` }}
+                          />
+                        </div>
                       </div>
                       <div>
-                        <span className="text-neutral-500 uppercase text-[10px] block">Fadiga Visual</span>
-                        <span className={`font-bold ${player.visualFatigue > 70 ? 'text-red-400' : 'text-neutral-400'}`}>
-                          {player.visualFatigue}%
-                        </span>
+                        <span className="text-white/40 block">Fadiga visual</span>
+                        <div className="stat-bar mt-0.5">
+                          <div
+                            className="stat-bar-fill bg-amber-500"
+                            style={{ width: `${player.visualFatigue}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
-
-                    {isVisualAlert && (
-                      <p className="text-[10px] text-red-400 bg-red-950/30 border border-red-900/40 p-1.5 rounded mt-1 font-sans">
-                        ⚠️ **Debuff de Mecânica Ativo (-25%)**: A fadiga visual está muito elevada. Alocar descanso urgente!
-                      </p>
-                    )}
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-8 text-neutral-600 text-center flex-grow font-mono">
-              <ShieldAlert className="w-10 h-10 text-neutral-700 mb-2" />
-              <span>Sem alertas críticos. Todo o elenco em condições físicas e visuais estáveis.</span>
-            </div>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 text-white/35 text-center">
+                <ShieldAlert className="w-8 h-8 mb-2 opacity-50" />
+                <span className="text-xs">Elenco em boa forma. Sem alertas críticos.</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Resumo do Elenco Ativo */}
-        <div className="lg:col-span-2 panel-brutal flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
-            <h3 className="text-md font-bold font-mono uppercase tracking-wider text-neutral-200">Elenco Principal G2 Esports</h3>
-            <span className="text-xs text-neutral-500 font-mono uppercase">
-              Tamanho: {myPlayers.length} / 11 Atletas
+        {/* Titulares */}
+        <div className="lg:col-span-2 panel-lol flex flex-col">
+          <div className="panel-lol-header">
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Titulares
+            </span>
+            <button
+              onClick={() => setCurrentScreen('SQUAD')}
+              className="text-[10px] text-lol-gold hover:underline uppercase tracking-wide"
+            >
+              Ver elenco completo →
+            </button>
+          </div>
+          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2">
+            {starters.map((player) => (
+              <div
+                key={player.id}
+                className="flex sm:flex-col items-center sm:items-stretch gap-2 p-2.5 rounded-sm bg-black/30 border border-white/5 hover:border-lol-gold/25 transition-colors"
+              >
+                <ChampionImage
+                  name={player.championPool?.[0]?.champion}
+                  variant="portrait"
+                  className="shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1 text-[9px] text-white/40 mb-0.5">
+                    <RoleIcon role={player.role} size={10} className="text-lol-gold/70" />
+                    {ROLE_LABELS[player.role]}
+                  </div>
+                  <div className="font-semibold text-sm text-white truncate">{player.name}</div>
+                  <div className="flex gap-2 mt-1 text-[10px] font-mono">
+                    <span className="text-emerald-400 font-bold">CA {player.currentAbility}</span>
+                    <span className="text-white/35">Mec {player.mechanics}</span>
+                  </div>
+                  <div className="stat-bar mt-1.5">
+                    <div
+                      className={`stat-bar-fill ${
+                        player.burnoutMeter > 70
+                          ? 'bg-lol-red-side'
+                          : player.burnoutMeter > 40
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${player.burnoutMeter}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {starters.length === 0 && (
+              <p className="col-span-full text-xs text-white/40 p-4 font-mono">
+                Elenco vazio — rode o seed e escolha um time.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela + resultados */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="panel-lol">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-lol-gold" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+                Classificação
+              </span>
+            </div>
+            <button
+              onClick={() => setCurrentScreen('STANDINGS')}
+              className="text-[10px] text-lol-gold hover:underline uppercase"
+            >
+              Completa →
+            </button>
+          </div>
+          <div className="p-2 overflow-x-auto">
+            {standings.length === 0 ? (
+              <p className="text-xs text-white/40 p-4 font-mono">
+                Avance match days para gerar standings.
+              </p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-white/35 text-[10px] uppercase font-mono border-b border-white/5">
+                    <th className="py-1.5 px-2 text-left">#</th>
+                    <th className="text-left px-2">Time</th>
+                    <th className="px-2">V</th>
+                    <th className="px-2">D</th>
+                    <th className="px-2">Pts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {standings.slice(0, 8).map((row, idx) => (
+                    <tr
+                      key={row.team_id}
+                      className={
+                        row.team_name === myTeamName
+                          ? 'hub-table-row-mine'
+                          : idx < 6
+                            ? 'hub-table-row-playoff text-white/80'
+                            : 'hub-table-row-out text-white/55'
+                      }
+                    >
+                      <td className="py-1.5 px-2 text-white/40 font-mono">{idx + 1}</td>
+                      <td className="px-2 font-semibold">{row.team_name}</td>
+                      <td className="px-2 text-center text-emerald-400 font-mono">{row.wins}</td>
+                      <td className="px-2 text-center text-lol-red-side font-mono">{row.losses}</td>
+                      <td className="px-2 text-center font-bold font-mono">{row.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className="panel-lol">
+          <div className="panel-lol-header">
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Resultados da rodada (IA)
             </span>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse font-mono text-xs select-none">
-              <thead>
-                <tr className="border-b border-neutral-800 text-neutral-500">
-                  <th className="py-2">Jogador</th>
-                  <th>Role</th>
-                  <th>Idade</th>
-                  <th>CA</th>
-                  <th>PA</th>
-                  <th>Mecânica</th>
-                  <th>Foco</th>
-                  <th>Fadiga Geral</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-900 text-neutral-300">
-                {myPlayers.slice(0, 5).map(player => (
-                  <tr key={player.id} className="hover:bg-neutral-800/40">
-                    <td className="py-2.5 font-bold font-sans text-neutral-200">{player.name}</td>
-                    <td>
-                      <span className="bg-neutral-800 px-1.5 py-0.5 rounded text-[10px] text-neutral-400">
-                        {player.role}
-                      </span>
-                    </td>
-                    <td>{player.age} anos</td>
-                    <td>
-                      <span className="text-emerald-400 font-bold">{player.currentAbility}</span>
-                    </td>
-                    <td className="text-neutral-500">{player.potentialAbility}</td>
-                    <td>
-                      <span className={`px-1.5 py-0.5 rounded ${player.mechanics >= 16 ? 'text-emerald-400 bg-emerald-950/40 border border-emerald-900/50' : 'text-neutral-300'}`}>
-                        {player.mechanics}
-                      </span>
-                    </td>
-                    <td>{player.focus}</td>
-                    <td>
-                      <div className="w-full max-w-[80px] bg-neutral-950 border border-neutral-800 h-2.5 rounded-sm relative overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            player.burnoutMeter > 70 ? 'bg-red-500' : player.burnoutMeter > 40 ? 'bg-amber-500' : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${player.burnoutMeter}%` }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
+          <div className="p-3">
+            {lastAutoResults.length === 0 ? (
+              <p className="text-xs text-white/40 font-mono leading-relaxed">
+                Partidas de outros times são simuladas no match day. Seu confronto abre o draft estilo
+                cliente.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto">
+                {lastAutoResults.map((r, i) => (
+                  <li
+                    key={i}
+                    className="text-[11px] font-mono p-2.5 border border-white/5 bg-black/30 rounded-sm text-white/70 flex flex-wrap items-center gap-x-2"
+                  >
+                    <span className="text-white/40">
+                      {(r as { blue_team_name?: string }).blue_team_name || 'Blue'} vs{' '}
+                      {(r as { red_team_name?: string }).red_team_name || 'Red'}
+                    </span>
+                    <span className="text-lol-gold">→</span>
+                    <span className="text-emerald-400 font-bold">{r.winner_name || '—'}</span>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="text-[11px] text-neutral-500 font-sans border-t border-neutral-800/60 pt-2">
-            💡 *Avançar o dia simula a rotina física dos atletas. Dias de MATCH_DAY e TRAINING aumentam o estresse visual/mental, e dias de REST reduzem burnout de forma integrada.*
+              </ul>
+            )}
           </div>
         </div>
-
       </div>
     </div>
   );

@@ -119,11 +119,10 @@ export function DataGrid<T extends { id: string | number }>({
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-900 border-2 border-neutral-800 text-neutral-100 font-sans shadow-md">
-      {/* Barra de busca e utilitários */}
+    <div className="flex flex-col h-full bg-black/30 border border-white/10 text-white font-sans rounded-sm overflow-hidden">
       {searchKey && (
-        <div className="flex items-center gap-2 p-3 bg-neutral-950 border-b border-neutral-800">
-          <Search className="w-4 h-4 text-neutral-500" />
+        <div className="flex items-center gap-2 p-3 bg-black/40 border-b border-white/5">
+          <Search className="w-4 h-4 text-lol-gold/60" />
           <input
             type="text"
             placeholder={searchPlaceholder}
@@ -132,51 +131,50 @@ export function DataGrid<T extends { id: string | number }>({
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full max-w-sm bg-neutral-900 border border-neutral-800 focus:border-red-500 focus:outline-none text-sm px-3 py-1.5 font-mono text-neutral-200 placeholder:text-neutral-600 rounded transition-all"
+            className="w-full max-w-sm bg-lol-void border border-white/10 focus:border-lol-gold focus:outline-none text-sm px-3 py-1.5 font-mono text-white placeholder:text-white/30 rounded-sm transition-all"
           />
-          <div className="ml-auto text-xs text-neutral-500 font-mono">
-            Mostrando {sortedData.length} registros
+          <div className="ml-auto text-[10px] text-white/35 font-mono uppercase">
+            {sortedData.length} registros
           </div>
         </div>
       )}
 
-      {/* Grid de Dados */}
       <div className="overflow-x-auto flex-grow">
         <table className="w-full text-left border-collapse select-none">
           <thead>
-            <tr className="bg-neutral-950/80 border-b border-neutral-800 font-mono text-xs uppercase tracking-wider text-neutral-400">
+            <tr className="bg-lol-hextech/30 border-b border-lol-gold/15 font-mono text-[10px] uppercase tracking-wider text-white/45">
               {columns.map((col, idx) => {
                 const sortKey = typeof col.accessorKey === 'string' ? col.accessorKey : String(idx);
                 const isSorted = sortConfig?.key === sortKey;
-                
+
                 return (
                   <th
                     key={idx}
                     onClick={() => handleSort(sortKey, col.sortable)}
-                    className={`px-4 py-3 font-semibold select-none ${col.sortable ? 'cursor-pointer hover:bg-neutral-900 hover:text-white transition-colors' : ''}`}
+                    className={`px-4 py-3 font-semibold select-none ${col.sortable ? 'cursor-pointer hover:bg-white/5 hover:text-lol-gold transition-colors' : ''}`}
                   >
                     <div className="flex items-center gap-1.5">
                       {col.header}
-                      {col.sortable && (
-                        isSorted ? (
-                          sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-red-500" /> : <ChevronDown className="w-3 h-3 text-red-500" />
+                      {col.sortable &&
+                        (isSorted ? (
+                          sortConfig.direction === 'asc' ? (
+                            <ChevronUp className="w-3 h-3 text-lol-gold" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3 text-lol-gold" />
+                          )
                         ) : (
-                          <ArrowUpDown className="w-3 h-3 text-neutral-600" />
-                        )
-                      )}
+                          <ArrowUpDown className="w-3 h-3 text-white/20" />
+                        ))}
                     </div>
                   </th>
                 );
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-800 font-mono text-sm">
+          <tbody className="divide-y divide-white/5 text-sm">
             {paginatedData.length > 0 ? (
               paginatedData.map((row) => (
-                <tr
-                  key={row.id}
-                  className="hover:bg-neutral-800/40 transition-colors border-b border-neutral-800"
-                >
+                <tr key={row.id} className="hover:bg-lol-hextech/20 transition-colors">
                   {columns.map((col, colIdx) => {
                     let value;
                     if (typeof col.accessorKey === 'function') {
@@ -186,13 +184,13 @@ export function DataGrid<T extends { id: string | number }>({
                     }
 
                     return (
-                      <td key={colIdx} className="px-4 py-2 text-neutral-300 font-sans">
+                      <td key={colIdx} className="px-4 py-2 text-white/75 font-sans">
                         {col.cell ? (
                           col.cell(value, row)
                         ) : typeof value === 'number' ? (
                           renderAttributeBadge(value)
                         ) : (
-                          <span className="font-sans text-neutral-200">{value}</span>
+                          <span className="text-white/90">{String(value ?? '')}</span>
                         )}
                       </td>
                     );
@@ -201,7 +199,7 @@ export function DataGrid<T extends { id: string | number }>({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-neutral-500 font-mono">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-white/35 font-mono text-xs">
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -210,23 +208,22 @@ export function DataGrid<T extends { id: string | number }>({
         </table>
       </div>
 
-      {/* Paginação */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between p-3 bg-neutral-950 border-t border-neutral-800 text-xs font-mono">
+        <div className="flex items-center justify-between p-3 bg-black/40 border-t border-white/5 text-[10px] font-mono">
           <button
             disabled={currentPage === 1}
             onClick={() => setCurrentPage((c) => Math.max(1, c - 1))}
-            className="px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 disabled:opacity-30 hover:border-red-500 hover:text-white transition-all rounded disabled:hover:border-neutral-800"
+            className="btn-lol py-1 px-2 disabled:opacity-30"
           >
             Anterior
           </button>
-          <span className="text-neutral-500">
-            Página <span className="text-neutral-200">{currentPage}</span> de <span className="text-neutral-200">{totalPages}</span>
+          <span className="text-white/40">
+            Página <span className="text-white">{currentPage}</span> / {totalPages}
           </span>
           <button
             disabled={currentPage === totalPages}
             onClick={() => setCurrentPage((c) => Math.min(totalPages, c + 1))}
-            className="px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 disabled:opacity-30 hover:border-red-500 hover:text-white transition-all rounded disabled:hover:border-neutral-800"
+            className="btn-lol py-1 px-2 disabled:opacity-30"
           >
             Próximo
           </button>

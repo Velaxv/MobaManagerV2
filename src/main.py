@@ -34,6 +34,7 @@ from src.modules.draft.snake_draft import SnakeDraft, DraftTeam, DraftAction
 from src.modules.draft.draft_ai import DraftAI, calculate_draft_penalties
 from src.modules.simulation.match_engine import MatchEngine, MatchInput, MatchSimulationResult
 from src.shared.champions_data import ALL_CHAMPIONS
+from src.shared.cblol_2026_data import CBLOL_2026_TEAMS, KNOWN_SUBS, POOLS_BY_ROLE, LEAGUE_META
 
 # Configuração de Logging
 logging.basicConfig(
@@ -92,6 +93,93 @@ class CreateMatchRequest(BaseModel):
     red_coach_comms: int = 0
 
 
+class SignPlayerRequest(BaseModel):
+    team_id: str
+    player_id: str
+    transfer_fee: float = 250000.0
+    monthly_salary: float = 5000.0
+    seasons: int = 2
+
+
+def _serialize_player(player: Player, contract: Optional[Contract] = None) -> dict:
+    """Serializa jogador + contrato ativo para o frontend."""
+    active_contract = contract
+    if active_contract is None and getattr(player, "contracts", None):
+        for c in player.contracts:
+            if c.status in (ContractStatus.ACTIVE, ContractStatus.ROOKIE_EXTENDED, ContractStatus.PENDING_RENEWAL):
+                active_contract = c
+                break
+
+    champion_pool = player.champion_pool if isinstance(player.champion_pool, list) else []
+    return {
+        "id": str(player.id),
+        "name": player.name,
+        "age": player.get_age(),
+        "nationality": player.nationality,
+        "role": player.role.value,
+        "region": player.region.value if player.region else None,
+        "teamId": str(player.team_id) if player.team_id else None,
+        "isRookie": player.is_rookie,
+        "currentAbility": player.current_ability,
+        "potentialAbility": player.potential_ability,
+        "mechanics": player.mechanics,
+        "championPool": champion_pool,
+        "focus": player.focus,
+        "resilience": player.resilience,
+        "coachability": player.coachability,
+        "teamwork": player.teamwork,
+        "consistency": player.consistency,
+        "bigMatchAptitude": player.big_match_aptitude,
+        "burnoutMeter": player.burnout_meter,
+        "visualFatigue": player.visual_fatigue,
+        "mentalFatigue": player.mental_fatigue,
+        "gamesPlayedThisSplit": player.games_played_this_split or 0,
+        "hasRookieClause": bool(active_contract.has_rookie_clause) if active_contract else False,
+        "participationRate": (
+            active_contract.rookie_participation_rate if active_contract else 0.0
+        ),
+        "contractExpirySeasons": (
+            active_contract.remaining_seasons if active_contract else 0
+        ),
+        "monthlySalary": float(active_contract.monthly_salary) if active_contract else 0.0,
+    }
+
+
+def _build_week_calendar(current_day_of_week: int, current_week: int, phase: str) -> list:
+    """Monta grade semanal simples (SEG-DOM) com tipos de dia coerentes."""
+    labels = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"]
+    # Na regular season: Qua/Sáb = match day aproximado; Dom = rest
+    week_types = [
+        CalendarDayType.TRAINING,
+        CalendarDayType.TRAINING,
+        CalendarDayType.MATCH_DAY,
+        CalendarDayType.SCRIM,
+        CalendarDayType.TRAINING,
+        CalendarDayType.MATCH_DAY,
+        CalendarDayType.REST,
+    ]
+    days = []
+    for i, label in enumerate(labels):
+        day_type = week_types[i]
+        event = None
+        if day_type == CalendarDayType.MATCH_DAY:
+            event = f"CBLOL — Rodada (Semana {current_week})"
+        elif day_type == CalendarDayType.REST:
+            event = "Descanso obrigatório"
+        elif day_type == CalendarDayType.SCRIM:
+            event = "Scrim agendado"
+        days.append({
+            "dayIndex": i,
+            "dayOfWeek": label,
+            "week": current_week,
+            "type": day_type.value,
+            "eventName": event,
+            "isToday": i == (current_day_of_week % 7),
+            "phase": phase,
+        })
+    return days
+
+
 # --- Rotas Auxiliares / Admin ---
 @app.get("/")
 def read_root():
@@ -106,11 +194,9 @@ def read_root():
 @app.post("/db/seed", status_code=status.HTTP_201_CREATED)
 async def seed_database(db: AsyncSession = Depends(get_db)):
     """
-    Semeia o banco de dados com a estrutura oficial do CBLOL 2026:
-    - 1 Liga (CBLOL 2026)
-    - 10 Times brasileiros com jogadores reais e comissões técnicas (Head Coaches obrigatórios).
-    - 15 Campeões icônicos com flex picks e atributos por role.
-    - 2 Patches competitivos com datas de vigor e modificadores de patch (ChampionPatchMeta).
+    Semeia o banco com o CBLOL 2026 Split 1 oficial (8 times):
+    RED, FURIA, VKS, LØS, Fluxo W7M, LOUD, paiN, Leviatán.
+    Sem times de fora (G2/T1/LEC) e sem orgs fora do circuito 2026 (KaBuM/INTZ/Liberty).
     """
     try:
         logger.info("Recriando tabelas no banco de dados para semeadura limpa...")
@@ -118,23 +204,23 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
         
-        logger.info("Iniciando semeadura do CBLOL 2026...")
+        logger.info("Iniciando semeadura do CBLOL 2026 (8 times oficiais)...")
         
         # 1. Cria a Liga CBLOL 2026
         cblol = League(
             id=uuid.uuid4(),
-            name="Campeonato Brasileiro de League of Legends 2026",
-            abbreviation="CBLOL",
-            league_type=LeagueType.LEC, # Regulamento exige idade >= 18 anos
+            name=LEAGUE_META["name"],
+            abbreviation=LEAGUE_META["abbreviation"],
+            league_type=LeagueType.LEC,  # liga principal (idade mínima 18+ no elenco titular)
             region=Region.CBLOL,
             current_phase=SplitPhase.REGULAR_SEASON,
             current_week=1,
             current_day=1,
-            regular_season_weeks=9,
-            matches_per_week=2,
-            playoff_teams=6,
-            prize_pool={"1st": 100000.0, "2nd": 60000.0, "3rd": 40000.0},
-            total_prize_pool=Decimal("200000.00")
+            regular_season_weeks=LEAGUE_META["regular_season_weeks"],
+            matches_per_week=LEAGUE_META["matches_per_week"],
+            playoff_teams=LEAGUE_META["playoff_teams"],
+            prize_pool=LEAGUE_META["prize_pool"],
+            total_prize_pool=Decimal(LEAGUE_META["total_prize_pool"]),
         )
         db.add(cblol)
 
@@ -214,95 +300,74 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
         db.add(meta_azir_16_1)
         db.add(meta_ksante_16_1)
 
-        # 4. Dados dos Times e Elencos do CBLOL 2026
-        # paiN, LOUD, RED, Keyd, KaBuM e FURIA têm times Academy (11 players).
-        # Fluxo, INTZ, Liberty e Los Grandes não têm (6 players).
-        teams_data = [
-            # (name, tag, has_academy, budget_millions, monthly_rev, coach_name, strategic_coach_name, players_list)
-            ("paiN Gaming", "PNG", True, 4.5, 120, "Sarkis", "Xypherz", [
-                ("Wizer", PlayerRole.TOP, 148, 175, 16.0, 15.0),
-                ("Cariok", PlayerRole.JUNGLE, 142, 165, 14.5, 16.0),
-                ("dyruyo", PlayerRole.MID, 145, 180, 15.0, 14.0),
-                ("TitaN", PlayerRole.BOT, 150, 185, 16.5, 13.0),
-                ("Kuri", PlayerRole.SUPPORT, 138, 160, 14.0, 15.0),
-            ]),
-            ("LOUD", "LLL", True, 5.0, 130, "Stardust", None, [
-                ("Robo", PlayerRole.TOP, 152, 170, 15.5, 17.0),
-                ("Croc", PlayerRole.JUNGLE, 144, 162, 14.0, 15.0),
-                ("tinowns", PlayerRole.MID, 151, 175, 16.0, 16.0),
-                ("Route", PlayerRole.BOT, 153, 180, 17.0, 13.0),
-                ("Ceos", PlayerRole.SUPPORT, 149, 172, 15.0, 16.0),
-            ]),
-            ("RED Canids Kalunga", "RED", True, 3.8, 100, "Coelho", "Aoshi", [
-                ("fNb", PlayerRole.TOP, 146, 170, 15.5, 15.0),
-                ("Aegis", PlayerRole.JUNGLE, 141, 165, 14.0, 14.0),
-                ("Grevthar", PlayerRole.MID, 136, 160, 13.5, 16.5),
-                ("Brance", PlayerRole.BOT, 143, 175, 15.0, 14.5),
-                ("JoJo", PlayerRole.SUPPORT, 139, 162, 14.0, 14.0),
-            ]),
-            ("Vivo Keyd Stars", "VKS", True, 4.0, 110, "SeeEl", None, [
-                ("Guigo", PlayerRole.TOP, 143, 168, 14.5, 15.0),
-                ("Disamis", PlayerRole.JUNGLE, 140, 172, 14.5, 13.0),
-                ("Toucouille", PlayerRole.MID, 148, 170, 16.0, 15.5),
-                ("SMILEY", PlayerRole.BOT, 142, 165, 14.5, 14.0),
-                ("ProDelta", PlayerRole.SUPPORT, 141, 175, 15.0, 14.5),
-            ]),
-            ("KaBuM! Esports", "KBM", True, 4.2, 115, "von", "Kury", [
-                ("Lonely", PlayerRole.TOP, 144, 168, 15.0, 14.0),
-                ("Malrang", PlayerRole.JUNGLE, 147, 170, 15.0, 15.0),
-                ("Hauz", PlayerRole.MID, 141, 165, 14.5, 14.0),
-                ("Netuno", PlayerRole.BOT, 146, 178, 15.5, 14.0),
-                ("Redbert", PlayerRole.SUPPORT, 138, 158, 13.5, 15.0),
-            ]),
-            ("FURIA Esports", "FUR", True, 3.5, 95, "Maestro", None, [
-                ("Tay", PlayerRole.TOP, 139, 160, 14.0, 14.5),
-                ("Goot", PlayerRole.JUNGLE, 137, 164, 14.0, 13.5),
-                ("Tutsz", PlayerRole.MID, 140, 168, 14.5, 14.0),
-                ("Ayu", PlayerRole.BOT, 142, 175, 15.0, 14.0),
-                ("Cavalo", PlayerRole.SUPPORT, 135, 160, 13.5, 14.0),
-            ]),
-            ("Fluxo", "FX", False, 3.0, 80, "Turtle", None, [
-                ("Kiari", PlayerRole.TOP, 135, 160, 13.5, 14.0),
-                ("Shini", PlayerRole.JUNGLE, 138, 158, 13.5, 14.5),
-                ("FuLgOr", PlayerRole.MID, 132, 155, 13.0, 13.5),
-                ("Trigo", PlayerRole.BOT, 140, 168, 14.5, 14.0),
-                ("scylla", PlayerRole.SUPPORT, 134, 155, 13.0, 13.5),
-            ]),
-            ("INTZ", "ITZ", False, 2.5, 70, "Maestro_Base", None, [
-                ("Boal", PlayerRole.TOP, 134, 158, 13.5, 13.5),
-                ("Yampi", PlayerRole.JUNGLE, 139, 162, 14.0, 14.0),
-                ("Dioge", PlayerRole.MID, 133, 156, 13.0, 14.0),
-                ("NinjaKiwi", PlayerRole.BOT, 137, 162, 14.0, 13.0),
-                ("Damage", PlayerRole.SUPPORT, 136, 158, 13.5, 14.0),
-            ]),
-            ("Liberty", "LBR", False, 2.2, 65, "BeellzY", None, [
-                ("Makes", PlayerRole.TOP, 136, 162, 14.0, 13.5),
-                ("Drakehero", PlayerRole.JUNGLE, 135, 165, 14.0, 13.0),
-                ("Piloto", PlayerRole.MID, 139, 168, 14.5, 14.0),
-                ("Raven", PlayerRole.BOT, 134, 158, 13.0, 13.5),
-                ("Destruge", PlayerRole.SUPPORT, 131, 155, 13.0, 13.0),
-            ]),
-            ("Los Grandes", "LOS", False, 2.8, 75, "Medonho", None, [
-                ("SuperCleber", PlayerRole.TOP, 137, 165, 14.0, 14.0),
-                ("Seize", PlayerRole.JUNGLE, 138, 160, 13.5, 14.0),
-                ("Envy", PlayerRole.MID, 141, 166, 14.5, 14.5),
-                ("Celo", PlayerRole.BOT, 136, 160, 13.5, 13.5),
-                ("Ranger", PlayerRole.SUPPORT, 138, 158, 13.0, 15.0),
-            ]),
-        ]
-
-        champions_pool_mock = [
-            {"champion": "Azir", "tier": "MAIN"},
-            {"champion": "Viktor", "tier": "MAIN"},
-            {"champion": "Jax", "tier": "SECONDARY"},
-            {"champion": "Aatrox", "tier": "SECONDARY"},
-            {"champion": "Kai'Sa", "tier": "MAIN"},
-        ]
-
+        # 4. Times e elencos oficiais do CBLOL 2026 Split 1 (8 orgs)
         teams_list = []
         three_seasons_later = today + timedelta(days=180 * 3)
+        roles_cycle = [PlayerRole.TOP, PlayerRole.JUNGLE, PlayerRole.MID, PlayerRole.BOT, PlayerRole.SUPPORT]
 
-        for name, tag, has_academy, budget, revenue, coach_name, strat_coach_name, starters in teams_data:
+        def _add_player(
+            *,
+            team_id,
+            p_name,
+            role,
+            ca,
+            pa,
+            mech,
+            fcs,
+            nationality,
+            is_rookie,
+            salary_range,
+            has_rookie_clause,
+        ):
+            player_id = uuid.uuid4()
+            # Titulares 18–27; academy/rookie 16–19
+            if is_rookie:
+                birth_year = 2007 + random.randint(0, 2)
+            else:
+                birth_year = 1998 + random.randint(0, 8)
+            pool = list(POOLS_BY_ROLE.get(role, POOLS_BY_ROLE[PlayerRole.MID]))
+            p = Player(
+                id=player_id,
+                name=p_name,
+                date_of_birth=date(birth_year, random.randint(1, 12), random.randint(1, 28)),
+                nationality=nationality,
+                role=role,
+                region=Region.CBLOL,
+                is_rookie=is_rookie,
+                current_ability=ca,
+                potential_ability=max(pa, ca),
+                mechanics=mech,
+                focus=fcs,
+                resilience=float(random.randint(12, 18)),
+                coachability=float(random.randint(12, 18)),
+                teamwork=float(random.randint(12, 18)),
+                consistency=float(random.randint(12, 18)),
+                big_match_aptitude=float(random.randint(12, 18)),
+                champion_pool=pool,
+                burnout_meter=0.0,
+                visual_fatigue=0.0,
+                mental_fatigue=0.0,
+                team_id=team_id,
+            )
+            db.add(p)
+            lo, hi = salary_range
+            contract = Contract(
+                id=uuid.uuid4(),
+                player_id=player_id,
+                team_id=team_id,
+                start_date=today,
+                end_date=three_seasons_later,
+                seasons_duration=3,
+                monthly_salary=Decimal(f"{random.randint(lo, hi)}.00"),
+                status=ContractStatus.ACTIVE,
+                has_rookie_clause=has_rookie_clause,
+                rookie_games_played=0,
+                rookie_total_league_games=cblol.total_regular_season_matches,
+            )
+            db.add(contract)
+            return p
+
+        for name, tag, has_academy, budget, revenue, coach_name, strat_coach_name, starters in CBLOL_2026_TEAMS:
             team_id = uuid.uuid4()
             team = Team(
                 id=team_id,
@@ -310,147 +375,106 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
                 abbreviation=tag,
                 region=Region.CBLOL,
                 budget=Decimal(f"{budget * 1000000:.2f}"),
-                monthly_revenue=Decimal(f"{revenue * 1000:.2f}")
+                monthly_revenue=Decimal(f"{revenue * 1000:.2f}"),
             )
             db.add(team)
             teams_list.append(team)
 
-            # 4.1. Associa Time à Liga
             lt = LeagueTeam(
                 id=uuid.uuid4(),
                 league_id=cblol.id,
                 team_id=team_id,
                 wins=0,
                 losses=0,
-                points=0
+                points=0,
             )
             db.add(lt)
 
-            # 4.2. Cadastra Head Coach (Obrigatório)
             head_coach = Staff(
                 id=uuid.uuid4(),
                 team_id=team_id,
                 name=f"Coach {coach_name}",
                 role="HEAD_COACH",
-                communication=float(random.randint(12, 19)),
-                meta_reading=float(random.randint(12, 19))
+                communication=float(random.randint(13, 19)),
+                meta_reading=float(random.randint(13, 19)),
             )
             db.add(head_coach)
 
-            # 4.3. Cadastra Strategic Coach (Opcional)
             if strat_coach_name:
                 strat_coach = Staff(
                     id=uuid.uuid4(),
                     team_id=team_id,
                     name=f"Coach {strat_coach_name}",
                     role="STRATEGIC_COACH",
-                    communication=float(random.randint(10, 17)),
-                    meta_reading=float(random.randint(13, 19))
+                    communication=float(random.randint(11, 17)),
+                    meta_reading=float(random.randint(13, 19)),
                 )
                 db.add(strat_coach)
 
-            # 4.4. Cadastra Titulares Reais
-            for p_name, role, ca, pa, mech, fcs in starters:
-                player_id = uuid.uuid4()
-                p = Player(
-                    id=player_id,
-                    name=p_name,
-                    date_of_birth=date(1998 + random.randint(0, 5), 1, 1), # Idade >= 18
-                    nationality="Brazil",
+            # Titulares oficiais
+            for p_name, role, ca, pa, mech, fcs, nationality in starters:
+                _add_player(
+                    team_id=team_id,
+                    p_name=p_name,
                     role=role,
-                    region=Region.CBLOL,
+                    ca=ca,
+                    pa=pa,
+                    mech=mech,
+                    fcs=fcs,
+                    nationality=nationality,
                     is_rookie=False,
-                    current_ability=ca,
-                    potential_ability=pa,
-                    mechanics=mech,
-                    focus=fcs,
-                    resilience=float(random.randint(12, 18)),
-                    coachability=float(random.randint(12, 18)),
-                    teamwork=float(random.randint(12, 18)),
-                    consistency=float(random.randint(12, 18)),
-                    big_match_aptitude=float(random.randint(12, 18)),
-                    champion_pool=champions_pool_mock,
-                    burnout_meter=0.0,
-                    visual_fatigue=0.0,
-                    mental_fatigue=0.0,
-                    team_id=team_id
-                )
-                db.add(p)
-                
-                # Contrato
-                contract = Contract(
-                    id=uuid.uuid4(),
-                    player_id=player_id,
-                    team_id=team_id,
-                    start_date=today,
-                    end_date=three_seasons_later,
-                    seasons_duration=3,
-                    monthly_salary=Decimal(f"{random.randint(4000, 18000)}.00"),
-                    status=ContractStatus.ACTIVE,
+                    salary_range=(5000, 20000),
                     has_rookie_clause=False,
-                    rookie_games_played=0,
-                    rookie_total_league_games=cblol.total_regular_season_matches
                 )
-                db.add(contract)
 
-            # 4.5. Cadastra Reservas/Base (Academy)
-            # Para cumprir a regra rígida de elencos:
-            # Se has_academy=True -> no mínimo 11 no total (5 titulares + 6 academy/reservas)
-            # Se has_academy=False -> no mínimo 6 no total (5 titulares + 1 reserva)
-            num_reserves = 6 if has_academy else 1
-            roles_list = [PlayerRole.TOP, PlayerRole.JUNGLE, PlayerRole.MID, PlayerRole.BOT, PlayerRole.SUPPORT]
-            
-            for i in range(num_reserves):
-                reserve_role = roles_list[i % len(roles_list)]
-                player_id = uuid.uuid4()
-                p = Player(
-                    id=player_id,
-                    name=f"{tag} Academy {reserve_role.value} {i+1}",
-                    date_of_birth=date(2007 + random.randint(0, 2), 1, 1), # idade >= 16 anos (ERL/Academy)
-                    nationality="Brazil",
-                    role=reserve_role,
-                    region=Region.CBLOL,
-                    is_rookie=True,
-                    current_ability=random.randint(85, 115),
-                    potential_ability=random.randint(135, 160),
-                    mechanics=float(random.randint(10, 14)),
-                    focus=float(random.randint(9, 14)),
-                    resilience=float(random.randint(9, 14)),
-                    coachability=float(random.randint(11, 16)),
-                    teamwork=float(random.randint(10, 15)),
-                    consistency=float(random.randint(9, 14)),
-                    big_match_aptitude=float(random.randint(9, 14)),
-                    champion_pool=champions_pool_mock,
-                    burnout_meter=0.0,
-                    visual_fatigue=0.0,
-                    mental_fatigue=0.0,
-                    team_id=team_id
-                )
-                db.add(p)
-                
-                # Contrato
-                contract = Contract(
-                    id=uuid.uuid4(),
-                    player_id=player_id,
+            # Subs conhecidos (se houver) contam como reserva
+            known = list(KNOWN_SUBS.get(tag, []))
+            for p_name, role, ca, pa, mech, fcs, nationality in known:
+                _add_player(
                     team_id=team_id,
-                    start_date=today,
-                    end_date=three_seasons_later,
-                    seasons_duration=3,
-                    monthly_salary=Decimal(f"{random.randint(1500, 3500)}.00"),
-                    status=ContractStatus.ACTIVE,
-                    has_rookie_clause=True, # Rookies ganham cláusula
-                    rookie_games_played=0,
-                    rookie_total_league_games=cblol.total_regular_season_matches
+                    p_name=p_name,
+                    role=role,
+                    ca=ca,
+                    pa=pa,
+                    mech=mech,
+                    fcs=fcs,
+                    nationality=nationality,
+                    is_rookie=False,
+                    salary_range=(2500, 6000),
+                    has_rookie_clause=False,
                 )
-                db.add(contract)
+
+            # Completa roster: academy (11 total) ou 1 reserva (6 total)
+            current_count = 5 + len(known)
+            target = 11 if has_academy else 6
+            for i in range(max(0, target - current_count)):
+                reserve_role = roles_cycle[i % len(roles_cycle)]
+                _add_player(
+                    team_id=team_id,
+                    p_name=f"{tag} Academy {reserve_role.value} {i + 1}",
+                    role=reserve_role,
+                    ca=random.randint(90, 118),
+                    pa=random.randint(135, 160),
+                    mech=float(random.randint(10, 14)),
+                    fcs=float(random.randint(10, 14)),
+                    nationality="Brazil",
+                    is_rookie=True,
+                    salary_range=(1500, 3500),
+                    has_rookie_clause=True,
+                )
 
         await db.commit()
-        logger.info("Semeadura do CBLOL 2026 concluída com sucesso!")
+        logger.info(
+            "Semeadura do CBLOL 2026 concluída: %s times (%s).",
+            len(teams_list),
+            ", ".join(t.abbreviation for t in teams_list),
+        )
         
         return {
-            "message": "Banco de dados semeado com o CBLOL 2026 com sucesso!",
+            "message": "Banco semeado com CBLOL 2026 Split 1 (8 times oficiais).",
             "league_id": str(cblol.id),
-            "teams": {t.abbreviation: str(t.id) for t in teams_list}
+            "teams": {t.abbreviation: str(t.id) for t in teams_list},
+            "team_count": len(teams_list),
         }
     except Exception as e:
         await db.rollback()
@@ -462,28 +486,48 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
 @app.get("/calendar", status_code=status.HTTP_200_OK)
 async def get_calendar_state(db: AsyncSession = Depends(get_db)):
     """
-    Retorna o estado atual do calendário (liga ativa).
+    Retorna o estado atual do calendário (liga ativa) + grade semanal.
     """
     league_query = await db.execute(select(League).limit(1))
     league = league_query.scalar_one_or_none()
     if not league:
-        return {"current_day": 1, "current_week": 1, "current_phase": "OFFSEASON"}
-    
+        return {
+            "current_day": 1,
+            "current_week": 1,
+            "current_phase": "OFFSEASON",
+            "day_of_week": 0,
+            "league_id": None,
+            "week_calendar": _build_week_calendar(0, 1, "OFFSEASON"),
+        }
+
+    # day_of_week aproximado a partir do contador (1-indexed no seed)
+    day_of_week = max(0, (league.current_day - 1) % 7)
+    phase = league.current_phase.value if league.current_phase else "OFFSEASON"
     return {
         "current_day": league.current_day,
         "current_week": league.current_week,
-        "current_phase": league.current_phase.value
+        "current_phase": phase,
+        "day_of_week": day_of_week,
+        "league_id": str(league.id),
+        "league_name": league.name,
+        "week_calendar": _build_week_calendar(day_of_week, league.current_week, phase),
     }
 
 @app.post("/calendar/advance", status_code=status.HTTP_200_OK)
-async def advance_calendar(db: AsyncSession = Depends(get_db)):
+async def advance_calendar(
+    managed_team_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Avança um dia no calendário do jogo.
     Processa a State Machine do calendário e roda o BurnoutService
     para aplicar penalidades de fadiga e burnout aos jogadores.
+
+    Query param opcional:
+      managed_team_id — partidas desse time ficam para o jogador (não auto-simula).
     """
     calendar_service = CalendarService(db)
-    results = await calendar_service.advance_all_leagues()
+    results = await calendar_service.advance_all_leagues(managed_team_id=managed_team_id)
     return {
         "message": "Calendário avançado em 1 dia.",
         "results": results
@@ -512,10 +556,10 @@ async def simulate_match(req: CreateMatchRequest, db: AsyncSession = Depends(get
     if not blue_team or not red_team:
         raise HTTPException(status_code=404, detail="Um ou ambos os times não foram encontrados.")
 
-    # Valida roster mínimo
+    # Valida roster mínimo (academy=11, sem academy=6)
     try:
-        blue_team.validate_roster_size(settings.min_roster_size)
-        red_team.validate_roster_size(settings.min_roster_size)
+        blue_team.validate_roster_size()
+        red_team.validate_roster_size()
     except Exception as err:
         raise HTTPException(status_code=400, detail=str(err))
 
@@ -686,34 +730,123 @@ async def get_teams(db: AsyncSession = Depends(get_db)):
 
 @app.get("/teams/{team_id}/players", status_code=status.HTTP_200_OK)
 async def get_team_players(team_id: str, db: AsyncSession = Depends(get_db)):
-    """Busca os jogadores de uma equipe específica."""
-    query = await db.execute(select(Player).where(Player.team_id == uuid.UUID(team_id)))
+    """Busca os jogadores de uma equipe específica (com contrato e pool)."""
+    from sqlalchemy.orm import selectinload
+
+    query = await db.execute(
+        select(Player)
+        .options(selectinload(Player.contracts))
+        .where(Player.team_id == uuid.UUID(team_id))
+    )
     players = query.scalars().all()
+    return [_serialize_player(p) for p in players]
+
+
+@app.get("/leagues", status_code=status.HTTP_200_OK)
+async def get_leagues(db: AsyncSession = Depends(get_db)):
+    """Lista ligas ativas (seed atual = 1 CBLOL)."""
+    query = await db.execute(select(League))
+    leagues = query.scalars().all()
     return [
         {
-            "id": str(p.id),
-            "name": p.name,
-            "role": p.role.value,
-            "region": p.region.value if p.region else None,
-            "isRookie": p.is_rookie,
-            "currentAbility": p.current_ability,
-            "potentialAbility": p.potential_ability,
-            "mechanics": p.mechanics,
-            "championPool": p.champion_pool,
-            "focus": p.focus,
-            "resilience": p.resilience,
-            "coachability": p.coachability,
-            "teamwork": p.teamwork,
-            "consistency": p.consistency,
-            "bigMatchAptitude": p.big_match_aptitude,
-            "burnoutMeter": p.burnout_meter,
-            "visualFatigue": p.visual_fatigue,
-            "mentalFatigue": p.mental_fatigue,
-            "hasRookieClause": False, # Na interface antiga
-            "participationRate": 1.0
+            "id": str(lg.id),
+            "name": lg.name,
+            "abbreviation": lg.abbreviation,
+            "region": lg.region.value if lg.region else None,
+            "current_phase": lg.current_phase.value if lg.current_phase else None,
+            "current_week": lg.current_week,
+            "current_day": lg.current_day,
         }
-        for p in players
+        for lg in leagues
     ]
+
+
+@app.get("/market/players", status_code=status.HTTP_200_OK)
+async def get_market_players(
+    exclude_team_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mercado: jogadores de outros times + agentes livres.
+    exclude_team_id remove o elenco do manager da listagem.
+    """
+    from sqlalchemy.orm import selectinload
+
+    query = select(Player).options(selectinload(Player.contracts))
+    if exclude_team_id:
+        query = query.where(
+            (Player.team_id != uuid.UUID(exclude_team_id)) | (Player.team_id.is_(None))
+        )
+    result = await db.execute(query)
+    players = result.scalars().all()
+    return [_serialize_player(p) for p in players]
+
+
+@app.post("/transfers/sign", status_code=status.HTTP_200_OK)
+async def sign_player(req: SignPlayerRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Contrata jogador para o time do manager:
+    - Debita taxa de transferência do orçamento
+    - Encerra contrato anterior (se houver)
+    - Cria novo contrato ACTIVE
+    """
+    from datetime import date as dt_date, timedelta
+
+    team = await db.get(Team, uuid.UUID(req.team_id))
+    player = await db.get(Player, uuid.UUID(req.player_id))
+    if not team or not player:
+        raise HTTPException(status_code=404, detail="Time ou jogador não encontrado.")
+
+    if player.team_id and str(player.team_id) == req.team_id:
+        raise HTTPException(status_code=400, detail="Jogador já pertence a este time.")
+
+    # Idade mínima CBLOL/LEC-like: 16+ (academy); 18+ seria filtro no FE
+    if player.get_age() < settings.min_age_erl:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Jogador com {player.get_age()} anos é inelegível (mínimo {settings.min_age_erl}).",
+        )
+
+    fee = Decimal(str(req.transfer_fee))
+    try:
+        team.deduct_budget(fee, operation="transferência")
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+    # Encerra contratos ativos anteriores
+    contracts_q = await db.execute(
+        select(Contract).where(
+            Contract.player_id == player.id,
+            Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.ROOKIE_EXTENDED]),
+        )
+    )
+    for old in contracts_q.scalars().all():
+        old.terminate()
+
+    seasons = max(1, min(4, int(req.seasons)))
+    today = dt_date.today()
+    new_contract = Contract(
+        id=uuid.uuid4(),
+        player_id=player.id,
+        team_id=team.id,
+        start_date=today,
+        end_date=today + timedelta(days=180 * seasons),
+        seasons_duration=seasons,
+        monthly_salary=Decimal(str(req.monthly_salary)),
+        status=ContractStatus.ACTIVE,
+        has_rookie_clause=player.is_rookie,
+        rookie_games_played=0,
+        rookie_total_league_games=0,
+    )
+    player.team_id = team.id
+    db.add(new_contract)
+    await db.flush()
+
+    return {
+        "message": f"{player.name} contratado por {team.name}.",
+        "team_budget": float(team.budget),
+        "player": _serialize_player(player, new_contract),
+    }
 
 @app.get("/champions", status_code=status.HTTP_200_OK)
 async def get_champions(db: AsyncSession = Depends(get_db)):
@@ -820,9 +953,14 @@ class StartLiveMatchRequest(BaseModel):
     split_week: int = 1
     blue_draft: List[Dict[str, str]]
     red_draft: List[Dict[str, str]]
+    # Velocidade: 1x (2s/min) | 2x | 4x | instant
+    speed: str = "2x"
 
 class CoachCommRequest(BaseModel):
     team_side: str  # "BLUE" ou "RED"
+
+class LiveSpeedRequest(BaseModel):
+    speed: str  # 1x | 2x | 4x | instant
 
 @app.post("/matches/live/start", status_code=status.HTTP_201_CREATED)
 async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depends(get_db)):
@@ -852,14 +990,26 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         blue_team=blue_team,
         red_team=red_team,
         blue_draft=req.blue_draft,
-        red_draft=req.red_draft
+        red_draft=req.red_draft,
+        speed=req.speed or "2x",
     )
     
+    state_payload = live_state.model_dump() if hasattr(live_state, "model_dump") else live_state.dict()
     return {
         "message": "Simulação de partida ao vivo iniciada com sucesso!",
         "match_id": match_id,
-        "state": live_state.dict()
+        "state": state_payload,
     }
+
+
+@app.post("/matches/live/{match_id}/speed", status_code=status.HTTP_200_OK)
+async def set_live_match_speed(match_id: str, req: LiveSpeedRequest):
+    """Altera a velocidade da partida em andamento (1x, 2x, 4x, instant)."""
+    res = await match_engine_service.set_live_speed(match_id, req.speed)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
+
 
 @app.get("/matches/live/{match_id}/state", status_code=status.HTTP_200_OK)
 async def get_live_match_state(match_id: str):

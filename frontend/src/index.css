@@ -4,38 +4,239 @@
 
 @layer base {
   body {
-    @apply bg-neutral-950 text-neutral-100 font-sans antialiased selection:bg-red-500 selection:text-black;
+    @apply bg-lol-void text-white font-sans antialiased selection:bg-lol-gold selection:text-lol-void;
   }
 
-  /* Custom styling brutalista de scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-neutral-900;
+    background: #010a13;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-neutral-700 hover:bg-neutral-600 border border-neutral-800;
+    background: #785a28;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c89b3c;
   }
 }
 
 @layer components {
-  /* Estilo brutalista de botão */
+  .panel-lol {
+    @apply bg-lol-panel border border-lol-gold/20 rounded-sm shadow-panel backdrop-blur-sm;
+  }
+
+  .panel-lol-header {
+    @apply px-4 py-2.5 border-b border-lol-gold/15 bg-lol-header flex items-center justify-between gap-2;
+  }
+
+  .btn-lol {
+    @apply px-4 py-2 border border-lol-gold/50 bg-gradient-to-b from-[#1e2328] to-[#0a1428]
+      text-lol-gold-soft text-xs font-semibold uppercase tracking-wider
+      hover:border-lol-gold hover:text-lol-gold hover:shadow-lol-gold
+      transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-lol-primary {
+    @apply px-4 py-2 border border-lol-gold bg-gradient-to-b from-lol-gold to-lol-gold-dim
+      text-lol-void text-xs font-bold uppercase tracking-wider
+      hover:brightness-110 shadow-lol-gold transition-all active:scale-[0.98]
+      disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none;
+  }
+
+  .btn-lol-danger {
+    @apply px-4 py-2 border border-lol-red-side/60 bg-gradient-to-b from-[#3a1218] to-[#1a080c]
+      text-lol-red-side text-xs font-bold uppercase tracking-wider
+      hover:border-lol-red-side hover:brightness-110 transition-all;
+  }
+
+  /* Legado (telas ainda não migradas) */
   .btn-brutal {
-    @apply px-4 py-2 bg-neutral-900 border-2 border-neutral-700 hover:border-red-500 hover:bg-neutral-800 transition-all font-mono font-bold text-sm tracking-wider uppercase active:translate-x-0.5 active:translate-y-0.5 shadow-[2px_2px_0px_0px_rgba(82,82,82,1)] hover:shadow-[2px_2px_0px_0px_rgba(239,68,68,1)];
+    @apply btn-lol;
   }
-
   .btn-brutal-active {
-    @apply px-4 py-2 bg-red-500 border-2 border-black hover:bg-red-400 text-black font-mono font-bold text-sm tracking-wider uppercase shadow-[2px_2px_0px_0px_rgba(255,255,255,1)];
+    @apply btn-lol-primary;
   }
-
-  /* Painéis e cards brutalistas */
   .panel-brutal {
-    @apply bg-neutral-900/60 backdrop-blur-sm border-2 border-neutral-800 p-4 shadow-[4px_4px_0px_0px_rgba(23,23,23,1)];
+    @apply panel-lol p-4;
+  }
+  .panel-brutal-alert {
+    @apply panel-lol p-4 border-lol-red-side/40 bg-red-950/20;
   }
 
-  .panel-brutal-alert {
-    @apply bg-red-950/20 border-2 border-red-800 p-4 shadow-[4px_4px_0px_0px_rgba(220,38,38,0.2)];
+  .stat-bar {
+    @apply h-1.5 rounded-full bg-black/50 overflow-hidden border border-white/5;
+  }
+  .stat-bar-fill {
+    @apply h-full rounded-full transition-all duration-500;
+  }
+
+  .role-pill {
+    @apply text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-sm
+      bg-lol-hextech/60 text-lol-blue border border-lol-hextech-bright/20;
+  }
+
+  /* Draft / Champion Select */
+  .draft-stage {
+    @apply relative overflow-hidden rounded-sm border border-lol-gold/25 shadow-panel;
+  }
+
+  .draft-splash-bg {
+    @apply absolute inset-0 bg-cover bg-center scale-105 animate-splash-pulse;
+    filter: saturate(0.85) brightness(0.45);
+  }
+
+  .draft-splash-veil {
+    @apply absolute inset-0 bg-gradient-to-b from-lol-void/70 via-lol-void/85 to-lol-void;
+  }
+
+  .lock-in-overlay {
+    @apply absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-[2px];
+  }
+
+  .lock-in-card {
+    @apply relative flex flex-col items-center gap-3 p-4 animate-lock-in;
+  }
+
+  .lock-in-label {
+    @apply font-display text-2xl sm:text-3xl font-bold tracking-[0.2em] uppercase;
+    text-shadow: 0 0 24px rgba(200, 155, 60, 0.65);
+  }
+
+  .ban-stamp-label {
+    @apply font-display text-2xl sm:text-3xl font-bold tracking-[0.25em] uppercase text-lol-red-side;
+    text-shadow: 0 0 20px rgba(255, 70, 85, 0.7);
+  }
+
+  /* Live match / Rift */
+  .match-stage {
+    @apply relative overflow-hidden rounded-sm border border-lol-gold/25 shadow-panel;
+  }
+
+  .match-splash-bg {
+    @apply absolute inset-0 bg-cover bg-center scale-110;
+    filter: saturate(0.75) brightness(0.35);
+    animation: splash-pulse 8s ease-in-out infinite;
+  }
+
+  .match-splash-veil {
+    @apply absolute inset-0;
+    background:
+      linear-gradient(90deg, rgba(0, 80, 140, 0.25) 0%, transparent 28%, transparent 72%, rgba(140, 20, 30, 0.28) 100%),
+      linear-gradient(180deg, rgba(1, 10, 19, 0.75) 0%, rgba(1, 10, 19, 0.88) 55%, rgba(1, 10, 19, 0.96) 100%);
+  }
+
+  .kill-pop {
+    animation: kill-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  .event-flash {
+    animation: event-flash 0.7s ease-out;
+  }
+
+  .phase-chip {
+    @apply px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-sm border;
+  }
+
+  .phase-chip-active {
+    @apply border-lol-gold bg-lol-gold/20 text-lol-gold shadow-lol-gold;
+  }
+
+  .phase-chip-done {
+    @apply border-white/15 bg-white/5 text-white/40;
+  }
+
+  .phase-chip-idle {
+    @apply border-white/10 text-white/25;
+  }
+
+  .victory-overlay {
+    @apply absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in;
+  }
+}
+
+@keyframes kill-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); text-shadow: 0 0 16px currentColor; }
+  100% { transform: scale(1); }
+}
+
+@keyframes event-flash {
+  0% { background-color: rgba(200, 155, 60, 0.25); }
+  100% { background-color: transparent; }
+}
+
+@layer components {
+  /* Hub / Football Manager */
+  .hub-shell {
+    @apply min-h-screen flex bg-lol-void text-white font-sans;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 0% 0%, rgba(200, 155, 60, 0.06), transparent 50%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(10, 150, 170, 0.06), transparent 45%);
+  }
+
+  .hub-sidebar {
+    @apply hidden md:flex w-60 shrink-0 flex-col border-r border-lol-gold/15;
+    background: linear-gradient(180deg, #0c1a2e 0%, #0a1428 40%, #010a13 100%);
+  }
+
+  .hub-nav-item {
+    @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left transition-all border-l-2;
+  }
+
+  .hub-nav-item-active {
+    @apply bg-gradient-to-r from-lol-gold/15 to-transparent text-lol-gold border-lol-gold shadow-[inset_0_0_20px_rgba(200,155,60,0.06)];
+  }
+
+  .hub-nav-item-idle {
+    @apply text-white/60 hover:bg-white/[0.04] hover:text-white border-transparent;
+  }
+
+  .hub-topbar {
+    @apply sticky top-0 z-40 border-b border-lol-gold/15 backdrop-blur-md;
+    background: linear-gradient(180deg, rgba(12, 26, 46, 0.97) 0%, rgba(10, 20, 40, 0.92) 100%);
+  }
+
+  .hub-stat-card {
+    @apply panel-lol p-3 sm:p-4 flex flex-col gap-1 relative overflow-hidden;
+  }
+
+  .hub-stat-card::before {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(200, 155, 60, 0.45), transparent);
+  }
+
+  .hub-day-card {
+    @apply relative flex flex-col p-2.5 border rounded-sm transition-all min-h-[88px];
+  }
+
+  .hub-day-today {
+    @apply ring-1 ring-lol-gold shadow-lol-gold scale-[1.02] z-[1];
+  }
+
+  .hub-player-card {
+    @apply relative overflow-hidden rounded-sm border border-lol-gold/20
+      bg-gradient-to-b from-[#0f2438] to-[#060d18] flex flex-col
+      hover:border-lol-gold/45 hover:shadow-lol-gold transition-all;
+  }
+
+  .hub-table-row-mine {
+    @apply bg-lol-gold/10 text-lol-gold-soft;
+  }
+
+  .hub-table-row-playoff {
+    @apply border-l-2 border-emerald-600/50;
+  }
+
+  .hub-table-row-out {
+    @apply border-l-2 border-white/5 opacity-80;
+  }
+
+  .team-crest {
+    @apply w-10 h-10 rounded-sm flex items-center justify-center font-display font-black text-sm
+      bg-gradient-to-br from-lol-gold to-lol-gold-dim text-lol-void shadow-lol-gold shrink-0;
   }
 }

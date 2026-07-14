@@ -71,12 +71,16 @@ class CalendarService:
 
         return self._state_machines[league_id]
 
-    async def advance_all_leagues(self) -> list[dict]:
+    async def advance_all_leagues(self, managed_team_id: Optional[str] = None) -> list[dict]:
         """
         Avança o calendário de todas as ligas ativas por exatamente um dia.
 
         Chamado pelo CRON job diário. Processa cada liga de forma isolada;
         erros em uma liga não afetam as demais.
+
+        Args:
+            managed_team_id: Se informado, partidas desse time NÃO são auto-simuladas
+                (ficam em scheduled_matches para o jogador interagir no frontend).
 
         Returns:
             Lista de dicts com o resultado do dia de cada liga.
@@ -91,7 +95,7 @@ class CalendarService:
         day_results = []
         for league in leagues:
             try:
-                day_info = await self.advance_league_day(league)
+                day_info = await self.advance_league_day(league, managed_team_id=managed_team_id)
                 day_results.append(day_info)
             except Exception as exc:
                 logger.error(
@@ -105,7 +109,7 @@ class CalendarService:
         )
         return day_results
 
-    async def advance_league_day(self, league: League) -> dict:
+    async def advance_league_day(self, league: League, managed_team_id: Optional[str] = None) -> dict:
         """
         Avança um dia para uma liga específica.
 
@@ -164,7 +168,11 @@ class CalendarService:
 
             # Despacha partidas se for dia de jogo
             if day_info["is_match_day"]:
-                await self._dispatch_match_day(league=league, day_info=day_info)
+                await self._dispatch_match_day(
+                    league=league,
+                    day_info=day_info,
+                    managed_team_id=managed_team_id,
+                )
 
         # Atualiza o cache do patch ativo para a data atual do calendário
         from src.modules.simulation.patch_service import PatchService
@@ -172,6 +180,12 @@ class CalendarService:
         patch_service = PatchService(self.db)
         active_patch_version = await patch_service.update_patch_cache(current_date)
         day_info["active_patch"] = active_patch_version
+
+        # Enriquecimento para o frontend montar a grade semanal
+        day_info["league_id"] = str(league.id)
+        day_info["league_name"] = league.name
+        day_info["day_of_week_label"] = self._day_label(day_info.get("day_of_week", 0))
+        day_info["managed_team_id"] = managed_team_id
 
         logger.info(
             f"[CalendarService] Liga '{league.name}' | "
@@ -202,19 +216,26 @@ class CalendarService:
         )
         return result.scalars().all()
 
-    async def _dispatch_match_day(self, league: League, day_info: dict) -> list[dict]:
+    async def _dispatch_match_day(
+        self,
+        league: League,
+        day_info: dict,
+        managed_team_id: Optional[str] = None,
+    ) -> list[dict]:
         """
         Despacha o processamento de partidas para um dia de jogo.
 
-        Gera partidas aleatórias para todos os times da liga e as retorna
-        para que o frontend possa iniciar a simulação interativa se o player estiver envolvido.
+        - Agenda confrontos (pareamento aleatório).
+        - Auto-simula confrontos em que o time gerenciado NÃO participa (liga viva).
+        - Mantém em scheduled_matches as partidas do time do jogador (interativas).
 
         Args:
             league: Entidade da liga.
             day_info: Informações do dia atual retornadas pela SM.
-            
+            managed_team_id: UUID do time do manager (opcional).
+
         Returns:
-            Lista de dicionários representando as partidas agendadas (sem os IDs de banco, apenas pra UI)
+            Lista de dicionários representando as partidas agendadas para UI.
         """
         logger.info(
             f"[CalendarService] MATCH DAY disparado para liga '{league.name}' "
@@ -224,25 +245,209 @@ class CalendarService:
         
         teams = await self._get_league_teams(league)
         if len(teams) < 2:
+            day_info["scheduled_matches"] = []
+            day_info["auto_simulated_matches"] = []
             return []
-            
-        import random
-        shuffled = list(teams)
-        random.shuffle(shuffled)
-        
-        matches = []
-        for i in range(0, len(shuffled) - 1, 2):
-            matches.append({
-                "blue_team_id": str(shuffled[i].id),
-                "blue_team_name": shuffled[i].name,
-                "blue_team_abbr": shuffled[i].abbreviation,
-                "red_team_id": str(shuffled[i+1].id),
-                "red_team_name": shuffled[i+1].name,
-                "red_team_abbr": shuffled[i+1].abbreviation,
+
+        # Round-robin determinístico (ordem estável por nome)
+        from src.shared.round_robin import get_round_pairs, match_day_round_index
+
+        ordered = sorted(teams, key=lambda t: (t.name or "", str(t.id)))
+        week = int(day_info.get("week") or 0)
+        dow = int(day_info.get("day_of_week") or 0)
+        round_idx = match_day_round_index(week, dow)
+        pairs = get_round_pairs(ordered, round_idx)
+
+        all_matches = []
+        for home, away in pairs:
+            all_matches.append({
+                "blue_team_id": str(home.id),
+                "blue_team_name": home.name,
+                "blue_team_abbr": home.abbreviation,
+                "red_team_id": str(away.id),
+                "red_team_name": away.name,
+                "red_team_abbr": away.abbreviation,
+                "round_index": round_idx,
             })
-            
-        day_info["scheduled_matches"] = matches
-        return matches
+        day_info["round_index"] = round_idx
+
+        interactive: list[dict] = []
+        auto_results: list[dict] = []
+
+        for match in all_matches:
+            involves_manager = (
+                managed_team_id
+                and managed_team_id in (match["blue_team_id"], match["red_team_id"])
+            )
+            if involves_manager:
+                interactive.append(match)
+                continue
+
+            # Sem manager (ou partida de terceiros): simula automaticamente
+            try:
+                result = await self._auto_simulate_match(
+                    league=league,
+                    blue_team_id=match["blue_team_id"],
+                    red_team_id=match["red_team_id"],
+                    week=day_info.get("week", 1),
+                )
+                auto_results.append({**match, **result})
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Falha ao auto-simular "
+                    f"{match['blue_team_abbr']} vs {match['red_team_abbr']}: {exc}",
+                    exc_info=True,
+                )
+                # Em falha, ainda expõe a partida como agendada (sem resultado)
+                interactive.append({**match, "auto_sim_failed": True})
+
+        day_info["scheduled_matches"] = interactive
+        day_info["auto_simulated_matches"] = auto_results
+        day_info["all_matches_today"] = all_matches
+        return interactive
+
+    async def _auto_simulate_match(
+        self,
+        league: League,
+        blue_team_id: str,
+        red_team_id: str,
+        week: int,
+    ) -> dict:
+        """
+        Simula uma partida IA vs IA (draft + MatchEngine) e atualiza standings.
+        """
+        import uuid as uuid_mod
+        from datetime import datetime
+        from sqlalchemy import update
+        from src.models.match import Match
+        from src.models.league import LeagueTeam
+        from src.models.contract import Contract
+        from src.shared.enums import ContractStatus, SplitPhase
+        from src.modules.draft.snake_draft import SnakeDraft, DraftTeam, DraftAction
+        from src.modules.draft.draft_ai import DraftAI, calculate_draft_penalties
+        from src.modules.simulation.match_engine import MatchEngine, MatchInput
+
+        blue_team = await self.db.get(Team, uuid_mod.UUID(blue_team_id))
+        red_team = await self.db.get(Team, uuid_mod.UUID(red_team_id))
+        if not blue_team or not red_team:
+            raise ValueError("Time não encontrado para auto-simulação")
+
+        blue_team.validate_roster_size()
+        red_team.validate_roster_size()
+
+        match_uuid = uuid_mod.uuid4()
+        draft = SnakeDraft(match_id=str(match_uuid))
+        draft.initialize()
+        draft_ai = DraftAI()
+
+        while not draft.get_current_state().is_complete:
+            expected = draft.get_expected_action()
+            current_team_side = DraftTeam(expected["team"])
+            active_team = blue_team if current_team_side == DraftTeam.BLUE else red_team
+            passive_team = red_team if current_team_side == DraftTeam.BLUE else blue_team
+            chosen_champ, role = draft_ai.make_decision(
+                draft_state=draft.get_current_state(),
+                team_side=current_team_side,
+                team_obj=active_team,
+                opponent_team_obj=passive_team,
+            )
+            draft.process_action(
+                team=current_team_side,
+                action=DraftAction(expected["action"]),
+                champion=chosen_champ,
+                role_hint=role.value if role else None,
+            )
+
+        draft_state = draft.get_current_state()
+        blue_penalty, red_penalty = calculate_draft_penalties(
+            blue_picks=draft_state.blue_picks,
+            red_picks=draft_state.red_picks,
+            blue_team=blue_team,
+            red_team=red_team,
+        )
+
+        sim_result = MatchEngine().simulate(
+            MatchInput(
+                blue_team=blue_team,
+                red_team=red_team,
+                blue_draft=draft_state.blue_picks,
+                red_draft=draft_state.red_picks,
+                is_playoff=False,
+                match_id=str(match_uuid),
+                blue_draft_penalty=blue_penalty,
+                red_draft_penalty=red_penalty,
+            )
+        )
+        sim_result.draft_log = draft.to_match_log()
+
+        winner_id = uuid_mod.UUID(sim_result.winner_team_id)
+        loser_id = (
+            uuid_mod.UUID(red_team_id)
+            if winner_id == uuid_mod.UUID(blue_team_id)
+            else uuid_mod.UUID(blue_team_id)
+        )
+
+        await self.db.execute(
+            update(LeagueTeam)
+            .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == winner_id)
+            .values(wins=LeagueTeam.wins + 1, points=LeagueTeam.points + 3)
+        )
+        await self.db.execute(
+            update(LeagueTeam)
+            .where(LeagueTeam.league_id == league.id, LeagueTeam.team_id == loser_id)
+            .values(losses=LeagueTeam.losses + 1)
+        )
+
+        for player in (blue_team.get_starters() + red_team.get_starters()):
+            player.games_played_this_split = (player.games_played_this_split or 0) + 1
+            contract_query = await self.db.execute(
+                select(Contract).where(
+                    Contract.player_id == player.id,
+                    Contract.status == ContractStatus.ACTIVE,
+                )
+            )
+            contract = contract_query.scalar_one_or_none()
+            if contract:
+                contract.rookie_games_played += 1
+                contract.check_and_trigger_rookie_extension()
+
+        db_match = Match(
+            id=match_uuid,
+            league_id=league.id,
+            split_week=week,
+            split_phase=SplitPhase.REGULAR_SEASON,
+            is_playoff=False,
+            scheduled_at=datetime.utcnow(),
+            blue_team_id=blue_team.id,
+            red_team_id=red_team.id,
+            winner_team_id=winner_id,
+            blue_result=sim_result.blue_result,
+            red_result=sim_result.red_result,
+            match_duration_minutes=sim_result.match_duration_minutes,
+            blue_win_probability=sim_result.blue_win_probability,
+            early_game_log=sim_result.early_game_log,
+            mid_game_log=sim_result.mid_game_log,
+            late_game_log=sim_result.late_game_log,
+            draft_log=sim_result.draft_log,
+        )
+        self.db.add(db_match)
+        await self.db.flush()
+
+        return {
+            "match_id": str(match_uuid),
+            "winner_team_id": str(winner_id),
+            "winner_name": blue_team.name if winner_id == blue_team.id else red_team.name,
+            "duration": sim_result.match_duration_minutes,
+            "auto_simulated": True,
+        }
+
+    @staticmethod
+    def _day_label(day_of_week: int) -> str:
+        labels = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"]
+        try:
+            return labels[int(day_of_week) % 7]
+        except (TypeError, ValueError):
+            return "SEG"
 
     async def get_league_calendar_status(self, league_id: str) -> Optional[dict]:
         """
