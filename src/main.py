@@ -1455,6 +1455,11 @@ class StartLiveMatchRequest(BaseModel):
     red_draft: List[Dict[str, str]]
     # Velocidade: 1x (2s/min) | 2x | 4x | instant
     speed: str = "2x"
+    # Táticas do manager (aplicadas no lado correspondente)
+    managed_team_id: Optional[str] = None
+    game_style: str = "BALANCED"  # EARLY | MID | LATE | BALANCED
+    coach_comms: int = 3
+    starter_ids: Optional[List[str]] = None
 
 class CoachCommRequest(BaseModel):
     team_side: str  # "BLUE" ou "RED"
@@ -1485,6 +1490,38 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
     is_playoff = bool(req.is_playoff) or (
         league.current_phase == SplitPhase.PLAYOFFS
     )
+
+    from src.modules.simulation.tactics import (
+        PreMatchTactics,
+        build_lineup_proxy,
+        normalize_style,
+        clamp_coach_comms,
+    )
+
+    tactics = PreMatchTactics.from_dict(
+        {
+            "game_style": req.game_style,
+            "coach_comms": req.coach_comms,
+            "starter_ids": req.starter_ids,
+        }
+    )
+    managed = str(req.managed_team_id) if req.managed_team_id else None
+    blue_style, red_style = "BALANCED", "BALANCED"
+    blue_comms, red_comms = 2, 2
+    if managed and managed == str(blue_team.id):
+        blue_style = tactics.game_style
+        blue_comms = tactics.coach_comms
+        blue_team = build_lineup_proxy(blue_team, tactics.starter_ids)
+    elif managed and managed == str(red_team.id):
+        red_style = tactics.game_style
+        red_comms = tactics.coach_comms
+        red_team = build_lineup_proxy(red_team, tactics.starter_ids)
+    else:
+        # Sem managed_team: aplica no blue por padrão (legado)
+        blue_style = normalize_style(req.game_style)
+        blue_comms = clamp_coach_comms(req.coach_comms)
+        if req.starter_ids:
+            blue_team = build_lineup_proxy(blue_team, req.starter_ids)
     
     # Inicializa simulação
     live_state = await match_engine_service.start_live_simulation(
@@ -1497,6 +1534,10 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         blue_draft=req.blue_draft,
         red_draft=req.red_draft,
         speed=req.speed or "2x",
+        blue_game_style=blue_style,
+        red_game_style=red_style,
+        blue_coach_comms_max=blue_comms,
+        red_coach_comms_max=red_comms,
     )
     
     state_payload = live_state.model_dump() if hasattr(live_state, "model_dump") else live_state.dict()

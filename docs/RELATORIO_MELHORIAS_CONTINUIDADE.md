@@ -48,7 +48,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 | P1-2 | **Offseason / renovação** | Contratos e rookies só fazem sentido com ciclo | Alto | ✅ Feito (2026-07-14) — renovar/liberar + novo split |
 | P1-3 | **Save / Load de carreira** | Sem isso cada sessão recomeça do zero | Alto | ✅ Feito (2026-07-14) — JSON em `saves/` + API career |
 | P1-4 | **Draft adversário via backend DraftAI** | Hoje IA do FE é fraca vs motor real | Médio | ✅ Feito (2026-07-14) — `POST /draft/ai-decision` + FE |
-| P1-5 | **Táticas pré-partida** | Manager sem decisões além do draft | Médio | Lineup starters, style Early/Mid/Late, comms default |
+| P1-5 | **Táticas pré-partida** | Manager sem decisões além do draft | Médio | ✅ Feito (2026-07-14) — estilo, lineup, coach comms |
 | P1-6 | **Resultados da rodada no hub** | Contexto da liga | Baixo | ✅ Feito (2026-07-14) — lista completa + ver log |
 
 ### P2 — Gestão e profundidade

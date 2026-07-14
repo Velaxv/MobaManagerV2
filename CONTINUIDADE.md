@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-4 DraftAI interativo)  
+**Última atualização:** 2026-07-14 (P1-5 táticas pré-partida)  
 **Branch:** `main`  
-**Estado:** P1 core fechado até DraftAI adversário  
+**Estado:** P1 alto valor fechado (playoffs → save → offseason → draft AI → táticas)  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -18,10 +18,11 @@
 - **P1-3:** Save/Load JSON (`saves/`) · botão Salvar no hub · Carregar no menu  
 - **P1-2:** Offseason — renovar/liberar + iniciar novo split  
 - **P1-4:** Draft AI backend no oponente (`POST /draft/ai-decision`)  
-- Testes: **44 passed** · `npm run build` OK  
+- **P1-5:** Táticas pós-draft (estilo Early/Mid/Late, lineup, coach comms)  
+- Testes: **48 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-5 táticas pré-partida → P2 finanças / modularizar API  
+P2 finanças / modularizar API / scouting  
 
 ```bat
 run_game.bat

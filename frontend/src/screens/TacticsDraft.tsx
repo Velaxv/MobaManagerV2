@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { Ban, RotateCcw, Swords, Sparkles, Volume2 } from 'lucide-react';
+import { Ban, RotateCcw, Swords, Sparkles, Volume2, Crosshair } from 'lucide-react';
 import { PlayerRole, ChampionPoolTier, DraftTeam, DraftAction } from '../types/game';
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
@@ -149,6 +149,8 @@ export function TacticsDraft() {
   const resetDraft = useGameStore((s) => s.resetDraft);
   const champions = useGameStore((s) => s.champions);
   const submitDraftAndStartMatch = useGameStore((s) => s.submitDraftAndStartMatch);
+  const matchTactics = useGameStore((s) => s.matchTactics);
+  const setMatchTactics = useGameStore((s) => s.setMatchTactics);
   const myTeamName = useGameStore((s) => s.myTeamName);
   const activeMatch = useGameStore((s) => s.activeMatch);
   const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
@@ -162,6 +164,20 @@ export function TacticsDraft() {
 
   const starters = myPlayers.slice(0, 5);
   const isComplete = draft.isComplete;
+
+  // Inicializa lineup padrão (1º de cada role) quando o draft completa
+  useEffect(() => {
+    if (!isComplete) return;
+    if (matchTactics.starterIds.length >= 5) return;
+    const byRole = ROLES_ORDER.map(
+      (role) => myPlayers.find((p) => p.role === role)?.id
+    ).filter(Boolean) as string[];
+    if (byRole.length >= 5) {
+      setMatchTactics({ starterIds: byRole.slice(0, 5) });
+    } else if (starters.length >= 5) {
+      setMatchTactics({ starterIds: starters.slice(0, 5).map((p) => p.id) });
+    }
+  }, [isComplete, myPlayers, matchTactics.starterIds.length, setMatchTactics, starters]);
   const currentStep =
     !isComplete && draft.currentTurn < 20 ? DRAFT_SEQUENCES[draft.currentTurn] : null;
   const isBusy = !!lockIn;
@@ -649,25 +665,122 @@ export function TacticsDraft() {
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-10 gap-5 flex-1">
-                  <div className="flex gap-1.5 flex-wrap justify-center max-w-md">
-                    {draft.bluePicks.map((p) => (
-                      <ChampionImage key={`b-${p.champion}`} name={p.champion} variant="pick" locked />
-                    ))}
-                    <span className="self-center text-white/30 px-2 font-display">VS</span>
-                    {draft.redPicks.map((p) => (
-                      <ChampionImage key={`r-${p.champion}`} name={p.champion} variant="pick" locked />
-                    ))}
+                <div className="flex flex-col gap-3 py-3 px-1 flex-1 overflow-y-auto max-h-[420px] animate-fade-in">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex gap-1.5 flex-wrap justify-center max-w-md">
+                      {draft.bluePicks.map((p) => (
+                        <ChampionImage key={`b-${p.champion}`} name={p.champion} variant="pick" locked />
+                      ))}
+                      <span className="self-center text-white/30 px-2 font-display">VS</span>
+                      {draft.redPicks.map((p) => (
+                        <ChampionImage key={`r-${p.champion}`} name={p.champion} variant="pick" locked />
+                      ))}
+                    </div>
+                    <Sparkles className="w-8 h-8 text-lol-gold animate-pulse" />
+                    <h3 className="font-display text-base text-lol-gold-soft uppercase tracking-wide">
+                      Draft completo · Táticas
+                    </h3>
+                    <p className="text-[11px] text-white/45 max-w-md text-center">
+                      Defina estilo, coach comms e titulares antes de entrar no Rift.
+                    </p>
                   </div>
-                  <Sparkles className="w-10 h-10 text-lol-gold animate-pulse" />
-                  <h3 className="font-display text-lg text-lol-gold-soft uppercase tracking-wide">
-                    Draft completo
-                  </h3>
-                  <p className="text-xs text-white/50 max-w-sm text-center">
-                    Composições travadas. Hora de entrar no Rift.
-                  </p>
+
+                  <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                      <Crosshair className="w-3.5 h-3.5" /> Estilo de jogo
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {(
+                        [
+                          { id: 'BALANCED' as const, label: 'Balanced', hint: 'Sem viés' },
+                          { id: 'EARLY' as const, label: 'Early', hint: 'Rotas / 0-15' },
+                          { id: 'MID' as const, label: 'Mid', hint: 'Objetivos' },
+                          { id: 'LATE' as const, label: 'Late', hint: 'Scaling' },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setMatchTactics({ gameStyle: opt.id })}
+                          className={`px-2 py-2 rounded-sm border text-left transition-colors ${
+                            matchTactics.gameStyle === opt.id
+                              ? 'border-lol-gold bg-lol-gold/15 text-lol-gold'
+                              : 'border-white/10 bg-black/30 text-white/60 hover:border-white/25'
+                          }`}
+                        >
+                          <div className="text-[11px] font-bold uppercase">{opt.label}</div>
+                          <div className="text-[9px] opacity-60">{opt.hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                        Coach Comms (early)
+                      </span>
+                      <span className="font-mono text-sm text-lol-gold">
+                        {matchTactics.coachComms}/6
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={6}
+                      value={matchTactics.coachComms}
+                      onChange={(e) =>
+                        setMatchTactics({ coachComms: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#c89b3c]"
+                    />
+                    <p className="text-[9px] text-white/35">
+                      Chamadas táticas no early. Acima de 3 aumenta risco de confusão.
+                    </p>
+                  </div>
+
+                  <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
+                    <span className="text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                      Lineup titulares
+                    </span>
+                    <div className="space-y-1.5">
+                      {ROLES_ORDER.map((role, idx) => {
+                        const selectedId = matchTactics.starterIds[idx];
+                        const options = myPlayers.filter((p) => p.role === role);
+                        return (
+                          <div key={role} className="flex items-center gap-2 text-[11px]">
+                            <span className="w-14 text-white/40 font-mono flex items-center gap-1">
+                              <RoleIcon role={role} size={11} />
+                              {ROLE_LABELS[role]}
+                            </span>
+                            <select
+                              value={selectedId || options[0]?.id || ''}
+                              onChange={(e) => {
+                                const next = ROLES_ORDER.map((_, i) =>
+                                  i === idx
+                                    ? e.target.value
+                                    : matchTactics.starterIds[i] || ''
+                                );
+                                setMatchTactics({ starterIds: next });
+                              }}
+                              className="flex-1 bg-black/50 border border-white/15 rounded-sm px-2 py-1 text-white/80 focus:border-lol-gold outline-none"
+                            >
+                              {options.length === 0 && <option value="">Sem jogador</option>}
+                              {options.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} · CA {p.currentAbility}
+                                  {p.burnoutMeter > 60 ? ' · cansado' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <button
-                    className="btn-lol-primary px-8 py-3 text-sm"
+                    className="btn-lol-primary px-8 py-3 text-sm self-center"
                     disabled={isStartingMatch}
                     onClick={async () => {
                       setIsStartingMatch(true);

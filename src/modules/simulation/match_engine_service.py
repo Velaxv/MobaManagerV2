@@ -87,6 +87,12 @@ class LiveMatchState(BaseModel):
     tick_ms: int = 2000
     speed_label: str = "1x"
 
+    # Táticas pré-partida
+    blue_game_style: str = "BALANCED"
+    red_game_style: str = "BALANCED"
+    blue_coach_comms_max: int = 3
+    red_coach_comms_max: int = 2
+
 
 # Speeds permitidas (label → tick_ms)
 LIVE_SPEED_PRESETS: Dict[str, int] = {
@@ -135,8 +141,14 @@ class MatchEngineService:
         red_draft: List[Dict[str, str]],
         speed: str = "1x",
         tick_ms: Optional[int] = None,
+        blue_game_style: str = "BALANCED",
+        red_game_style: str = "BALANCED",
+        blue_coach_comms_max: int = 3,
+        red_coach_comms_max: int = 2,
     ) -> LiveMatchState:
         """Inicializa o estado da partida ao vivo no Redis e dispara a background task do loop de ticks."""
+        from src.modules.simulation.tactics import clamp_coach_comms, normalize_style
+
         label = speed if speed in LIVE_SPEED_PRESETS else "1x"
         resolved_tick = LIVE_SPEED_PRESETS[label] if tick_ms is None else max(0, int(tick_ms))
         # Se tick_ms custom, deriva label aproximado
@@ -159,6 +171,10 @@ class MatchEngineService:
             red_draft=red_draft,
             tick_ms=resolved_tick,
             speed_label=label,
+            blue_game_style=normalize_style(blue_game_style),
+            red_game_style=normalize_style(red_game_style),
+            blue_coach_comms_max=clamp_coach_comms(blue_coach_comms_max),
+            red_coach_comms_max=clamp_coach_comms(red_coach_comms_max),
         )
         
         # Grava estado inicial
@@ -223,6 +239,13 @@ class MatchEngineService:
                 return {"error": "Estrutura do time inválida para comunicação."}
                 
             comms_used = state.blue_coach_comms_used if team_side == "BLUE" else state.red_coach_comms_used
+            comms_max = (
+                state.blue_coach_comms_max if team_side == "BLUE" else state.red_coach_comms_max
+            )
+            if comms_used >= comms_max:
+                return {
+                    "error": f"Limite de coach comms atingido ({comms_max}). Ajuste nas táticas pré-partida.",
+                }
             
             # RNG de sucesso baseado em Communication e Coachability
             base_success_chance = (head_coach.communication / 20.0) * 0.70 + (mid_player.coachability / 20.0) * 0.30
@@ -351,6 +374,9 @@ class MatchEngineService:
                 else:
                     state.phase = "LATE_GAME"
                     self._simulate_late_tick(state, blue_team, red_team, blue_champions, red_champions, blue_draft_report, red_draft_report)
+
+                # Viés de estilo tático (Early/Mid/Late)
+                self._apply_style_tick_bias(state)
                     
                 # Checa Snowball crítico (Diferença de ouro > 12.000g)
                 state.gold_difference = state.blue_gold - state.red_gold
@@ -392,6 +418,23 @@ class MatchEngineService:
                 
             # 5. Persiste resultado + standings + rookie + burnout de MATCH_DAY
             await self._persist_match_result(db, state)
+
+    def _apply_style_tick_bias(self, state: LiveMatchState) -> None:
+        """Pequeno viés de ouro por estilo tático em cada minuto."""
+        from src.modules.simulation.tactics import style_phase_multiplier
+
+        phase = state.phase or "EARLY_GAME"
+        b = style_phase_multiplier(state.blue_game_style, phase)
+        r = style_phase_multiplier(state.red_game_style, phase)
+        # Converte mult ~1.1 em +~8 gold/tick (sutil)
+        if b > 1.0:
+            state.blue_gold += int(round((b - 1.0) * 80))
+        elif b < 1.0:
+            state.red_gold += int(round((1.0 - b) * 40))
+        if r > 1.0:
+            state.red_gold += int(round((r - 1.0) * 80))
+        elif r < 1.0:
+            state.blue_gold += int(round((1.0 - r) * 40))
 
     def _simulate_early_tick(self, state: LiveMatchState, blue_team: Team, red_team: Team, blue_champs: List[Champion], red_champs: List[Champion]):
         """Simulação da Laning Phase (min 1-14). Foco: 70% Atributos Técnicos, 30% Mentais."""

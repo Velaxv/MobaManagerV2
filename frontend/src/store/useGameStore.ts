@@ -200,6 +200,13 @@ interface GameState {
     narrative: string[];
   };
 
+  /** Táticas pré-partida (após draft) */
+  matchTactics: {
+    gameStyle: 'BALANCED' | 'EARLY' | 'MID' | 'LATE';
+    coachComms: number;
+    starterIds: string[];
+  };
+
   // --- Ações ---
   setGameState: (state: 'MAIN_MENU' | 'NEW_GAME_SETUP' | 'PLAYING') => void;
   setManager: (name: string, teamId: string) => void;
@@ -245,6 +252,11 @@ interface GameState {
   triggerCoachComm: () => void;
   startSimulation: (blueTeam: string, redTeam: string, blueTeamId?: string, redTeamId?: string) => void;
   processDraftAction: (champion: string, role?: PlayerRole) => void;
+  setMatchTactics: (partial: Partial<{
+    gameStyle: 'BALANCED' | 'EARLY' | 'MID' | 'LATE';
+    coachComms: number;
+    starterIds: string[];
+  }>) => void;
   submitDraftAndStartMatch: (speed?: '1x' | '2x' | '4x' | 'instant') => Promise<void>;
   setLiveSpeed: (speed: '1x' | '2x' | '4x' | 'instant') => Promise<void>;
   syncMatchState: () => Promise<void>;
@@ -363,6 +375,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     redPicks: [],
     isComplete: false,
     narrative: ["Draft da Partida Iniciado."],
+  },
+  matchTactics: {
+    gameStyle: 'BALANCED',
+    coachComms: 3,
+    starterIds: [],
   },
 
   // --- Ações ---
@@ -1002,8 +1019,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  setMatchTactics: (partial) => {
+    set({ matchTactics: { ...get().matchTactics, ...partial } });
+  },
+
   submitDraftAndStartMatch: async (speed = '2x') => {
-    const { draft, activeMatch, teams } = get();
+    const { draft, activeMatch, teams, matchTactics, manager, myPlayers } = get();
     if (!activeMatch) return;
 
     try {
@@ -1014,6 +1035,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       const isPlayoff =
         !!activeMatch.isPlayoff || get().splitPhase === SplitPhase.PLAYOFFS;
 
+      const starterIds =
+        matchTactics.starterIds.length >= 5
+          ? matchTactics.starterIds.slice(0, 5)
+          : myPlayers.slice(0, 5).map((p) => p.id);
+
       const response = await api.startLiveMatch({
         blue_team_id: blueTeamId,
         red_team_id: redTeamId,
@@ -1022,6 +1048,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         blue_draft: draft.bluePicks.map(p => ({ champion: p.champion, role: p.role })),
         red_draft: draft.redPicks.map(p => ({ champion: p.champion, role: p.role })),
         speed,
+        managed_team_id: manager?.teamId,
+        game_style: matchTactics.gameStyle,
+        coach_comms: matchTactics.coachComms,
+        starter_ids: starterIds,
       });
 
       const phase = response.state?.phase === 'FINISHED' ? 'COMPLETE' : (response.state?.phase || 'EARLY_GAME');

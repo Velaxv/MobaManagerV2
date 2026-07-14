@@ -24,6 +24,7 @@ from src.modules.simulation.strategies.base import PhaseResult
 from src.modules.simulation.strategies.early_game import EarlyGameStrategy
 from src.modules.simulation.strategies.mid_game import MidGameStrategy
 from src.modules.simulation.strategies.late_game import LateGameStrategy
+from src.modules.simulation.tactics import apply_style_to_phase_result, normalize_style
 from src.shared.enums import MatchResult
 from src.core.config import get_settings
 
@@ -53,6 +54,10 @@ class MatchInput:
     # Penalidades de draft (calculadas pela análise do draft)
     blue_draft_penalty: float = 0.0  # 0.0 a 1.0
     red_draft_penalty: float = 0.0   # 0.0 a 1.0
+
+    # Táticas pré-partida (estilo Early/Mid/Late)
+    blue_game_style: str = "BALANCED"
+    red_game_style: str = "BALANCED"
     
     # Modificadores de status por campeão do patch ativo
     champion_patch_meta: Optional[dict] = None
@@ -182,6 +187,9 @@ class MatchEngine:
         
         # --- FASE 1: EARLY GAME ---
         logger.info(f"[MatchEngine] ▶ FASE 1 — Early Game iniciando...")
+        blue_style = normalize_style(getattr(match_input, "blue_game_style", "BALANCED"))
+        red_style = normalize_style(getattr(match_input, "red_game_style", "BALANCED"))
+
         early_result: PhaseResult = self._early_strategy.calculate(
             blue_team=match_input.blue_team,
             red_team=match_input.red_team,
@@ -196,6 +204,7 @@ class MatchEngine:
             red_draft_penalty=match_input.red_draft_penalty,
             champion_patch_meta=match_input.champion_patch_meta,
         )
+        apply_style_to_phase_result(early_result, blue_style, red_style)
         logger.info(
             f"[MatchEngine] ✓ Early Game concluído | "
             f"Gold diff: {early_result.gold_difference:+.0f}"
@@ -213,6 +222,7 @@ class MatchEngine:
             is_playoff=match_input.is_playoff,
             champion_patch_meta=match_input.champion_patch_meta,
         )
+        apply_style_to_phase_result(mid_result, blue_style, red_style)
         logger.info(
             f"[MatchEngine] ✓ Mid Game concluído | "
             f"Gold diff: {mid_result.gold_difference:+.0f}"
@@ -230,6 +240,7 @@ class MatchEngine:
             is_playoff=match_input.is_playoff,
             champion_patch_meta=match_input.champion_patch_meta,
         )
+        apply_style_to_phase_result(late_result, blue_style, red_style)
         
         # --- Extrai resultado do Late Game ---
         simulation_result = self._aggregate_result(

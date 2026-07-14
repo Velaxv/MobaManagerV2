@@ -404,11 +404,15 @@ export const api = {
     blue_draft: { champion: string; role: string }[];
     red_draft: { champion: string; role: string }[];
     speed?: '1x' | '2x' | '4x' | 'instant';
+    managed_team_id?: string;
+    game_style?: 'BALANCED' | 'EARLY' | 'MID' | 'LATE';
+    coach_comms?: number;
+    starter_ids?: string[];
   }) => {
     const response = await fetch(`${API_BASE}/matches/live/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ speed: '2x', ...payload }),
+      body: JSON.stringify({ speed: '2x', game_style: 'BALANCED', coach_comms: 3, ...payload }),
     });
     return parseJsonOrThrow(response, 'Failed to start live match');
   },
