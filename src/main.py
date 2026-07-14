@@ -51,6 +51,24 @@ async def startup_event():
         logger.info("Iniciando auto-criação de tabelas no SQLite local...")
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # Migração leve: colunas novas em DBs já existentes (sem reseed)
+            def _sqlite_light_migrate(sync_conn):
+                from sqlalchemy import text
+
+                cols = {
+                    row[1]
+                    for row in sync_conn.execute(text("PRAGMA table_info(players)")).fetchall()
+                }
+                if "is_starter" not in cols:
+                    sync_conn.execute(
+                        text(
+                            "ALTER TABLE players ADD COLUMN is_starter BOOLEAN "
+                            "NOT NULL DEFAULT 0"
+                        )
+                    )
+                    logger.info("SQLite: coluna players.is_starter adicionada.")
+
+            await conn.run_sync(_sqlite_light_migrate)
         logger.info("Tabelas SQLite auto-criadas com sucesso.")
 
 

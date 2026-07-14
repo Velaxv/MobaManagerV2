@@ -86,6 +86,13 @@ class Player(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         doc="True se o jogador ainda está em seu primeiro contrato profissional.",
     )
+    # Titular da lineup principal (1 por role no ideal). Academy/reservas = False.
+    is_starter: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="True se o jogador é titular da lineup principal do time.",
+    )
 
     # --- Habilidade Base ---
     # CA: representa a habilidade atual real do jogador (0-200)

@@ -40,6 +40,16 @@ def serialize_player(
         "region": player.region.value if player.region else None,
         "teamId": str(player.team_id) if player.team_id else None,
         "isRookie": player.is_rookie,
+        "isStarter": bool(getattr(player, "is_starter", False)),
+        "squadStatus": (
+            "STARTER"
+            if getattr(player, "is_starter", False)
+            else (
+                "ACADEMY"
+                if player.is_rookie or "Academy" in (player.name or "")
+                else "BENCH"
+            )
+        ),
         "currentAbility": player.current_ability,
         "potentialAbility": player.potential_ability,
         "mechanics": player.mechanics,
@@ -58,6 +68,16 @@ def serialize_player(
         "participationRate": (
             active_contract.rookie_participation_rate if active_contract else 0.0
         ),
+        "rookieGamesPlayed": (
+            int(active_contract.rookie_games_played or 0) if active_contract else 0
+        ),
+        "rookieTotalLeagueGames": (
+            int(active_contract.rookie_total_league_games or 0) if active_contract else 0
+        ),
+        "rookieExtensionTriggered": (
+            bool(active_contract.rookie_extension_triggered) if active_contract else False
+        ),
+        "rookieClauseThreshold": 0.25,
         "contractExpirySeasons": (
             active_contract.remaining_seasons if active_contract else 0
         ),

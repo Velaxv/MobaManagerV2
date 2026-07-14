@@ -85,3 +85,11 @@ class TrainingPlanRequest(BaseModel):
 class ScoutAssignRequest(BaseModel):
     player_id: str
     focus: str = "ALL"  # ALL | CONSISTENCY | BMA | PA
+
+
+class AcademyPlayerRequest(BaseModel):
+    player_id: str
+
+
+class LineupRequest(BaseModel):
+    starter_ids: List[str] = []

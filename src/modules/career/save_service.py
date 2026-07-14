@@ -150,6 +150,7 @@ class CareerSaveService:
                     "mental_fatigue": float(p.mental_fatigue or 0),
                     "games_played_this_split": int(p.games_played_this_split or 0),
                     "is_rookie": bool(p.is_rookie),
+                    "is_starter": bool(getattr(p, "is_starter", False)),
                     "mechanics": float(p.mechanics) if p.mechanics is not None else None,
                     "focus": float(p.focus) if p.focus is not None else None,
                     "resilience": float(p.resilience) if p.resilience is not None else None,
@@ -349,6 +350,8 @@ class CareerSaveService:
             p.games_played_this_split = int(row.get("games_played_this_split") or 0)
             if row.get("is_rookie") is not None:
                 p.is_rookie = bool(row["is_rookie"])
+            if row.get("is_starter") is not None:
+                p.is_starter = bool(row["is_starter"])
             for attr in (
                 "mechanics",
                 "focus",

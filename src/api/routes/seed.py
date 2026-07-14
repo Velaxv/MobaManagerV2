@@ -146,6 +146,7 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
             is_rookie,
             salary_range,
             has_rookie_clause,
+            is_starter=False,
         ):
             player_id = uuid.uuid4()
             # Titulares 18–27; academy/rookie 16–19
@@ -162,6 +163,7 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
                 role=role,
                 region=Region.CBLOL,
                 is_rookie=is_rookie,
+                is_starter=bool(is_starter),
                 current_ability=ca,
                 potential_ability=max(pa, ca),
                 mechanics=mech,
@@ -253,6 +255,7 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
                     is_rookie=False,
                     salary_range=(5000, 20000),
                     has_rookie_clause=False,
+                    is_starter=True,
                 )
 
             # Subs conhecidos (se houver) contam como reserva

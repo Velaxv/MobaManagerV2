@@ -8,7 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.schemas import TrainingPlanRequest, ScoutAssignRequest
+from src.api.schemas import (
+    TrainingPlanRequest,
+    ScoutAssignRequest,
+    AcademyPlayerRequest,
+    LineupRequest,
+)
 from src.api.serializers import serialize_player
 from src.core.database import get_db
 from src.models import Player, Team
@@ -39,6 +44,15 @@ async def get_teams(db: AsyncSession = Depends(get_db)):
 async def get_team_players(team_id: str, db: AsyncSession = Depends(get_db)):
     """Busca os jogadores de uma equipe específica (com contrato e pool + scouting)."""
     from src.modules.career.scouting_service import ScoutingService
+    from src.modules.career.academy_service import AcademyService
+
+    # Garante is_starter coerente (1 por role) em times antigos / pós-seed
+    try:
+        team = await AcademyService(db).load_team(team_id)
+        await AcademyService(db).ensure_lineup(team)
+        await db.commit()
+    except ValueError:
+        pass
 
     query = await db.execute(
         select(Player)
@@ -194,3 +208,71 @@ async def clear_scout_assignment(team_id: str, db: AsyncSession = Depends(get_db
         return await ScoutingService(db).clear_assignment(team_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/teams/{team_id}/academy", status_code=status.HTTP_200_OK)
+async def get_team_academy(team_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Roster estruturado: titulares, reservas, academy + cláusulas rookie.
+    Garante lineup (1 starter por role) se necessário.
+    """
+    from src.modules.career.academy_service import AcademyService
+
+    try:
+        return await AcademyService(db).get_roster(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/teams/{team_id}/academy/promote", status_code=status.HTTP_200_OK)
+async def promote_player(
+    team_id: str,
+    req: AcademyPlayerRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Promove reserva/academy a titular da role (rebaixa o titular atual)."""
+    from src.modules.career.academy_service import AcademyService
+
+    try:
+        return await AcademyService(db).promote(team_id, req.player_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Promote: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/teams/{team_id}/academy/demote", status_code=status.HTTP_200_OK)
+async def demote_player(
+    team_id: str,
+    req: AcademyPlayerRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebaixa titular; melhor CA da role assume se houver."""
+    from src.modules.career.academy_service import AcademyService
+
+    try:
+        return await AcademyService(db).demote(team_id, req.player_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Demote: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/teams/{team_id}/lineup", status_code=status.HTTP_200_OK)
+async def set_team_lineup(
+    team_id: str,
+    req: LineupRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Define lineup principal pelos player ids (ideal: 5, roles distintas)."""
+    from src.modules.career.academy_service import AcademyService
+
+    try:
+        return await AcademyService(db).set_lineup(team_id, req.starter_ids or [])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Lineup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

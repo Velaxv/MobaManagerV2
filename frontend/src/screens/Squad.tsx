@@ -4,7 +4,7 @@ import { ROLE_LABELS } from '../lib/champions';
 import { ChampionImage } from '../components/ChampionImage';
 import { PlayerPortrait } from '../components/PlayerPortrait';
 import { RoleIcon } from '../components/RoleIcon';
-import { Users, Search, Binoculars } from 'lucide-react';
+import { Users, Search, Binoculars, ArrowUpCircle, ArrowDownCircle, GraduationCap } from 'lucide-react';
 import { PlayerRole } from '../types/game';
 import { getPlayerPhotoUrl } from '../lib/playerPhotoMap';
 import type { Player } from '../store/useGameStore';
@@ -50,18 +50,35 @@ export function Squad() {
   const scouting = useGameStore((s) => s.scouting);
   const assignScout = useGameStore((s) => s.assignScout);
   const clearScout = useGameStore((s) => s.clearScout);
+  const promotePlayer = useGameStore((s) => s.promotePlayer);
+  const demotePlayer = useGameStore((s) => s.demotePlayer);
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [scoutBusy, setScoutBusy] = useState<string | null>(null);
+  const [lineupBusy, setLineupBusy] = useState<string | null>(null);
+  const [lineupMsg, setLineupMsg] = useState<string | null>(null);
 
   const starters = useMemo(() => {
-    return ROLE_ORDER.map((role) => myPlayers.find((p) => p.role === role)).filter(Boolean) as typeof myPlayers;
+    return ROLE_ORDER.map((role) => {
+      const marked = myPlayers.find((p) => p.role === role && p.isStarter);
+      if (marked) return marked;
+      return myPlayers.find((p) => p.role === role);
+    }).filter(Boolean) as typeof myPlayers;
   }, [myPlayers]);
 
+  const starterIds = useMemo(() => new Set(starters.map((p) => p.id)), [starters]);
+
   const bench = useMemo(() => {
-    const starterIds = new Set(starters.map((p) => p.id));
-    return myPlayers.filter((p) => !starterIds.has(p.id));
-  }, [myPlayers, starters]);
+    return myPlayers.filter(
+      (p) => !starterIds.has(p.id) && !p.isRookie && !p.name.includes('Academy')
+    );
+  }, [myPlayers, starterIds]);
+
+  const academy = useMemo(() => {
+    return myPlayers.filter(
+      (p) => !starterIds.has(p.id) && (p.isRookie || p.name.includes('Academy'))
+    );
+  }, [myPlayers, starterIds]);
 
   const filteredBench = useMemo(() => {
     return bench.filter((p) => {
@@ -70,6 +87,45 @@ export function Squad() {
       return true;
     });
   }, [bench, filterRole, search]);
+
+  const filteredAcademy = useMemo(() => {
+    return academy.filter((p) => {
+      if (filterRole !== 'ALL' && p.role !== filterRole) return false;
+      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [academy, filterRole, search]);
+
+  const rookieClauses = useMemo(
+    () => myPlayers.filter((p) => p.hasRookieClause),
+    [myPlayers]
+  );
+
+  const runPromote = async (p: Player) => {
+    setLineupBusy(p.id);
+    setLineupMsg(null);
+    try {
+      await promotePlayer(p.id);
+      setLineupMsg(`${p.name} promovido a titular.`);
+    } catch (e) {
+      setLineupMsg(e instanceof Error ? e.message : 'Erro ao promover');
+    } finally {
+      setLineupBusy(null);
+    }
+  };
+
+  const runDemote = async (p: Player) => {
+    setLineupBusy(p.id);
+    setLineupMsg(null);
+    try {
+      await demotePlayer(p.id);
+      setLineupMsg(`${p.name} rebaixado da lineup.`);
+    } catch (e) {
+      setLineupMsg(e instanceof Error ? e.message : 'Erro ao rebaixar');
+    } finally {
+      setLineupBusy(null);
+    }
+  };
 
   const heroPhoto =
     getPlayerPhotoUrl(starters[2]?.name) ||
@@ -99,7 +155,8 @@ export function Squad() {
                 Elenco — {myTeamName}
               </h2>
               <p className="text-[10px] text-white/45 font-mono">
-                {myPlayers.length} atletas · {starters.length} titulares · {bench.length} reservas
+                {myPlayers.length} atletas · {starters.length} titulares · {bench.length} reservas ·{' '}
+                {academy.length} academy
               </p>
             </div>
           </div>
@@ -223,36 +280,56 @@ export function Squad() {
                       />
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!!scoutBusy || p.scoutingFullyScouted}
-                    onClick={async () => {
-                      setScoutBusy(p.id);
-                      try {
-                        if (scouting?.assignment?.player_id === p.id) {
-                          await clearScout();
-                        } else {
-                          await assignScout(p.id, 'ALL');
+                  <div className="flex flex-col gap-1 mt-1">
+                    <button
+                      type="button"
+                      disabled={!!lineupBusy}
+                      onClick={() => void runDemote(p)}
+                      className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border border-amber-600/30 text-amber-300/80 hover:bg-amber-950/30 disabled:opacity-40"
+                    >
+                      <ArrowDownCircle className="w-3 h-3" />
+                      {lineupBusy === p.id ? '…' : 'Rebaixar'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!!scoutBusy || p.scoutingFullyScouted}
+                      onClick={async () => {
+                        setScoutBusy(p.id);
+                        try {
+                          if (scouting?.assignment?.player_id === p.id) {
+                            await clearScout();
+                          } else {
+                            await assignScout(p.id, 'ALL');
+                          }
+                        } finally {
+                          setScoutBusy(null);
                         }
-                      } finally {
-                        setScoutBusy(null);
-                      }
-                    }}
-                    className={`mt-1 flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border ${
-                      scouting?.assignment?.player_id === p.id
-                        ? 'border-violet-400/50 bg-violet-950/40 text-violet-200'
-                        : p.scoutingFullyScouted
-                          ? 'border-emerald-700/30 text-emerald-500/60 opacity-60'
-                          : 'border-white/10 text-white/45 hover:border-violet-400/40 hover:text-violet-200'
-                    }`}
-                  >
-                    <Binoculars className="w-3 h-3" />
-                    {p.scoutingFullyScouted
-                      ? 'Scout completo'
-                      : scouting?.assignment?.player_id === p.id
-                        ? 'Cancelar scout'
-                        : 'Scoutar'}
-                  </button>
+                      }}
+                      className={`flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border ${
+                        scouting?.assignment?.player_id === p.id
+                          ? 'border-violet-400/50 bg-violet-950/40 text-violet-200'
+                          : p.scoutingFullyScouted
+                            ? 'border-emerald-700/30 text-emerald-500/60 opacity-60'
+                            : 'border-white/10 text-white/45 hover:border-violet-400/40 hover:text-violet-200'
+                      }`}
+                    >
+                      <Binoculars className="w-3 h-3" />
+                      {p.scoutingFullyScouted
+                        ? 'Scout completo'
+                        : scouting?.assignment?.player_id === p.id
+                          ? 'Cancelar scout'
+                          : 'Scoutar'}
+                    </button>
+                  </div>
+                  {p.hasRookieClause && (
+                    <div className="text-[9px] font-mono text-sky-300/80 border border-sky-700/30 rounded-sm px-1.5 py-1 mt-1">
+                      Cláusula rookie ·{' '}
+                      {Math.round((p.participationRate || 0) * 100)}% jogos
+                      {(p.participationRate || 0) >= (p.rookieClauseThreshold || 0.25)
+                        ? ' · no ritmo'
+                        : ` · meta ${Math.round((p.rookieClauseThreshold || 0.25) * 100)}%`}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                     <div>
@@ -308,11 +385,71 @@ export function Squad() {
         </div>
       </div>
 
+      {lineupMsg && (
+        <p className="text-[11px] font-mono text-sky-300/90 px-1">{lineupMsg}</p>
+      )}
+
+      {/* Cláusulas rookie */}
+      {rookieClauses.length > 0 && (
+        <div className="panel-lol border-sky-500/20">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-sky-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                Cláusulas rookie
+              </span>
+            </div>
+            <span className="text-[10px] text-white/35 font-mono">
+              Meta {Math.round((rookieClauses[0]?.rookieClauseThreshold || 0.25) * 100)}% dos jogos
+            </span>
+          </div>
+          <ul className="p-3 space-y-1.5">
+            {rookieClauses.map((p) => {
+              const pct = Math.round((p.participationRate || 0) * 100);
+              const thr = Math.round((p.rookieClauseThreshold || 0.25) * 100);
+              const onTrack = (p.participationRate || 0) >= (p.rookieClauseThreshold || 0.25);
+              return (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-center gap-2 text-[11px] border border-white/5 rounded-sm px-2.5 py-2 bg-black/25"
+                >
+                  <PlayerPortrait name={p.name} size="xs" />
+                  <span className="font-semibold text-white min-w-[6rem]">{p.name}</span>
+                  <span className="text-white/40 font-mono">
+                    {ROLE_LABELS[p.role] || p.role} · CA {p.currentAbility}
+                  </span>
+                  <span className="text-white/40 font-mono">
+                    {p.rookieGamesPlayed || 0}/{p.rookieTotalLeagueGames || 0} jogos
+                  </span>
+                  <span
+                    className={`font-mono font-bold ${
+                      onTrack ? 'text-emerald-400' : 'text-amber-300'
+                    }`}
+                  >
+                    {pct}% {onTrack ? '· no ritmo' : `· meta ${thr}%`}
+                  </span>
+                  {p.rookieExtensionTriggered && (
+                    <span className="text-[9px] uppercase text-emerald-400 border border-emerald-700/40 px-1 rounded-sm">
+                      Extensão OK
+                    </span>
+                  )}
+                  {p.isStarter && (
+                    <span className="text-[9px] uppercase text-lol-gold border border-lol-gold/30 px-1 rounded-sm">
+                      Titular
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Bench */}
       <div className="panel-lol">
         <div className="panel-lol-header flex-wrap gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
-            Reservas / Academy
+            Reservas (1º time)
           </span>
           <div className="flex items-center gap-2 flex-wrap ml-auto">
             <div className="flex gap-1">
@@ -347,20 +484,19 @@ export function Squad() {
         </div>
         <div className="overflow-x-auto p-2">
           {filteredBench.length === 0 ? (
-            <p className="text-xs text-white/35 p-6 text-center font-mono">Nenhuma reserva neste filtro.</p>
+            <p className="text-xs text-white/35 p-6 text-center font-mono">
+              Nenhuma reserva neste filtro.
+            </p>
           ) : (
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="text-white/35 font-mono text-[10px] uppercase border-b border-white/5">
                   <th className="py-2 px-2">Jogador</th>
                   <th className="px-2">Role</th>
-                  <th className="px-2">Idade</th>
                   <th className="px-2">CA</th>
                   <th className="px-2">PA</th>
-                  <th className="px-2">Pool</th>
-                  <th className="px-2">Rookie</th>
                   <th className="px-2">Contrato</th>
-                  <th className="px-2 min-w-[70px]">Burnout</th>
+                  <th className="px-2">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -378,44 +514,91 @@ export function Squad() {
                         {ROLE_LABELS[p.role] || p.role}
                       </span>
                     </td>
-                    <td className="px-2 font-mono">{p.age}</td>
                     <td className="px-2 font-mono text-emerald-400 font-bold">{p.currentAbility}</td>
-                    <td
-                      className={`px-2 font-mono ${
-                        p.potentialAbilityKnown ? 'text-white/50' : 'text-amber-300/80'
-                      }`}
-                    >
-                      {formatPa(p)}
-                    </td>
-                    <td className="px-2">
-                      <div className="flex gap-0.5">
-                        {(p.championPool || []).slice(0, 3).map((c) => (
-                          <ChampionImage
-                            key={c.champion}
-                            name={c.champion}
-                            variant="ban"
-                            className="!w-6 !h-6"
-                          />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-2">
-                      {p.isRookie ? (
-                        <span className="text-sky-400 text-[10px] font-bold">Sim</span>
-                      ) : (
-                        <span className="text-white/25">—</span>
-                      )}
-                    </td>
+                    <td className="px-2 font-mono text-white/50">{formatPa(p)}</td>
                     <td className="px-2 font-mono text-white/50">{p.contractExpirySeasons}s</td>
                     <td className="px-2">
-                      <div className="stat-bar">
-                        <div
-                          className={`stat-bar-fill ${
-                            p.burnoutMeter > 70 ? 'bg-lol-red-side' : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${p.burnoutMeter}%` }}
-                        />
+                      <button
+                        type="button"
+                        disabled={!!lineupBusy}
+                        onClick={() => void runPromote(p)}
+                        className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border border-emerald-600/40 text-emerald-300 hover:bg-emerald-950/40 disabled:opacity-40"
+                      >
+                        <ArrowUpCircle className="w-3 h-3" />
+                        {lineupBusy === p.id ? '…' : 'Promover'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Academy */}
+      <div className="panel-lol border-sky-500/15">
+        <div className="panel-lol-header">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-sky-400" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+              Academy / rookies
+            </span>
+          </div>
+          <span className="text-[10px] text-white/35 font-mono">{filteredAcademy.length} atletas</span>
+        </div>
+        <div className="overflow-x-auto p-2">
+          {filteredAcademy.length === 0 ? (
+            <p className="text-xs text-white/35 p-6 text-center font-mono">
+              Nenhum jogador de academy neste filtro.
+            </p>
+          ) : (
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="text-white/35 font-mono text-[10px] uppercase border-b border-white/5">
+                  <th className="py-2 px-2">Jogador</th>
+                  <th className="px-2">Role</th>
+                  <th className="px-2">Idade</th>
+                  <th className="px-2">CA</th>
+                  <th className="px-2">Cláusula</th>
+                  <th className="px-2">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredAcademy.map((p) => (
+                  <tr key={p.id} className="hover:bg-white/[0.03]">
+                    <td className="py-2 px-2">
+                      <div className="flex items-center gap-2">
+                        <PlayerPortrait name={p.name} size="xs" />
+                        <span className="font-semibold">{p.name}</span>
+                        {p.isRookie && (
+                          <span className="text-[9px] text-sky-400 uppercase">Rookie</span>
+                        )}
                       </div>
+                    </td>
+                    <td className="px-2">
+                      <span className="inline-flex items-center gap-1 role-pill">
+                        <RoleIcon role={p.role} size={10} />
+                        {ROLE_LABELS[p.role] || p.role}
+                      </span>
+                    </td>
+                    <td className="px-2 font-mono">{p.age}</td>
+                    <td className="px-2 font-mono text-emerald-400 font-bold">{p.currentAbility}</td>
+                    <td className="px-2 font-mono text-[10px] text-white/50">
+                      {p.hasRookieClause
+                        ? `${Math.round((p.participationRate || 0) * 100)}% jogos`
+                        : '—'}
+                    </td>
+                    <td className="px-2">
+                      <button
+                        type="button"
+                        disabled={!!lineupBusy}
+                        onClick={() => void runPromote(p)}
+                        className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border border-sky-500/40 text-sky-300 hover:bg-sky-950/40 disabled:opacity-40"
+                      >
+                        <ArrowUpCircle className="w-3 h-3" />
+                        {lineupBusy === p.id ? '…' : 'Subir pro main'}
+                      </button>
                     </td>
                   </tr>
                 ))}

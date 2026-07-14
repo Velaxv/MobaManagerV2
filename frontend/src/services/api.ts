@@ -43,6 +43,8 @@ export interface ApiPlayer {
   region: string | null;
   teamId: string | null;
   isRookie: boolean;
+  isStarter?: boolean;
+  squadStatus?: string;
   currentAbility: number;
   potentialAbility: number | null;
   mechanics: number;
@@ -59,6 +61,10 @@ export interface ApiPlayer {
   gamesPlayedThisSplit: number;
   hasRookieClause: boolean;
   participationRate: number;
+  rookieGamesPlayed?: number;
+  rookieTotalLeagueGames?: number;
+  rookieExtensionTriggered?: boolean;
+  rookieClauseThreshold?: number;
   contractExpirySeasons: number;
   monthlySalary: number;
   // Scouting mask
@@ -330,6 +336,29 @@ export const api = {
       method: 'POST',
     });
     return parseJsonOrThrow(response, 'Failed to clear scout assignment');
+  },
+
+  getTeamAcademy: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/academy`);
+    return parseJsonOrThrow(response, 'Failed to fetch academy roster');
+  },
+
+  promotePlayer: async (teamId: string, playerId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/academy/promote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId }),
+    });
+    return parseJsonOrThrow(response, 'Failed to promote player');
+  },
+
+  demotePlayer: async (teamId: string, playerId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/academy/demote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId }),
+    });
+    return parseJsonOrThrow(response, 'Failed to demote player');
   },
 
   getChampions: async (): Promise<Champion[]> => {

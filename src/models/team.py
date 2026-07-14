@@ -138,11 +138,7 @@ class Team(Base, UUIDMixin, TimestampMixin):
         """
         Retorna os 5 titulares ordenados por role (TOP, JG, MID, BOT, SUP).
 
-        Lógica: seleciona o primeiro jogador de cada role na lista de players.
-        Em uma implementação futura, o campo is_starter substituiria essa lógica.
-
-        Returns:
-            Lista com até 5 jogadores titulares.
+        Prefere jogadores com is_starter=True; se faltar role, usa o de maior CA.
         """
         from src.shared.enums import PlayerRole
 
@@ -155,11 +151,46 @@ class Team(Base, UUIDMixin, TimestampMixin):
         ]
         starters = []
         for role in role_order:
-            for player in self.players:
-                if player.role == role and player not in starters:
-                    starters.append(player)
-                    break
+            marked = [
+                p
+                for p in self.players
+                if p.role == role and getattr(p, "is_starter", False) and p not in starters
+            ]
+            if marked:
+                # Em caso de múltiplos marcados, maior CA
+                marked.sort(key=lambda p: int(p.current_ability or 0), reverse=True)
+                starters.append(marked[0])
+                continue
+            # Fallback: melhor CA da role
+            candidates = [p for p in self.players if p.role == role and p not in starters]
+            if candidates:
+                candidates.sort(key=lambda p: int(p.current_ability or 0), reverse=True)
+                starters.append(candidates[0])
         return starters[:5]
+
+    def get_bench(self) -> List["Player"]:
+        """Reservas de primeiro time (não titulares, não academy/rookie puro)."""
+        starter_ids = {id(p) for p in self.get_starters()}
+        bench = []
+        for p in self.players:
+            if id(p) in starter_ids:
+                continue
+            if p.is_rookie:
+                continue
+            bench.append(p)
+        bench.sort(key=lambda p: (p.role.value if p.role else "", -int(p.current_ability or 0)))
+        return bench
+
+    def get_academy(self) -> List["Player"]:
+        """Academy / rookies que não são titulares."""
+        starter_ids = {id(p) for p in self.get_starters()}
+        academy = [
+            p
+            for p in self.players
+            if id(p) not in starter_ids and (p.is_rookie or "Academy" in (p.name or ""))
+        ]
+        academy.sort(key=lambda p: (p.role.value if p.role else "", -int(p.current_ability or 0)))
+        return academy
 
     def get_average_ca(self) -> float:
         """

@@ -12,6 +12,8 @@ function mapApiPlayer(p: ApiPlayer): Player {
     role: p.role as PlayerRole,
     region: (p.region as Region) || Region.CBLOL,
     isRookie: !!p.isRookie,
+    isStarter: !!p.isStarter,
+    squadStatus: p.squadStatus || (p.isStarter ? 'STARTER' : p.isRookie ? 'ACADEMY' : 'BENCH'),
     currentAbility: p.currentAbility,
     potentialAbility: p.potentialAbility ?? null,
     mechanics: p.mechanics,
@@ -31,6 +33,10 @@ function mapApiPlayer(p: ApiPlayer): Player {
     contractExpirySeasons: p.contractExpirySeasons ?? 0,
     hasRookieClause: !!p.hasRookieClause,
     participationRate: p.participationRate ?? 0,
+    rookieGamesPlayed: p.rookieGamesPlayed ?? 0,
+    rookieTotalLeagueGames: p.rookieTotalLeagueGames ?? 0,
+    rookieExtensionTriggered: !!p.rookieExtensionTriggered,
+    rookieClauseThreshold: p.rookieClauseThreshold ?? 0.25,
     monthlySalary: p.monthlySalary ?? 0,
     teamId: p.teamId ?? null,
     consistencyKnown: p.consistencyKnown ?? p.consistency != null,
@@ -91,6 +97,8 @@ export interface Player {
   role: PlayerRole;
   region: Region;
   isRookie: boolean;
+  isStarter?: boolean;
+  squadStatus?: string;
   currentAbility: number; // CA 0-200
   potentialAbility: number | null; // PA 0-200 (null se não scoutado)
   mechanics: number; // 1-20
@@ -107,6 +115,10 @@ export interface Player {
   contractExpirySeasons: number; // Duração restante em temporadas
   hasRookieClause: boolean;
   participationRate: number; // Participação de partidas (0.0 - 1.0)
+  rookieGamesPlayed?: number;
+  rookieTotalLeagueGames?: number;
+  rookieExtensionTriggered?: boolean;
+  rookieClauseThreshold?: number;
   monthlySalary: number;
   teamId?: string | null;
   consistencyKnown?: boolean;
@@ -355,6 +367,8 @@ interface GameState {
   refreshScouting: () => Promise<void>;
   assignScout: (playerId: string, focus?: string) => Promise<void>;
   clearScout: () => Promise<void>;
+  promotePlayer: (playerId: string) => Promise<void>;
+  demotePlayer: (playerId: string) => Promise<void>;
   renewContract: (playerId: string, seasons?: number) => Promise<void>;
   releasePlayer: (playerId: string) => Promise<void>;
   startNewSplit: () => Promise<void>;
@@ -1104,6 +1118,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!teamId) throw new Error('Sem time gerenciado.');
     await api.clearScout(teamId);
     await get().refreshScouting();
+  },
+
+  promotePlayer: async (playerId: string) => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time gerenciado.');
+    await api.promotePlayer(teamId, playerId);
+    await get().refreshRosterAndMarket();
+  },
+
+  demotePlayer: async (playerId: string) => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time gerenciado.');
+    await api.demotePlayer(teamId, playerId);
+    await get().refreshRosterAndMarket();
   },
 
   refreshPlayoffs: async () => {
