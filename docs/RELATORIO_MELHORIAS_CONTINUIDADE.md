@@ -71,7 +71,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 | P3-3 | **Testes frontend** (Vitest) store + componentes chave | UI quebra sem rede de segurança | Médio | Testes do store e mapeamento de players |
 | P3-4 | **Pydantic v2 / lifespan FastAPI** | Warnings e deprecações | Baixo | ✅ Feito (2026-07-14) — ConfigDict + lifespan; 0 warnings |
 | P3-5 | **Redis real opcional sem mock frágil** | Live match over restarts | Médio | Persistência AOF/dev com fallback documentado |
-| P3-6 | **CI (GitHub Actions)** | Qualidade em todo push | Médio | pytest + npm build no CI |
+| P3-6 | **CI (GitHub Actions)** | Qualidade em todo push | Médio | ✅ Feito (2026-07-14) — `.github/workflows/ci.yml` |
 
 ### P4 — Conteúdo e polish (quando o core estiver sólido)
 

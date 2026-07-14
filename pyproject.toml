@@ -18,6 +18,8 @@ pydantic-settings = "^2.3.0"
 numpy = "^1.26.4"
 apscheduler = "^3.10.4"
 python-dotenv = "^1.0.1"
+aiosqlite = "^0.20.0"
+greenlet = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

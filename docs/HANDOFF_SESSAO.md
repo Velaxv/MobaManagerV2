@@ -61,9 +61,9 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P3-6** — CI GitHub Actions  
+1. **`git push origin main`** — sobe commits locais e **dispara o CI** no GitHub  
 2. **P3-3** — Testes frontend (Vitest)  
-3. Push remoto se ainda não fez: `git push origin main`
+3. Playtest / polish (P4)
 
 ### Feito nesta retomada
 | ID | Entrega | Notas |
@@ -75,6 +75,7 @@
 | P2-6 | Patches | Notas 16.1/16.2, tela Patch, badges no draft, bias na DraftAI |
 | P3-2 | Integração API | httpx ASGI + SQLite temp: seed→advance→standings + academy/patch |
 | P3-4 | Pydantic v2 + lifespan | `SettingsConfigDict`, `lifespan=`, `model_dump`; 0 warnings |
+| P3-6 | CI GitHub Actions | `.github/workflows/ci.yml` — pytest + npm build em push/PR |
 
 ---
 

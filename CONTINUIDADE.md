@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P3-4 Pydantic v2 + lifespan)  
+**Última atualização:** 2026-07-14 (P3-6 CI GitHub Actions)  
 **Branch:** `main`  
-**Estado:** P3-4 feito — zero warnings de depreciação no pytest  
+**Estado:** P3-6 feito — workflow CI (pytest + npm build)  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -10,13 +10,13 @@
 3. Este arquivo — stack + como rodar  
 
 ### Entregue nesta jornada (fechado)
-P0…P3-2 · **P3-4 Settings ConfigDict + lifespan FastAPI**  
-**Testes: 92 passed, 0 warnings** · `npm run build` OK  
+P0…P3-4 · **P3-6 CI** (`.github/workflows/ci.yml`)  
+**Testes: 92 passed** · `npm run build` OK  
 
 ### Próxima sessão
-1. **P3-6** CI GitHub Actions  
+1. **`git push origin main`** — ativa o CI no GitHub (branch 21+ commits ahead)  
 2. **P3-3** Testes frontend (Vitest)  
-3. `git push origin main` (backup remoto opcional)  
+3. Polish / P4 conforme playtest  
 
 ```bat
 run_game.bat
@@ -213,7 +213,7 @@ CONTINUIDADE.md  (este arquivo)
 - [x] Patches jogáveis (**P2-6** feito)
 - [x] Testes integração API (**P3-2** feito) — `tests/test_api_integration.py`
 - [x] Migrar Pydantic v2 / lifespan (**P3-4** feito)
-- [ ] CI GitHub Actions (**P3-6**)
+- [x] CI GitHub Actions (**P3-6** feito) — `.github/workflows/ci.yml`
 
 ### P3 — longo prazo
 - [ ] Multi-liga / Worlds
