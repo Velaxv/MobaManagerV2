@@ -402,6 +402,26 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch market players');
   },
 
+  getTransferValuation: async (playerId: string) => {
+    const response = await fetch(`${API_BASE}/transfers/valuation/${playerId}`);
+    return parseJsonOrThrow(response, 'Failed to fetch valuation');
+  },
+
+  negotiateTransfer: async (payload: {
+    team_id: string;
+    player_id: string;
+    transfer_fee: number;
+    monthly_salary: number;
+    seasons: number;
+  }) => {
+    const response = await fetch(`${API_BASE}/transfers/negotiate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to negotiate transfer');
+  },
+
   signPlayer: async (payload: {
     team_id: string;
     player_id: string;

@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P2-1 finanças reais)  
+**Última atualização:** 2026-07-14 (P2-2 transferências)  
 **Branch:** `main`  
-**Estado:** P1 completo + finanças (folha/receita/tick mensal)  
+**Estado:** P1 + finanças + negociação de transferências  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -21,10 +21,11 @@
 - **P1-5:** Táticas pós-draft (estilo Early/Mid/Late, lineup, coach comms)  
 - **Fotos de jogadores:** 42/45 com retrato real (Leaguepedia); 3 silhueta (Ayu, Curse, Envy)  
 - **P2-1:** Finanças — receita − folha a cada 28 dias; painel no hub; insolvência  
-- Testes: **51 passed** · `npm run build` OK  
+- **P2-2:** Negociação de transferência (taxa + salário + duração, contra-oferta)  
+- Testes: **56 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P2-2 transferências profundas · P3-1 modularizar API  
+P3-1 modularizar API · P2-3 treino · scouting  
 
 ```bat
 run_game.bat

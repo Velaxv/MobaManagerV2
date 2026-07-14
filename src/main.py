@@ -864,71 +864,72 @@ async def get_market_players(
     return [_serialize_player(p) for p in players]
 
 
+@app.get("/transfers/valuation/{player_id}", status_code=status.HTTP_200_OK)
+async def transfer_valuation(player_id: str, db: AsyncSession = Depends(get_db)):
+    """Valor de mercado e exigências (taxa, salário, duração)."""
+    from src.modules.career.transfer_service import TransferService
+
+    try:
+        return await TransferService(db).get_valuation(player_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/transfers/negotiate", status_code=status.HTTP_200_OK)
+async def negotiate_transfer(req: SignPlayerRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Avalia oferta: accepted | counter | rejected (+ contra-proposta).
+    Não altera o banco — use /transfers/sign para concluir.
+    """
+    from src.modules.career.transfer_service import TransferService
+
+    try:
+        return await TransferService(db).negotiate(
+            buyer_team_id=req.team_id,
+            player_id=req.player_id,
+            transfer_fee=req.transfer_fee,
+            monthly_salary=req.monthly_salary,
+            seasons=req.seasons,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/transfers/sign", status_code=status.HTTP_200_OK)
 async def sign_player(req: SignPlayerRequest, db: AsyncSession = Depends(get_db)):
     """
-    Contrata jogador para o time do manager:
-    - Debita taxa de transferência do orçamento
-    - Encerra contrato anterior (se houver)
-    - Cria novo contrato ACTIVE
+    Conclui transferência após negociação aceita:
+    debita taxa, credita vendedor, cria contrato ACTIVE.
     """
-    from datetime import date as dt_date, timedelta
+    from src.modules.career.transfer_service import TransferService
 
-    team = await db.get(Team, uuid.UUID(req.team_id))
-    player = await db.get(Player, uuid.UUID(req.player_id))
-    if not team or not player:
-        raise HTTPException(status_code=404, detail="Time ou jogador não encontrado.")
-
-    if player.team_id and str(player.team_id) == req.team_id:
-        raise HTTPException(status_code=400, detail="Jogador já pertence a este time.")
-
-    # Idade mínima CBLOL/LEC-like: 16+ (academy); 18+ seria filtro no FE
-    if player.get_age() < settings.min_age_erl:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Jogador com {player.get_age()} anos é inelegível (mínimo {settings.min_age_erl}).",
-        )
-
-    fee = Decimal(str(req.transfer_fee))
     try:
-        team.deduct_budget(fee, operation="transferência")
-    except Exception as err:
-        raise HTTPException(status_code=400, detail=str(err))
-
-    # Encerra contratos ativos anteriores
-    contracts_q = await db.execute(
-        select(Contract).where(
-            Contract.player_id == player.id,
-            Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.ROOKIE_EXTENDED]),
+        result = await TransferService(db).complete_transfer(
+            buyer_team_id=req.team_id,
+            player_id=req.player_id,
+            transfer_fee=req.transfer_fee,
+            monthly_salary=req.monthly_salary,
+            seasons=req.seasons,
+            skip_negotiation=False,
         )
-    )
-    for old in contracts_q.scalars().all():
-        old.terminate()
-
-    seasons = max(1, min(4, int(req.seasons)))
-    today = dt_date.today()
-    new_contract = Contract(
-        id=uuid.uuid4(),
-        player_id=player.id,
-        team_id=team.id,
-        start_date=today,
-        end_date=today + timedelta(days=180 * seasons),
-        seasons_duration=seasons,
-        monthly_salary=Decimal(str(req.monthly_salary)),
-        status=ContractStatus.ACTIVE,
-        has_rookie_clause=player.is_rookie,
-        rookie_games_played=0,
-        rookie_total_league_games=0,
-    )
-    player.team_id = team.id
-    db.add(new_contract)
-    await db.flush()
-
-    return {
-        "message": f"{player.name} contratado por {team.name}.",
-        "team_budget": float(team.budget),
-        "player": _serialize_player(player, new_contract),
-    }
+        # re-serializa player
+        player = await db.get(Player, uuid.UUID(req.player_id))
+        if player:
+            await db.refresh(player)
+            cq = await db.execute(
+                select(Contract).where(
+                    Contract.player_id == player.id,
+                    Contract.status == ContractStatus.ACTIVE,
+                )
+            )
+            contract = cq.scalar_one_or_none()
+            result["player"] = _serialize_player(player, contract)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Transfer sign error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/champions", status_code=status.HTTP_200_OK)
 async def get_champions(db: AsyncSession = Depends(get_db)):

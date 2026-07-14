@@ -17,7 +17,7 @@
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. Verificar: `pytest` deve dar **51 passed**
+6. Verificar: `pytest` deve dar **56 passed**
 
 ---
 
@@ -56,10 +56,10 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P2-2** — Negociação de transferência  
-2. **P3-1** — Modularizar `main.py`  
-3. **P2-1** — ✅ Finanças (tick 28d, folha, hub)  
-4. **P1** — ✅  
+1. **P3-1** — Modularizar `main.py`  
+2. **P2-3** — Treino / desenvolvimento  
+3. **P2-2** — ✅ Negociação de transferência  
+4. **P2-1 / P1** — ✅  
 5. Commit local + **push para origin** se quiser backup remoto:
    ```bat
    git push origin main

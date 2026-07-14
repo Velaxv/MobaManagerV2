@@ -31,6 +31,7 @@ function mapApiPlayer(p: ApiPlayer): Player {
     contractExpirySeasons: p.contractExpirySeasons ?? 0,
     hasRookieClause: !!p.hasRookieClause,
     participationRate: p.participationRate ?? 0,
+    monthlySalary: p.monthlySalary ?? 0,
     teamId: p.teamId ?? null,
   };
 }
@@ -94,6 +95,7 @@ export interface Player {
   contractExpirySeasons: number; // Duração restante em temporadas
   hasRookieClause: boolean;
   participationRate: number; // Participação de partidas (0.0 - 1.0)
+  monthlySalary: number;
   teamId?: string | null;
 }
 
@@ -281,7 +283,20 @@ interface GameState {
   clearActiveMatch: () => void;
   resetDraft: () => void;
   toggleRookieClause: (playerId: string) => void;
-  signPlayer: (playerId: string) => Promise<void>;
+  signPlayer: (
+    playerId: string,
+    terms?: { transfer_fee: number; monthly_salary: number; seasons: number }
+  ) => Promise<void>;
+  negotiateTransfer: (
+    playerId: string,
+    terms: { transfer_fee: number; monthly_salary: number; seasons: number }
+  ) => Promise<{
+    status: string;
+    message: string;
+    counter?: { transfer_fee: number; monthly_salary: number; seasons: number } | null;
+    valuation?: Record<string, unknown>;
+    can_afford?: boolean;
+  }>;
 }
 
 // Calendário fallback (API sobrescreve)
@@ -329,6 +344,7 @@ function mkPlayer(
     contractExpirySeasons: 3,
     hasRookieClause: false,
     participationRate: 1.0,
+    monthlySalary: 5000,
     ...opts,
   };
 }
@@ -552,28 +568,46 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({ playersCache: updated });
   },
 
-  signPlayer: async (playerId) => {
+  negotiateTransfer: async (playerId, terms) => {
+    const { manager } = get();
+    if (!manager?.teamId) throw new Error('Sem time gerenciado.');
+    return api.negotiateTransfer({
+      team_id: manager.teamId,
+      player_id: playerId,
+      transfer_fee: terms.transfer_fee,
+      monthly_salary: terms.monthly_salary,
+      seasons: terms.seasons,
+    });
+  },
+
+  signPlayer: async (playerId, terms) => {
     const { manager, marketPlayers } = get();
     if (!manager?.teamId) {
       console.error('Sem time gerenciado para contratar.');
       return;
     }
     const target = marketPlayers.find((p) => p.id === playerId);
-    if (!target) return;
+    if (!target && !terms) return;
+
+    const fee = terms?.transfer_fee ?? 250000;
+    const salary = terms?.monthly_salary ?? 5000;
+    const seasons = terms?.seasons ?? 2;
 
     try {
       const response = await api.signPlayer({
         team_id: manager.teamId,
         player_id: playerId,
-        transfer_fee: 250000,
-        monthly_salary: 5000,
-        seasons: 2,
+        transfer_fee: fee,
+        monthly_salary: salary,
+        seasons,
       });
       set({ myBudget: response.team_budget });
       await get().refreshRosterAndMarket();
+      void get().refreshFinance();
     } catch (err) {
       console.error('Falha na contratação:', err);
       alert(err instanceof Error ? err.message : 'Falha na contratação');
+      throw err;
     }
   },
 
