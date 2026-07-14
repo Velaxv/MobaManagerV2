@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -8,6 +8,8 @@ import {
   TableProperties,
   ChevronRight,
   Radio,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 
@@ -40,6 +42,8 @@ function teamInitials(name: string) {
 }
 
 export function GameShell({ children }: GameShellProps) {
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const currentScreen = useGameStore((s) => s.currentScreen) as AppScreen;
   const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
   const manager = useGameStore((s) => s.manager);
@@ -52,6 +56,7 @@ export function GameShell({ children }: GameShellProps) {
   const activeMatch = useGameStore((s) => s.activeMatch);
   const standings = useGameStore((s) => s.standings);
   const myPlayers = useGameStore((s) => s.myPlayers);
+  const saveCareer = useGameStore((s) => s.saveCareer);
 
   const dayLabel = calendar[currentDayIndex]?.dayOfWeek ?? 'SEG';
   const dayType = calendar[currentDayIndex]?.type;
@@ -211,6 +216,32 @@ export function GameShell({ children }: GameShellProps) {
                   Ao vivo
                 </button>
               )}
+              <button
+                type="button"
+                disabled={saving || !manager}
+                title="Salvar carreira (slot1)"
+                onClick={async () => {
+                  setSaving(true);
+                  setSaveMsg(null);
+                  try {
+                    await saveCareer('slot1');
+                    setSaveMsg('Salvo!');
+                    setTimeout(() => setSaveMsg(null), 2500);
+                  } catch (e) {
+                    setSaveMsg(e instanceof Error ? e.message : 'Erro ao salvar');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border border-lol-gold/35 bg-lol-gold/10 text-lol-gold text-[10px] font-bold uppercase tracking-wide hover:bg-lol-gold/20 disabled:opacity-40"
+              >
+                {saving ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Save className="w-3 h-3" />
+                )}
+                {saveMsg || 'Salvar'}
+              </button>
               <div className="px-2.5 py-1 rounded-sm bg-black/40 border border-emerald-800/35">
                 <span className="text-[9px] uppercase text-white/35 block">Orçamento</span>
                 <span className="text-xs sm:text-sm font-bold text-emerald-400 font-mono">

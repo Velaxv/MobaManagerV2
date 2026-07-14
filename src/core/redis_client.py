@@ -95,6 +95,10 @@ class RedisClient:
         key = f"calendar:league:{league_id}:state"
         data = await self.client.get(key)
         return json.loads(data) if data else None
+
+    async def delete_calendar_state(self, league_id: str) -> None:
+        key = f"calendar:league:{league_id}:state"
+        await self.client.delete(key)
     
     async def set_draft_state(self, match_id: str, draft_data: dict, ttl: int = 3600) -> None:
         key = f"draft:match:{match_id}"

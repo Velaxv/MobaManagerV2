@@ -212,6 +212,20 @@ interface GameState {
   openMatchLog: (matchId: string) => Promise<void>;
   closeMatchLog: () => void;
   startPlayoffsDev: () => Promise<void>;
+  saveCareer: (slot?: string) => Promise<void>;
+  loadCareer: (slot: string) => Promise<void>;
+  listCareerSaves: () => Promise<
+    {
+      slot: string;
+      manager_name?: string;
+      team_name?: string;
+      team_abbr?: string;
+      saved_at?: string;
+      phase?: string;
+      week?: number;
+      error?: string;
+    }[]
+  >;
   setCalendarDayType: (dayIndex: number, type: CalendarDayType) => void;
   triggerCoachComm: () => void;
   startSimulation: (blueTeam: string, redTeam: string, blueTeamId?: string, redTeamId?: string) => void;
@@ -857,6 +871,45 @@ export const useGameStore = create<GameState>((set, get) => ({
       console.error('Falha ao iniciar playoffs:', e);
       throw e;
     }
+  },
+
+  listCareerSaves: async () => {
+    const res = await api.listCareerSaves();
+    return res.saves || [];
+  },
+
+  saveCareer: async (slot = 'slot1') => {
+    const { manager } = get();
+    if (!manager?.name || !manager?.teamId) {
+      throw new Error('Inicie uma carreira antes de salvar.');
+    }
+    await api.saveCareer({
+      slot,
+      manager_name: manager.name,
+      team_id: manager.teamId,
+      label: `${manager.name} · ${get().myTeamName}`,
+    });
+  },
+
+  loadCareer: async (slot: string) => {
+    const result = await api.loadCareer(slot);
+    const teamId = result.team_id as string;
+    const managerName = (result.manager_name as string) || 'Manager';
+
+    set({
+      manager: { name: managerName, teamId },
+      myTeamName: (result.team_name as string) || get().myTeamName,
+      gameState: 'PLAYING',
+      currentScreen: 'DASHBOARD',
+      activeMatch: null,
+      matchLogPreview: null,
+    });
+
+    // Rehidrata tudo do backend (calendário, elenco, standings, playoffs)
+    await get().loadData();
+    await get().refreshRosterAndMarket();
+    await get().refreshPlayoffs();
+    await get().refreshRoundResults();
   },
 
   submitDraftAndStartMatch: async (speed = '2x') => {

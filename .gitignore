@@ -16,6 +16,9 @@ dist/
 *.db
 lol_manager.db
 
+# Saves de carreira (JSON local)
+saves/
+
 # OS
 .DS_Store
 Thumbs.db

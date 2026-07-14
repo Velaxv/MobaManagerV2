@@ -249,6 +249,52 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch playoffs');
   },
 
+  listCareerSaves: async (): Promise<{
+    saves: {
+      slot: string;
+      manager_name?: string;
+      team_id?: string;
+      team_name?: string;
+      team_abbr?: string;
+      saved_at?: string;
+      phase?: string;
+      week?: number;
+      day?: number;
+      error?: string;
+    }[];
+  }> => {
+    const response = await fetch(`${API_BASE}/career/saves`);
+    return parseJsonOrThrow(response, 'Failed to list saves');
+  },
+
+  saveCareer: async (payload: {
+    slot: string;
+    manager_name: string;
+    team_id: string;
+    label?: string;
+  }) => {
+    const response = await fetch(`${API_BASE}/career/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to save career');
+  },
+
+  loadCareer: async (slot: string) => {
+    const response = await fetch(`${API_BASE}/career/load/${encodeURIComponent(slot)}`, {
+      method: 'POST',
+    });
+    return parseJsonOrThrow(response, 'Failed to load career');
+  },
+
+  deleteCareerSave: async (slot: string) => {
+    const response = await fetch(`${API_BASE}/career/saves/${encodeURIComponent(slot)}`, {
+      method: 'DELETE',
+    });
+    return parseJsonOrThrow(response, 'Failed to delete save');
+  },
+
   startPlayoffs: async (leagueId: string): Promise<{ bracket: PlayoffBracket; message: string }> => {
     const response = await fetch(`${API_BASE}/leagues/${leagueId}/playoffs/start`, {
       method: 'POST',

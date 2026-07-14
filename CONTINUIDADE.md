@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-6 resultados da rodada)  
+**Última atualização:** 2026-07-14 (P1-3 save/load)  
 **Branch:** `main`  
-**Estado:** P1-1 + P1-6 entregues  
+**Estado:** P1-1 + P1-6 + P1-3 entregues  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -15,10 +15,11 @@
 - Live speed · burnout · round-robin · calendário RR  
 - **P1-1:** Playoffs top 6 (bye 1–2, QF/SF/Final, campeão + prêmios)  
 - **P1-6:** Resultados da rodada no hub + `GET /leagues/{id}/matches` + ver log  
-- Testes: **37 passed** · `npm run build` OK  
+- **P1-3:** Save/Load JSON (`saves/`) · botão Salvar no hub · Carregar no menu  
+- Testes: **40 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-3 save/load → P1-2 offseason → P1-4 DraftAI  
+P1-2 offseason → P1-4 DraftAI → P1-5 táticas  
 
 ```bat
 run_game.bat
@@ -202,7 +203,7 @@ CONTINUIDADE.md  (este arquivo)
 - [ ] Mapear `primary_role` dos champions no FE (draft picker por role real do seed)
 - [ ] Exibir standings também após live match sem depender só de clearActiveMatch
 - [x] Playoffs top 6
-- [ ] Save/load
+- [x] Save/load
 
 ### P2 — médio prazo
 - [ ] Modularizar `src/main.py` em routers (`api/calendar.py`, `api/matches.py`, …)
@@ -226,7 +227,8 @@ CONTINUIDADE.md  (este arquivo)
 | MockRedis | Estado live some se o processo uvicorn reiniciar mid-match |
 | Live match duration | ~2s real × até 40 min de jogo ≈ ~80s por partida |
 | Draft FE | Jogador clica os 20 turns (BLUE e RED); ideal: IA no adversário |
-| Seed drop_all | `POST /db/seed` **apaga** o banco SQLite |
+| Seed drop_all | `POST /db/seed` **apaga** o banco SQLite e invalida saves (UUIDs mudam) |
+| Save/Load | JSON em `saves/`; exige o **mesmo** DB/seed em que salvou |
 | monólito | Quase toda a API ainda está em `main.py` |
 | Times sem academy | Roster mínimo 6 (validate_roster_size); academy = 11 |
 | Filter age mercado | FE bloqueia &lt;16; label LEC ainda fala 18 |

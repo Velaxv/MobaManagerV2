@@ -17,7 +17,7 @@
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. Verificar: `pytest` deve dar **37 passed**
+6. Verificar: `pytest` deve dar **40 passed**
 
 ---
 
@@ -56,10 +56,10 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P1-3** — Save/Load de carreira  
-2. **P1-2** — Offseason mínimo  
-3. **P1-6** — ✅ Resultados da rodada no hub  
-4. **P1-1** — ✅ Playoffs top 6  
+1. **P1-2** — Offseason mínimo  
+2. **P1-4** — Draft AI backend no fluxo interativo  
+3. **P1-3** — ✅ Save/Load (`saves/*.json`, não rode seed entre save e load)  
+4. **P1-6 / P1-1** — ✅  
 5. Commit local + **push para origin** se quiser backup remoto:
    ```bat
    git push origin main
