@@ -53,12 +53,23 @@ class OffseasonService:
         league.current_week = 0
         await self.db.flush()
 
+        # Pool de free agents do circuito + janela aberta
+        fa_info: Dict[str, Any] = {}
+        try:
+            from src.modules.career.free_agency import FreeAgencyService
+
+            fa_info = await FreeAgencyService(self.db).ensure_pool(min_count=10)
+        except Exception as exc:
+            logger.warning(f"[Offseason] ensure FA pool: {exc}")
+
         logger.info(f"[Offseason] Fase forçada para OFFSEASON (liga {league.name})")
         return {
             "phase": "OFFSEASON",
             "league_id": str(league.id),
             "week": 0,
-            "message": "Offseason iniciada.",
+            "message": "Offseason iniciada. Janela de transferências aberta.",
+            "market_window": "OPEN_FULL",
+            "free_agency": fa_info,
         }
 
     async def list_team_contracts(self, team_id: str) -> List[Dict[str, Any]]:
@@ -308,6 +319,9 @@ class OffseasonService:
         }
 
     async def get_status(self, managed_team_id: Optional[str] = None) -> Dict[str, Any]:
+        from src.modules.career.free_agency import FreeAgencyService
+        from src.modules.career.market_window import MarketWindowService
+
         league = await self.get_league()
         phase = league.current_phase.value if league.current_phase else "OFFSEASON"
         payload: Dict[str, Any] = {
@@ -317,6 +331,15 @@ class OffseasonService:
             "week": league.current_week,
             "day": league.current_day,
         }
+        try:
+            payload["market_window"] = await MarketWindowService(self.db).get_status()
+        except Exception:
+            payload["market_window"] = None
+        try:
+            payload["free_agent_count"] = await FreeAgencyService(self.db).count_free_agents()
+        except Exception:
+            payload["free_agent_count"] = 0
+
         if managed_team_id and phase == "OFFSEASON":
             try:
                 contracts = await self.list_team_contracts(managed_team_id)
@@ -325,4 +348,10 @@ class OffseasonService:
             except ValueError:
                 payload["contracts"] = []
                 payload["needs_attention"] = 0
+            try:
+                from src.modules.career.staff_service import StaffService
+
+                payload["staff"] = await StaffService(self.db).list_team_staff(managed_team_id)
+            except Exception:
+                payload["staff"] = None
         return payload

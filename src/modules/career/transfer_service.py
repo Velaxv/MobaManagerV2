@@ -227,6 +227,8 @@ class TransferService:
         monthly_salary: float,
         seasons: int,
     ) -> Dict[str, Any]:
+        from src.modules.career.market_window import MarketWindowService
+
         buyer = await self.db.get(Team, uuid.UUID(buyer_team_id))
         player = await self._load_player(uuid.UUID(player_id))
         if not buyer:
@@ -244,8 +246,29 @@ class TransferService:
             )
 
         contract = self._active_contract(player)
+        is_fa = player.team_id is None or contract is None
+        # Janela de mercado (offseason full / split só FA / playoffs fechado)
+        try:
+            window = await MarketWindowService(self.db).assert_can_transfer(
+                is_free_agent=is_fa,
+                seller_team_id=str(player.team_id) if player.team_id else None,
+            )
+        except ValueError as win_err:
+            return {
+                "status": "rejected",
+                "message": str(win_err),
+                "valuation": compute_valuation(player, contract),
+                "counter": None,
+                "window": await MarketWindowService(self.db).get_status(),
+                "player_id": str(player.id),
+                "player_name": player.name,
+                "can_afford": False,
+                "buyer_budget": float(buyer.budget),
+            }
+
         valuation = compute_valuation(player, contract)
         result = evaluate_offer(valuation, transfer_fee, monthly_salary, seasons)
+        result["window"] = window
 
         # Checa se comprador tem grana para a taxa proposta (ou contra)
         check_fee = transfer_fee
@@ -286,10 +309,16 @@ class TransferService:
             if neg["status"] != "accepted":
                 raise ValueError(neg.get("message") or "Oferta não aceita.")
 
+        from src.modules.career.market_window import MarketWindowService
+
         buyer = await self.db.get(Team, uuid.UUID(buyer_team_id))
         player = await self._load_player(uuid.UUID(player_id))
         if not buyer or not player:
             raise ValueError("Time ou jogador não encontrado.")
+
+        contract_chk = self._active_contract(player)
+        is_fa = player.team_id is None or contract_chk is None
+        await MarketWindowService(self.db).assert_can_transfer(is_free_agent=is_fa)
 
         fee = _d(transfer_fee)
         seasons = max(1, min(4, int(seasons)))

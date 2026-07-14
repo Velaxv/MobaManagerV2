@@ -13,6 +13,8 @@ from src.api.schemas import (
     ScoutAssignRequest,
     AcademyPlayerRequest,
     LineupRequest,
+    HireStaffRequest,
+    FireStaffRequest,
 )
 from src.api.serializers import serialize_player
 from src.core.database import get_db
@@ -275,4 +277,73 @@ async def set_team_lineup(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Lineup: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/teams/{team_id}/staff", status_code=status.HTTP_200_OK)
+async def get_team_staff(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Comissão técnica atual + poder (meta reading / scout mult)."""
+    from src.modules.career.staff_service import StaffService
+
+    try:
+        return await StaffService(db).list_team_staff(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/teams/{team_id}/staff/candidates", status_code=status.HTTP_200_OK)
+async def get_staff_candidates(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Pool de free agents de staff para contratação."""
+    from src.modules.career.staff_service import StaffService
+
+    try:
+        return await StaffService(db).list_candidates(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/teams/{team_id}/staff/hire", status_code=status.HTTP_201_CREATED)
+async def hire_staff(
+    team_id: str,
+    req: HireStaffRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Contrata membro da comissão (debita signing fee do orçamento)."""
+    from src.modules.career.staff_service import StaffService
+
+    if str(req.team_id) != str(team_id):
+        raise HTTPException(status_code=400, detail="team_id do body deve coincidir com a URL.")
+    try:
+        return await StaffService(db).hire(
+            team_id,
+            name=req.name,
+            role=req.role,
+            meta_reading=req.meta_reading,
+            communication=req.communication,
+            candidate_id=req.candidate_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Hire staff: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/teams/{team_id}/staff/fire", status_code=status.HTTP_200_OK)
+async def fire_staff(
+    team_id: str,
+    req: FireStaffRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Demite membro da comissão."""
+    from src.modules.career.staff_service import StaffService
+
+    if str(req.team_id) != str(team_id):
+        raise HTTPException(status_code=400, detail="team_id do body deve coincidir com a URL.")
+    try:
+        return await StaffService(db).fire(team_id, req.staff_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Fire staff: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

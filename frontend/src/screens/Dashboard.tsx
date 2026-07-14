@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import {
   Calendar,
@@ -16,11 +16,14 @@ import {
   Dumbbell,
   Binoculars,
   FileCode2,
+  Briefcase,
+  UserPlus,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
 import { RoleIcon } from '../components/RoleIcon';
 import { PlayerPortrait } from '../components/PlayerPortrait';
+import { api, type StaffCandidate, type StaffMember } from '../services/api';
 
 export function Dashboard() {
   const [isAdvancing, setIsAdvancing] = useState(false);
@@ -62,9 +65,44 @@ export function Dashboard() {
   } = useGameStore();
   const [trainingBusy, setTrainingBusy] = useState(false);
   const [trainingMsg, setTrainingMsg] = useState<string | null>(null);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [staffCandidates, setStaffCandidates] = useState<StaffCandidate[]>([]);
+  const [staffBusy, setStaffBusy] = useState<string | null>(null);
+  const [staffMsg, setStaffMsg] = useState<string | null>(null);
+  const [staffPower, setStaffPower] = useState<{
+    avg_meta_reading?: number;
+    scout_mult?: number;
+  } | null>(null);
+  const [faCount, setFaCount] = useState<number | null>(null);
 
   const myTeamId = manager?.teamId;
   const isOffseason = splitPhase === SplitPhase.OFFSEASON;
+
+  const reloadStaff = async () => {
+    if (!myTeamId) return;
+    try {
+      const [st, cand] = await Promise.all([
+        api.getTeamStaff(myTeamId),
+        api.getStaffCandidates(myTeamId),
+      ]);
+      setStaffList(st.staff || []);
+      setStaffPower(st.power || null);
+      setStaffCandidates((cand.candidates || []).slice(0, 6));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    void reloadStaff();
+    if (isOffseason && myTeamId) {
+      api
+        .getFreeAgents({ managedTeamId: myTeamId })
+        .then((r) => setFaCount(r.count ?? r.free_agents?.length ?? 0))
+        .catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTeamId, isOffseason]);
   const fmtK = (n: number) =>
     Math.abs(n) >= 1_000_000
       ? `€${(n / 1_000_000).toFixed(2)}M`
@@ -200,9 +238,23 @@ export function Dashboard() {
           </div>
           <div className="p-3 space-y-3">
             <p className="text-[11px] text-white/45 leading-relaxed">
-              Renove ou liberte atletas com contrato curto. Depois inicie o novo split (tabela
-              zerada, playoffs limpos, 1 temporada consumida nos contratos).
+              Renove ou liberte atletas com contrato curto. Janela de transferências{' '}
+              <strong className="text-emerald-300/90">aberta</strong>
+              {faCount != null ? (
+                <>
+                  {' '}
+                  · <strong className="text-cyan-300/90">{faCount} free agents</strong> no circuito
+                </>
+              ) : null}
+              . Use o Mercado para assinar FA ou comprar de clubes. Depois inicie o novo split.
             </p>
+            <button
+              type="button"
+              onClick={() => setCurrentScreen('MARKET')}
+              className="text-[10px] uppercase tracking-wide text-cyan-300 border border-cyan-600/40 px-3 py-1.5 rounded-sm hover:bg-cyan-950/40"
+            >
+              Abrir mercado (FA + clubes) →
+            </button>
             <ul className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto">
               {offseasonContracts.length === 0 ? (
                 <li className="text-xs text-white/35 font-mono p-2">Carregando elenco…</li>
@@ -296,6 +348,124 @@ export function Dashboard() {
               </button>
               {offseasonMsg && (
                 <span className="text-[10px] font-mono text-white/50">{offseasonMsg}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comissão técnica */}
+      {myTeamId && (
+        <div className="panel-lol border-violet-500/20 bg-violet-950/15">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-violet-300" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-violet-200">
+                Comissão técnica
+              </span>
+            </div>
+            <span className="text-[10px] text-white/35 font-mono">
+              meta {staffPower?.avg_meta_reading ?? '—'} · scout ×
+              {staffPower?.scout_mult ?? '—'}
+            </span>
+          </div>
+          <div className="p-3 space-y-3">
+            <p className="text-[11px] text-white/45 leading-relaxed">
+              Contrate coaches e analysts. Meta reading melhora scouting e o draft scout; performance
+              coach ajuda na recuperação de burnout.
+            </p>
+            <ul className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto">
+              {staffList.length === 0 ? (
+                <li className="text-xs text-white/35 font-mono p-2">Sem staff — contrate abaixo.</li>
+              ) : (
+                staffList.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center gap-2 p-2 rounded-sm border border-white/5 bg-black/30 text-[11px]"
+                  >
+                    <span className="font-semibold text-white min-w-[6rem]">{s.name}</span>
+                    <span className="text-violet-300/80 text-[10px] uppercase">
+                      {s.role_label || s.role}
+                    </span>
+                    <span className="text-white/35 font-mono">
+                      meta {s.meta_reading} · comm {s.communication} · €
+                      {Math.round(s.monthly_cost).toLocaleString('pt-BR')}/mês
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!!staffBusy}
+                      onClick={async () => {
+                        if (!confirm(`Demitir ${s.name}?`)) return;
+                        setStaffBusy(s.id);
+                        setStaffMsg(null);
+                        try {
+                          await api.fireStaff(myTeamId, s.id);
+                          setStaffMsg(`Demitido: ${s.name}`);
+                          await reloadStaff();
+                        } catch (e) {
+                          setStaffMsg(e instanceof Error ? e.message : 'Erro ao demitir');
+                        } finally {
+                          setStaffBusy(null);
+                        }
+                      }}
+                      className="ml-auto text-[9px] uppercase text-lol-red-side border border-lol-red-side/30 px-2 py-1 rounded-sm hover:bg-red-950/30 disabled:opacity-40"
+                    >
+                      Demitir
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="border-t border-white/5 pt-2 space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 flex items-center gap-1">
+                <UserPlus className="w-3 h-3" /> Candidatos no mercado
+              </div>
+              <ul className="flex flex-col gap-1 max-h-[180px] overflow-y-auto">
+                {staffCandidates.map((c) => (
+                  <li
+                    key={c.candidate_id}
+                    className="flex flex-wrap items-center gap-2 p-2 rounded-sm border border-violet-500/15 bg-black/25 text-[11px]"
+                  >
+                    <span className="font-semibold text-white/90">{c.name}</span>
+                    <span className="text-violet-300/70 text-[10px]">{c.role_label}</span>
+                    <span className="text-white/35 font-mono">
+                      meta {c.meta_reading} · taxa €
+                      {Math.round(c.signing_fee).toLocaleString('pt-BR')}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!!staffBusy || !c.slot_available}
+                      title={!c.slot_available ? 'Slot do cargo cheio' : 'Contratar'}
+                      onClick={async () => {
+                        setStaffBusy(c.candidate_id);
+                        setStaffMsg(null);
+                        try {
+                          const res = await api.hireStaff(myTeamId, {
+                            name: c.name,
+                            role: c.role,
+                            meta_reading: c.meta_reading,
+                            communication: c.communication,
+                            candidate_id: c.candidate_id,
+                          });
+                          setStaffMsg(res.message || `Contratado: ${c.name}`);
+                          await reloadStaff();
+                          // budget refresh
+                          void useGameStore.getState().refreshRosterAndMarket?.();
+                        } catch (e) {
+                          setStaffMsg(e instanceof Error ? e.message : 'Erro ao contratar');
+                        } finally {
+                          setStaffBusy(null);
+                        }
+                      }}
+                      className="ml-auto text-[9px] uppercase text-emerald-400 border border-emerald-700/40 px-2 py-1 rounded-sm hover:bg-emerald-950/40 disabled:opacity-40"
+                    >
+                      {staffBusy === c.candidate_id ? '…' : 'Contratar'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {staffMsg && (
+                <span className="text-[10px] font-mono text-white/50 block">{staffMsg}</span>
               )}
             </div>
           </div>

@@ -9,11 +9,13 @@ import {
   Handshake,
   X,
   Binoculars,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { RoleIcon } from '../components/RoleIcon';
 import { PlayerPortrait } from '../components/PlayerPortrait';
 import { ROLE_LABELS } from '../lib/champions';
-import { api } from '../services/api';
+import { api, type MarketWindowStatus } from '../services/api';
 
 type Valuation = {
   asking_fee: number;
@@ -59,13 +61,17 @@ export function TransferMarket() {
     myTeamName,
     scouting,
     assignScout,
+    manager,
+    refreshRosterAndMarket,
   } = useGameStore();
   const [scoutBusy, setScoutBusy] = useState<string | null>(null);
 
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
+  const [poolFilter, setPoolFilter] = useState<'ALL' | 'FA' | 'CLUB'>('ALL');
   const [ageLimitFilter, setAgeLimitFilter] = useState(false);
   const [rookieClauseFilter, setRookieClauseFilter] = useState(false);
   const [contractExpiryFilter, setContractExpiryFilter] = useState(false);
+  const [windowStatus, setWindowStatus] = useState<MarketWindowStatus | null>(null);
 
   const [offerPlayer, setOfferPlayer] = useState<Player | null>(null);
   const [valuation, setValuation] = useState<Valuation | null>(null);
@@ -82,15 +88,53 @@ export function TransferMarket() {
     counter?: OfferTerms | null;
   } | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const w = await api.getMarketWindow();
+        if (!cancelled) setWindowStatus(w);
+        // Na offseason, garante pool de FA no backend
+        if (w.mode === 'OPEN_FULL' && manager?.teamId) {
+          await api.getFreeAgents({ managedTeamId: manager.teamId });
+          if (!cancelled) await refreshRosterAndMarket?.();
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [manager?.teamId, refreshRosterAndMarket]);
+
   const filteredPlayers = useMemo(() => {
     return marketPlayers.filter((p) => {
+      const isFa = !!(p.isFreeAgent || !p.teamId);
+      if (poolFilter === 'FA' && !isFa) return false;
+      if (poolFilter === 'CLUB' && isFa) return false;
       if (selectedRole !== 'ALL' && p.role !== selectedRole) return false;
       if (ageLimitFilter && p.age < 18) return false;
       if (rookieClauseFilter && !p.hasRookieClause) return false;
       if (contractExpiryFilter && p.contractExpirySeasons >= 2) return false;
       return true;
     });
-  }, [marketPlayers, selectedRole, ageLimitFilter, rookieClauseFilter, contractExpiryFilter]);
+  }, [
+    marketPlayers,
+    selectedRole,
+    poolFilter,
+    ageLimitFilter,
+    rookieClauseFilter,
+    contractExpiryFilter,
+  ]);
+
+  const canOffer = (p: Player) => {
+    if (!windowStatus) return true;
+    if (windowStatus.mode === 'CLOSED') return false;
+    const isFa = !!(p.isFreeAgent || !p.teamId);
+    if (isFa) return windowStatus.can_sign_free_agents;
+    return windowStatus.can_buy_from_clubs;
+  };
 
   useEffect(() => {
     if (!offerPlayer) {
@@ -339,17 +383,24 @@ export function TransferMarket() {
             </button>
             <button
               onClick={() => openOffer(row)}
-              disabled={row.age < 16}
+              disabled={row.age < 16 || !canOffer(row)}
+              title={
+                !canOffer(row)
+                  ? windowStatus?.mode === 'CLOSED'
+                    ? 'Janela fechada'
+                    : 'Só free agents nesta fase'
+                  : 'Negociar'
+              }
               className="btn-lol-primary py-1 px-2.5 flex items-center gap-1 disabled:opacity-30"
             >
               <Handshake className="w-3.5 h-3.5" />
-              Ofertar
+              {row.isFreeAgent || !row.teamId ? 'Assinar' : 'Ofertar'}
             </button>
           </div>
         ),
       },
     ],
-    [assignScout, scoutBusy, scouting?.assignment?.player_id]
+    [assignScout, scoutBusy, scouting?.assignment?.player_id, windowStatus]
   );
 
   return (
@@ -374,10 +425,61 @@ export function TransferMarket() {
           </div>
         </div>
 
+        {windowStatus && (
+          <div
+            className={`relative px-3 py-2 border-t flex flex-wrap items-center gap-2 text-[11px] ${
+              windowStatus.mode === 'OPEN_FULL'
+                ? 'border-emerald-700/40 bg-emerald-950/25 text-emerald-200/90'
+                : windowStatus.mode === 'OPEN_FA_ONLY'
+                  ? 'border-amber-700/40 bg-amber-950/25 text-amber-100/90'
+                  : 'border-red-800/40 bg-red-950/30 text-red-200/90'
+            }`}
+          >
+            {windowStatus.mode === 'CLOSED' ? (
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+            ) : (
+              <Unlock className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span className="font-semibold uppercase tracking-wide text-[10px]">
+              {windowStatus.label}
+            </span>
+            <span className="text-white/40 font-mono">
+              fase {windowStatus.phase}
+              {windowStatus.can_buy_from_clubs
+                ? ' · clubes + FA'
+                : windowStatus.can_sign_free_agents
+                  ? ' · só free agents'
+                  : ' · sem contratações'}
+            </span>
+          </div>
+        )}
+
         <div className="relative p-3 flex flex-col md:flex-row gap-3 items-start md:items-center border-t border-white/5 bg-black/20">
           <div className="flex items-center gap-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider shrink-0">
             <SlidersHorizontal className="w-3.5 h-3.5 text-lol-gold" />
             Filtros
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: 'ALL' as const, label: 'Todos' },
+                { id: 'FA' as const, label: 'Free agents' },
+                { id: 'CLUB' as const, label: 'De clubes' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPoolFilter(opt.id)}
+                className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-sm ${
+                  poolFilter === opt.id
+                    ? 'border-cyan-400/50 bg-cyan-950/40 text-cyan-200'
+                    : 'border-white/10 text-white/45 hover:border-white/25'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {['ALL', 'TOP', 'JUNGLE', 'MID', 'BOT', 'SUPPORT'].map((role) => (

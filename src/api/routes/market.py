@@ -1,4 +1,4 @@
-"""Mercado e transferências."""
+"""Mercado, transferências, free agents e janela."""
 
 import logging
 import uuid
@@ -19,9 +19,43 @@ logger = logging.getLogger("lol_manager_api")
 router = APIRouter(tags=["market"])
 
 
+@router.get("/market/window", status_code=status.HTTP_200_OK)
+async def get_market_window(db: AsyncSession = Depends(get_db)):
+    """Status da janela de transferências (offseason / FA only / fechada)."""
+    from src.modules.career.market_window import MarketWindowService
+
+    return await MarketWindowService(db).get_status()
+
+
+@router.get("/market/free-agents", status_code=status.HTTP_200_OK)
+async def get_free_agents(
+    role: Optional[str] = None,
+    managed_team_id: Optional[str] = None,
+    ensure_pool: bool = True,
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista free agents; opcionalmente garante pool mínimo na offseason."""
+    from src.modules.career.free_agency import FreeAgencyService
+    from src.modules.career.market_window import MarketWindowService
+
+    svc = FreeAgencyService(db)
+    window = await MarketWindowService(db).get_status()
+    pool_info = None
+    if ensure_pool and window.get("mode") == "OPEN_FULL":
+        try:
+            pool_info = await svc.ensure_pool(min_count=10)
+        except Exception as e:
+            logger.warning(f"ensure FA pool: {e}")
+    data = await svc.list_free_agents(role=role, scouting_team_id=managed_team_id)
+    data["market_window"] = window
+    data["pool"] = pool_info
+    return data
+
+
 @router.get("/market/players", status_code=status.HTTP_200_OK)
 async def get_market_players(
     exclude_team_id: Optional[str] = None,
+    free_agents_only: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -29,10 +63,13 @@ async def get_market_players(
     exclude_team_id remove o elenco do manager da listagem.
     Atributos ocultos (Consistência, BMA, PA) vêm mascarados pelo scouting do manager.
     """
+    from src.modules.career.market_window import MarketWindowService
     from src.modules.career.scouting_service import ScoutingService
 
     query = select(Player).options(selectinload(Player.contracts))
-    if exclude_team_id:
+    if free_agents_only:
+        query = query.where(Player.team_id.is_(None))
+    elif exclude_team_id:
         query = query.where(
             (Player.team_id != uuid.UUID(exclude_team_id)) | (Player.team_id.is_(None))
         )
@@ -43,15 +80,19 @@ async def get_market_players(
     if exclude_team_id:
         knowledge = await ScoutingService(db).get_knowledge(exclude_team_id)
 
-    return [
-        serialize_player(
+    # Mantém resposta em lista (compat FE/testes); janela em /market/window
+    _ = await MarketWindowService(db).get_status()
+    rows = []
+    for p in players:
+        row = serialize_player(
             p,
             scouting_knowledge=knowledge.get(str(p.id)),
             is_own_roster=False,
             apply_scouting_mask=True,
         )
-        for p in players
-    ]
+        row["isFreeAgent"] = p.team_id is None
+        rows.append(row)
+    return rows
 
 
 @router.get("/transfers/valuation/{player_id}", status_code=status.HTTP_200_OK)

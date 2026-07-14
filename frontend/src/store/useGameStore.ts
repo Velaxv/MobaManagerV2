@@ -39,6 +39,7 @@ function mapApiPlayer(p: ApiPlayer): Player {
     rookieClauseThreshold: p.rookieClauseThreshold ?? 0.25,
     monthlySalary: p.monthlySalary ?? 0,
     teamId: p.teamId ?? null,
+    isFreeAgent: !!(p.isFreeAgent ?? (p.teamId == null)),
     consistencyKnown: p.consistencyKnown ?? p.consistency != null,
     bigMatchAptitudeKnown: p.bigMatchAptitudeKnown ?? p.bigMatchAptitude != null,
     potentialAbilityKnown: p.potentialAbilityKnown ?? p.potentialAbility != null,
@@ -121,6 +122,7 @@ export interface Player {
   rookieClauseThreshold?: number;
   monthlySalary: number;
   teamId?: string | null;
+  isFreeAgent?: boolean;
   consistencyKnown?: boolean;
   bigMatchAptitudeKnown?: boolean;
   potentialAbilityKnown?: boolean;

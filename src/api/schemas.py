@@ -85,6 +85,20 @@ class ReleasePlayerRequest(BaseModel):
     player_id: str
 
 
+class HireStaffRequest(BaseModel):
+    team_id: str
+    name: str
+    role: str  # HEAD_COACH | STRATEGIC_COACH | ASSISTANT_COACH | PERFORMANCE_COACH
+    meta_reading: float = 12.0
+    communication: float = 12.0
+    candidate_id: Optional[str] = None
+
+
+class FireStaffRequest(BaseModel):
+    team_id: str
+    staff_id: str
+
+
 class CareerSaveRequest(BaseModel):
     slot: str = "slot1"
     manager_name: str

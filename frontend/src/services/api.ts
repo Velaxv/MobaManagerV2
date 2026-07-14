@@ -80,6 +80,42 @@ export interface ApiPlayer {
   scoutingProgress?: number;
   scoutingFullyScouted?: boolean;
   scoutingDaysInvested?: number;
+  isFreeAgent?: boolean;
+}
+
+export interface MarketWindowStatus {
+  phase: string;
+  mode: 'OPEN_FULL' | 'OPEN_FA_ONLY' | 'CLOSED' | string;
+  label: string;
+  can_buy_from_clubs: boolean;
+  can_sign_free_agents: boolean;
+  is_open: boolean;
+  week?: number;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  role_label?: string;
+  role_hint?: string;
+  meta_reading: number;
+  communication: number;
+  monthly_cost: number;
+  signing_fee?: number;
+}
+
+export interface StaffCandidate {
+  candidate_id: string;
+  name: string;
+  role: string;
+  role_label?: string;
+  role_hint?: string;
+  meta_reading: number;
+  communication: number;
+  monthly_cost: number;
+  signing_fee: number;
+  slot_available: boolean;
 }
 
 export interface WeekCalendarDay {
@@ -687,6 +723,64 @@ export const api = {
     const qs = excludeTeamId ? `?exclude_team_id=${excludeTeamId}` : '';
     const response = await fetch(`${API_BASE}/market/players${qs}`);
     return parseJsonOrThrow(response, 'Failed to fetch market players');
+  },
+
+  getMarketWindow: async (): Promise<MarketWindowStatus> => {
+    const response = await fetch(`${API_BASE}/market/window`);
+    return parseJsonOrThrow(response, 'Failed to fetch market window');
+  },
+
+  getFreeAgents: async (opts?: {
+    role?: string;
+    managedTeamId?: string;
+  }): Promise<{ free_agents: ApiPlayer[]; count: number; market_window?: MarketWindowStatus }> => {
+    const params = new URLSearchParams();
+    if (opts?.role) params.set('role', opts.role);
+    if (opts?.managedTeamId) params.set('managed_team_id', opts.managedTeamId);
+    const qs = params.toString() ? `?${params}` : '';
+    const response = await fetch(`${API_BASE}/market/free-agents${qs}`);
+    return parseJsonOrThrow(response, 'Failed to fetch free agents');
+  },
+
+  getTeamStaff: async (teamId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/staff`);
+    return parseJsonOrThrow(response, 'Failed to fetch staff');
+  },
+
+  getStaffCandidates: async (teamId: string): Promise<{
+    candidates: StaffCandidate[];
+    budget: number;
+    current_counts?: Record<string, number>;
+  }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/staff/candidates`);
+    return parseJsonOrThrow(response, 'Failed to fetch staff candidates');
+  },
+
+  hireStaff: async (
+    teamId: string,
+    payload: {
+      name: string;
+      role: string;
+      meta_reading: number;
+      communication: number;
+      candidate_id?: string;
+    }
+  ) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/staff/hire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_id: teamId, ...payload }),
+    });
+    return parseJsonOrThrow(response, 'Failed to hire staff');
+  },
+
+  fireStaff: async (teamId: string, staffId: string) => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/staff/fire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team_id: teamId, staff_id: staffId }),
+    });
+    return parseJsonOrThrow(response, 'Failed to fire staff');
   },
 
   getTransferValuation: async (playerId: string) => {
