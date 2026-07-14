@@ -58,7 +58,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 | P2-1 | **Finanças reais** (salários, receita, multas) | Budget hoje é quase cosmético | Alto | ✅ Feito (2026-07-14) — tick 28d, folha, insolvência, hub |
 | P2-2 | **Negociação de transferência** | Taxa fixa €250k é MVP | Médio | ✅ Feito (2026-07-14) — valuation, oferta/contra, salário, splits |
 | P2-3 | **Treino e desenvolvimento** (CA→PA) | Sem progressão de elenco | Alto | ✅ Feito (2026-07-14) — foco/intensidade, treino+scrim+match XP |
-| P2-4 | **Scouting / atributos ocultos** | Consistency e BMA existem mas não brilham | Médio | Staff revela atributos com tempo |
+| P2-4 | **Scouting / atributos ocultos** | Consistency e BMA existem mas não brilham | Médio | ✅ Feito (2026-07-14) — máscara + assignment + progresso diário via staff |
 | P2-5 | **Academy e subidas** | Rookies existem mas pouco usados | Médio | Promover reserva, cláusula rookie na UI |
 | P2-6 | **Patches jogáveis** | Patch meta no seed pouco visível | Médio | Tela de patch + impacto em draft/recomendação |
 

@@ -203,6 +203,37 @@ class CalendarService:
                     exc_info=True,
                 )
 
+            # Scouting: progresso diário (manager)
+            try:
+                from src.modules.career.scouting_service import ScoutingService
+
+                scout = ScoutingService(self.db)
+                scout_results = await scout.process_league_day(
+                    teams_in_league,
+                    day_type=day_info["day_type"],
+                    managed_team_id=managed_team_id,
+                )
+                day_info["scouting_results"] = scout_results
+                if managed_team_id and scout_results:
+                    mine_sc = next(
+                        (
+                            s
+                            for s in scout_results
+                            if s.get("team_id") == str(managed_team_id)
+                        ),
+                        None,
+                    )
+                    if mine_sc:
+                        day_info["managed_scouting"] = {
+                            "events": mine_sc.get("events") or [],
+                            "assignment": mine_sc.get("assignment"),
+                        }
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Erro no scouting da liga '{league.name}': {exc}",
+                    exc_info=True,
+                )
+
             # Finanças: tick mensal (a cada 28 dias de calendário)
             try:
                 from src.modules.career.finance_service import FinanceService

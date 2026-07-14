@@ -14,6 +14,7 @@ import {
   Trophy,
   FileSignature,
   Dumbbell,
+  Binoculars,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -53,6 +54,9 @@ export function Dashboard() {
     training,
     lastTrainingEvent,
     setTrainingPlan,
+    scouting,
+    lastScoutingEvent,
+    clearScout,
   } = useGameStore();
   const [trainingBusy, setTrainingBusy] = useState(false);
   const [trainingMsg, setTrainingMsg] = useState<string | null>(null);
@@ -361,6 +365,82 @@ export function Dashboard() {
           >
             {avgBurnout}%
           </div>
+        </div>
+      </div>
+
+      {/* Scouting */}
+      <div className="panel-lol">
+        <div className="panel-lol-header">
+          <div className="flex items-center gap-2">
+            <Binoculars className="w-4 h-4 text-violet-400" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Scouting · atributos ocultos
+            </span>
+          </div>
+          <span className="text-[10px] text-white/35 font-mono">
+            Staff meta {scouting?.staff_power?.avg_meta_reading?.toFixed?.(1) ?? '—'} · mult{' '}
+            {scouting?.staff_power?.power_mult?.toFixed?.(2) ?? '—'}
+          </span>
+        </div>
+        <div className="p-3 space-y-2">
+          <p className="text-[11px] text-white/45 leading-relaxed">
+            Consistência, BMA e PA começam ocultos. Atribua o scout no Elenco ou Mercado; o progresso
+            sobe ao avançar o dia (treino/scrim mais rápido).
+          </p>
+          {scouting?.assignment ? (
+            <div className="rounded-sm border border-violet-500/25 bg-violet-950/20 p-2.5 flex flex-wrap items-center gap-2">
+              <div className="flex-1 min-w-[10rem]">
+                <p className="text-[10px] uppercase text-violet-200/80">Alvo ativo</p>
+                <p className="text-sm font-semibold text-white">
+                  {scouting.assignment.player_name || '—'}
+                  {scouting.assignment.player_role ? (
+                    <span className="text-white/40 font-mono text-[10px] ml-1">
+                      {scouting.assignment.player_role}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-[10px] font-mono text-white/50 mt-0.5">
+                  {Math.round(scouting.assignment.progress || 0)}% · foco{' '}
+                  {scouting.assignment.focus || 'ALL'} ·{' '}
+                  {scouting.assignment.days_invested || 0} dia(s)
+                </p>
+                <div className="stat-bar mt-1 max-w-xs">
+                  <div
+                    className="stat-bar-fill bg-violet-500/80"
+                    style={{
+                      width: `${Math.min(100, scouting.assignment.progress || 0)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void clearScout().catch(() => undefined)}
+                className="text-[9px] uppercase tracking-wide text-white/40 border border-white/10 px-2 py-1 rounded-sm hover:border-violet-400/40"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <p className="text-[11px] font-mono text-white/35">
+              Nenhum alvo. Abra Elenco ou Mercado e clique em Scoutar.
+            </p>
+          )}
+          {lastScoutingEvent?.events && lastScoutingEvent.events.length > 0 && (
+            <ul className="text-[10px] font-mono text-white/45 space-y-0.5">
+              {lastScoutingEvent.events.slice(0, 4).map((e, i) => (
+                <li key={i}>
+                  {e.type === 'SCOUT_COMPLETE' ? (
+                    <span className="text-emerald-400">Completo: {e.player_name}</span>
+                  ) : (
+                    <span>
+                      {e.player_name}: +{e.gain ?? 0} → {e.progress_after ?? 0}%
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

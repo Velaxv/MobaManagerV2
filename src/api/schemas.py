@@ -80,3 +80,8 @@ class LiveSpeedRequest(BaseModel):
 class TrainingPlanRequest(BaseModel):
     focus: str = "BALANCED"  # BALANCED | MECHANICS | MENTAL | TEAMPLAY | ROLE
     intensity: str = "NORMAL"  # LIGHT | NORMAL | HARD
+
+
+class ScoutAssignRequest(BaseModel):
+    player_id: str
+    focus: str = "ALL"  # ALL | CONSISTENCY | BMA | PA

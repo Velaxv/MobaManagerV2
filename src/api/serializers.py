@@ -1,13 +1,24 @@
 """Serialização de modelos de domínio para payloads JSON do frontend."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from src.models import Player, Team, Contract, Match
 from src.shared.enums import ContractStatus
 
 
-def serialize_player(player: Player, contract: Optional[Contract] = None) -> dict:
-    """Serializa jogador + contrato ativo para o frontend."""
+def serialize_player(
+    player: Player,
+    contract: Optional[Contract] = None,
+    *,
+    scouting_knowledge: Optional[Dict[str, Any]] = None,
+    is_own_roster: bool = False,
+    apply_scouting_mask: bool = False,
+) -> dict:
+    """
+    Serializa jogador + contrato ativo para o frontend.
+
+    apply_scouting_mask=True: esconde consistency / BMA / PA até scoutar.
+    """
     active_contract = contract
     if active_contract is None and getattr(player, "contracts", None):
         for c in player.contracts:
@@ -20,7 +31,7 @@ def serialize_player(player: Player, contract: Optional[Contract] = None) -> dic
                 break
 
     champion_pool = player.champion_pool if isinstance(player.champion_pool, list) else []
-    return {
+    base = {
         "id": str(player.id),
         "name": player.name,
         "age": player.get_age(),
@@ -51,7 +62,34 @@ def serialize_player(player: Player, contract: Optional[Contract] = None) -> dic
             active_contract.remaining_seasons if active_contract else 0
         ),
         "monthlySalary": float(active_contract.monthly_salary) if active_contract else 0.0,
+        # Defaults quando sem mask (compat)
+        "consistencyKnown": True,
+        "bigMatchAptitudeKnown": True,
+        "potentialAbilityKnown": True,
+        "consistencyMin": None,
+        "consistencyMax": None,
+        "bigMatchAptitudeMin": None,
+        "bigMatchAptitudeMax": None,
+        "potentialAbilityMin": None,
+        "potentialAbilityMax": None,
+        "scoutingProgress": 100.0 if not apply_scouting_mask else 0.0,
+        "scoutingFullyScouted": not apply_scouting_mask,
+        "scoutingDaysInvested": 0,
     }
+
+    if apply_scouting_mask:
+        from src.modules.career.scouting_service import ScoutingService
+
+        # Usa métodos estáticos de máscara sem precisar de sessão DB
+        svc = ScoutingService(db=None)  # type: ignore[arg-type]
+        return svc.mask_player_payload(
+            base,
+            player,
+            scouting_knowledge,
+            is_own_roster=is_own_roster,
+        )
+
+    return base
 
 
 def match_summary_row(match_obj: Match, blue: Team, red: Team) -> dict:

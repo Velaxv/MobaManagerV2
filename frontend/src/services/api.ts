@@ -44,15 +44,15 @@ export interface ApiPlayer {
   teamId: string | null;
   isRookie: boolean;
   currentAbility: number;
-  potentialAbility: number;
+  potentialAbility: number | null;
   mechanics: number;
   championPool: { champion: string; tier: string }[];
   focus: number;
   resilience: number;
   coachability: number;
   teamwork: number;
-  consistency: number;
-  bigMatchAptitude: number;
+  consistency: number | null;
+  bigMatchAptitude: number | null;
   burnoutMeter: number;
   visualFatigue: number;
   mentalFatigue: number;
@@ -61,6 +61,19 @@ export interface ApiPlayer {
   participationRate: number;
   contractExpirySeasons: number;
   monthlySalary: number;
+  // Scouting mask
+  consistencyKnown?: boolean;
+  bigMatchAptitudeKnown?: boolean;
+  potentialAbilityKnown?: boolean;
+  consistencyMin?: number | null;
+  consistencyMax?: number | null;
+  bigMatchAptitudeMin?: number | null;
+  bigMatchAptitudeMax?: number | null;
+  potentialAbilityMin?: number | null;
+  potentialAbilityMax?: number | null;
+  scoutingProgress?: number;
+  scoutingFullyScouted?: boolean;
+  scoutingDaysInvested?: number;
 }
 
 export interface WeekCalendarDay {
@@ -267,6 +280,56 @@ export const api = {
       body: JSON.stringify({ focus, intensity }),
     });
     return parseJsonOrThrow(response, 'Failed to set training plan');
+  },
+
+  getTeamScouting: async (teamId: string): Promise<{
+    team_id: string;
+    team_name?: string;
+    assignment: {
+      player_id?: string;
+      player_name?: string;
+      player_role?: string;
+      focus?: string;
+      progress?: number;
+      days_invested?: number;
+      fully_scouted?: boolean;
+    } | null;
+    staff_power?: {
+      staff_count: number;
+      avg_meta_reading: number;
+      power_mult: number;
+      staff?: { name: string; role: string; meta_reading: number }[];
+    };
+    knowledge_count?: number;
+    knowledge_summary?: {
+      player_id: string;
+      progress: number;
+      fully_scouted: boolean;
+    }[];
+    focuses?: string[];
+  }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/scouting`);
+    return parseJsonOrThrow(response, 'Failed to fetch scouting status');
+  },
+
+  assignScout: async (
+    teamId: string,
+    playerId: string,
+    focus: string = 'ALL'
+  ): Promise<{ message?: string; assignment?: Record<string, unknown> }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/scouting/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, focus }),
+    });
+    return parseJsonOrThrow(response, 'Failed to assign scout');
+  },
+
+  clearScout: async (teamId: string): Promise<{ cleared?: boolean }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/scouting/clear`, {
+      method: 'POST',
+    });
+    return parseJsonOrThrow(response, 'Failed to clear scout assignment');
   },
 
   getChampions: async (): Promise<Champion[]> => {

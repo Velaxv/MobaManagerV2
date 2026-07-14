@@ -13,7 +13,7 @@ function mapApiPlayer(p: ApiPlayer): Player {
     region: (p.region as Region) || Region.CBLOL,
     isRookie: !!p.isRookie,
     currentAbility: p.currentAbility,
-    potentialAbility: p.potentialAbility,
+    potentialAbility: p.potentialAbility ?? null,
     mechanics: p.mechanics,
     championPool: (p.championPool || []).map((c) => ({
       champion: c.champion,
@@ -23,8 +23,8 @@ function mapApiPlayer(p: ApiPlayer): Player {
     resilience: p.resilience,
     coachability: p.coachability,
     teamwork: p.teamwork,
-    consistency: p.consistency,
-    bigMatchAptitude: p.bigMatchAptitude,
+    consistency: p.consistency ?? null,
+    bigMatchAptitude: p.bigMatchAptitude ?? null,
     burnoutMeter: p.burnoutMeter,
     visualFatigue: p.visualFatigue,
     mentalFatigue: p.mentalFatigue,
@@ -33,6 +33,18 @@ function mapApiPlayer(p: ApiPlayer): Player {
     participationRate: p.participationRate ?? 0,
     monthlySalary: p.monthlySalary ?? 0,
     teamId: p.teamId ?? null,
+    consistencyKnown: p.consistencyKnown ?? p.consistency != null,
+    bigMatchAptitudeKnown: p.bigMatchAptitudeKnown ?? p.bigMatchAptitude != null,
+    potentialAbilityKnown: p.potentialAbilityKnown ?? p.potentialAbility != null,
+    consistencyMin: p.consistencyMin ?? null,
+    consistencyMax: p.consistencyMax ?? null,
+    bigMatchAptitudeMin: p.bigMatchAptitudeMin ?? null,
+    bigMatchAptitudeMax: p.bigMatchAptitudeMax ?? null,
+    potentialAbilityMin: p.potentialAbilityMin ?? null,
+    potentialAbilityMax: p.potentialAbilityMax ?? null,
+    scoutingProgress: p.scoutingProgress ?? 0,
+    scoutingFullyScouted: !!p.scoutingFullyScouted,
+    scoutingDaysInvested: p.scoutingDaysInvested ?? 0,
   };
 }
 
@@ -80,15 +92,15 @@ export interface Player {
   region: Region;
   isRookie: boolean;
   currentAbility: number; // CA 0-200
-  potentialAbility: number; // PA 0-200
+  potentialAbility: number | null; // PA 0-200 (null se não scoutado)
   mechanics: number; // 1-20
   championPool: { champion: string; tier: ChampionPoolTier }[];
   focus: number; // 1-20
   resilience: number; // 1-20
   coachability: number; // 1-20
   teamwork: number; // 1-20
-  consistency: number; // 1-20
-  bigMatchAptitude: number; // 1-20
+  consistency: number | null; // 1-20 oculto
+  bigMatchAptitude: number | null; // 1-20 oculto
   burnoutMeter: number; // 0-100
   visualFatigue: number; // 0-100
   mentalFatigue: number; // 0-100
@@ -97,6 +109,18 @@ export interface Player {
   participationRate: number; // Participação de partidas (0.0 - 1.0)
   monthlySalary: number;
   teamId?: string | null;
+  consistencyKnown?: boolean;
+  bigMatchAptitudeKnown?: boolean;
+  potentialAbilityKnown?: boolean;
+  consistencyMin?: number | null;
+  consistencyMax?: number | null;
+  bigMatchAptitudeMin?: number | null;
+  bigMatchAptitudeMax?: number | null;
+  potentialAbilityMin?: number | null;
+  potentialAbilityMax?: number | null;
+  scoutingProgress?: number;
+  scoutingFullyScouted?: boolean;
+  scoutingDaysInvested?: number;
 }
 
 // Evento do calendário
@@ -211,6 +235,32 @@ interface GameState {
     }[];
     day_type?: string;
   } | null;
+  scouting: {
+    assignment: {
+      player_id?: string;
+      player_name?: string;
+      player_role?: string;
+      focus?: string;
+      progress?: number;
+      days_invested?: number;
+      fully_scouted?: boolean;
+    } | null;
+    staff_power?: {
+      staff_count: number;
+      avg_meta_reading: number;
+      power_mult: number;
+    };
+    knowledge_count?: number;
+  } | null;
+  lastScoutingEvent: {
+    events?: { type?: string; player_name?: string; progress_after?: number; gain?: number }[];
+    assignment?: {
+      player_id?: string;
+      player_name?: string;
+      progress?: number;
+      focus?: string;
+    } | null;
+  } | null;
   myPlayers: Player[];
   marketPlayers: Player[];
   playersCache: Player[]; // Compat: myPlayers + market (legado de telas)
@@ -302,6 +352,9 @@ interface GameState {
   refreshFinance: () => Promise<void>;
   refreshTraining: () => Promise<void>;
   setTrainingPlan: (focus: string, intensity: string) => Promise<void>;
+  refreshScouting: () => Promise<void>;
+  assignScout: (playerId: string, focus?: string) => Promise<void>;
+  clearScout: () => Promise<void>;
   renewContract: (playerId: string, seasons?: number) => Promise<void>;
   releasePlayer: (playerId: string) => Promise<void>;
   startNewSplit: () => Promise<void>;
@@ -376,6 +429,11 @@ function mkPlayer(
     teamwork: 14,
     consistency: 14,
     bigMatchAptitude: 14,
+    consistencyKnown: true,
+    bigMatchAptitudeKnown: true,
+    potentialAbilityKnown: true,
+    scoutingProgress: 100,
+    scoutingFullyScouted: true,
     burnoutMeter: 15,
     visualFatigue: 10,
     mentalFatigue: 12,
@@ -435,6 +493,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastFinanceEvent: null,
   training: null,
   lastTrainingEvent: null,
+  scouting: null,
+  lastScoutingEvent: null,
   myPlayers: [],
   marketPlayers: [],
   playersCache: [],
@@ -510,6 +570,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshOffseason();
         void get().refreshFinance();
         void get().refreshTraining();
+        void get().refreshScouting();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -535,6 +596,16 @@ export const useGameStore = create<GameState>((set, get) => ({
               intensity:
                 dayInfo.managed_training.intensity || get().training?.intensity || 'NORMAL',
               last_session: dayInfo.managed_training,
+            },
+          });
+        }
+        if (dayInfo.managed_scouting) {
+          set({
+            lastScoutingEvent: dayInfo.managed_scouting,
+            scouting: {
+              assignment: dayInfo.managed_scouting.assignment || null,
+              staff_power: get().scouting?.staff_power,
+              knowledge_count: get().scouting?.knowledge_count,
             },
           });
         }
@@ -892,6 +963,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshOffseason();
         void get().refreshFinance();
         void get().refreshTraining();
+        void get().refreshScouting();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);
@@ -930,6 +1002,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       });
       void get().refreshFinance();
       void get().refreshTraining();
+      void get().refreshScouting();
     } catch (err) {
       console.error('Falha ao atualizar elenco/mercado:', err);
     }
@@ -990,6 +1063,47 @@ export const useGameStore = create<GameState>((set, get) => ({
         last_session: get().training?.last_session ?? null,
       },
     });
+  },
+
+  refreshScouting: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) {
+      set({ scouting: null });
+      return;
+    }
+    try {
+      const snap = await api.getTeamScouting(teamId);
+      set({
+        scouting: {
+          assignment: snap.assignment || null,
+          staff_power: snap.staff_power
+            ? {
+                staff_count: snap.staff_power.staff_count,
+                avg_meta_reading: snap.staff_power.avg_meta_reading,
+                power_mult: snap.staff_power.power_mult,
+              }
+            : undefined,
+          knowledge_count: snap.knowledge_count,
+        },
+      });
+    } catch (e) {
+      console.warn('Scouting indisponível:', e);
+    }
+  },
+
+  assignScout: async (playerId: string, focus: string = 'ALL') => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time gerenciado.');
+    await api.assignScout(teamId, playerId, focus);
+    await get().refreshScouting();
+    await get().refreshRosterAndMarket();
+  },
+
+  clearScout: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time gerenciado.');
+    await api.clearScout(teamId);
+    await get().refreshScouting();
   },
 
   refreshPlayoffs: async () => {

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.schemas import TrainingPlanRequest
+from src.api.schemas import TrainingPlanRequest, ScoutAssignRequest
 from src.api.serializers import serialize_player
 from src.core.database import get_db
 from src.models import Player, Team
@@ -37,14 +37,25 @@ async def get_teams(db: AsyncSession = Depends(get_db)):
 
 @router.get("/teams/{team_id}/players", status_code=status.HTTP_200_OK)
 async def get_team_players(team_id: str, db: AsyncSession = Depends(get_db)):
-    """Busca os jogadores de uma equipe específica (com contrato e pool)."""
+    """Busca os jogadores de uma equipe específica (com contrato e pool + scouting)."""
+    from src.modules.career.scouting_service import ScoutingService
+
     query = await db.execute(
         select(Player)
         .options(selectinload(Player.contracts))
         .where(Player.team_id == uuid.UUID(team_id))
     )
     players = query.scalars().all()
-    return [serialize_player(p) for p in players]
+    knowledge = await ScoutingService(db).get_knowledge(team_id)
+    return [
+        serialize_player(
+            p,
+            scouting_knowledge=knowledge.get(str(p.id)),
+            is_own_roster=True,
+            apply_scouting_mask=True,
+        )
+        for p in players
+    ]
 
 
 @router.get("/teams/{team_id}/finance", status_code=status.HTTP_200_OK)
@@ -137,3 +148,49 @@ async def force_training_session(
         await db.rollback()
         logger.error(f"Training session: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/teams/{team_id}/scouting", status_code=status.HTTP_200_OK)
+async def get_team_scouting(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Status de scouting: assignment, staff power, conhecimento acumulado."""
+    from src.modules.career.scouting_service import ScoutingService
+
+    try:
+        return await ScoutingService(db).get_status(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/teams/{team_id}/scouting/assign", status_code=status.HTTP_200_OK)
+async def assign_scout(
+    team_id: str,
+    req: ScoutAssignRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Atribui o scouting a um jogador (1 alvo por vez)."""
+    from src.modules.career.scouting_service import ScoutingService
+
+    try:
+        return await ScoutingService(db).assign(
+            team_id,
+            player_id=req.player_id,
+            focus=req.focus,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Scout assign: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/teams/{team_id}/scouting/clear", status_code=status.HTTP_200_OK)
+async def clear_scout_assignment(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Cancela a atribuição de scouting ativa."""
+    from src.modules.career.scouting_service import ScoutingService
+
+    try:
+        # Valida time
+        await ScoutingService(db).get_status(team_id)
+        return await ScoutingService(db).clear_assignment(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

@@ -8,6 +8,7 @@ import {
   Loader2,
   Handshake,
   X,
+  Binoculars,
 } from 'lucide-react';
 import { RoleIcon } from '../components/RoleIcon';
 import { PlayerPortrait } from '../components/PlayerPortrait';
@@ -38,9 +39,28 @@ function fmtMoney(n: number) {
   return `€${Math.round(n)}`;
 }
 
+function formatScoutVal(
+  known: boolean | undefined,
+  value: number | null | undefined,
+  min?: number | null,
+  max?: number | null
+): string {
+  if (known && value != null) return String(Math.round(Number(value)));
+  if (min != null && max != null) return `${Math.round(Number(min))}–${Math.round(Number(max))}`;
+  return '???';
+}
+
 export function TransferMarket() {
-  const { marketPlayers, signPlayer, negotiateTransfer, myBudget, myTeamName } =
-    useGameStore();
+  const {
+    marketPlayers,
+    signPlayer,
+    negotiateTransfer,
+    myBudget,
+    myTeamName,
+    scouting,
+    assignScout,
+  } = useGameStore();
+  const [scoutBusy, setScoutBusy] = useState<string | null>(null);
 
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
   const [ageLimitFilter, setAgeLimitFilter] = useState(false);
@@ -213,6 +233,35 @@ export function TransferMarket() {
         ),
       },
       {
+        header: 'PA',
+        accessorKey: 'potentialAbility',
+        sortable: true,
+        cell: (value, row) => (
+          <span
+            className={`font-mono text-xs ${
+              row.potentialAbilityKnown ? 'text-white/60' : 'text-amber-300/80'
+            }`}
+          >
+            {formatScoutVal(
+              row.potentialAbilityKnown,
+              value as number | null,
+              row.potentialAbilityMin,
+              row.potentialAbilityMax
+            )}
+          </span>
+        ),
+      },
+      {
+        header: 'Scout',
+        accessorKey: 'scoutingProgress',
+        sortable: true,
+        cell: (value, row) => (
+          <span className="font-mono text-[10px] text-violet-300/80">
+            {row.scoutingFullyScouted ? '100%' : `${Math.round(Number(value) || 0)}%`}
+          </span>
+        ),
+      },
+      {
         header: 'Idade',
         accessorKey: 'age',
         sortable: true,
@@ -266,18 +315,41 @@ export function TransferMarket() {
         header: 'Ações',
         accessorKey: 'id',
         cell: (_, row) => (
-          <button
-            onClick={() => openOffer(row)}
-            disabled={row.age < 16}
-            className="btn-lol-primary py-1 px-2.5 flex items-center gap-1 disabled:opacity-30"
-          >
-            <Handshake className="w-3.5 h-3.5" />
-            Ofertar
-          </button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              disabled={!!scoutBusy || row.scoutingFullyScouted}
+              onClick={async () => {
+                setScoutBusy(row.id);
+                try {
+                  await assignScout(row.id, 'ALL');
+                } finally {
+                  setScoutBusy(null);
+                }
+              }}
+              className={`py-1 px-2 flex items-center gap-1 text-[9px] uppercase tracking-wide border rounded-sm ${
+                scouting?.assignment?.player_id === row.id
+                  ? 'border-violet-400/50 bg-violet-950/40 text-violet-200'
+                  : 'border-white/15 text-white/50 hover:border-violet-400/40'
+              } disabled:opacity-30`}
+              title="Atribuir scouting"
+            >
+              <Binoculars className="w-3 h-3" />
+              {scoutBusy === row.id ? '…' : 'Scout'}
+            </button>
+            <button
+              onClick={() => openOffer(row)}
+              disabled={row.age < 16}
+              className="btn-lol-primary py-1 px-2.5 flex items-center gap-1 disabled:opacity-30"
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              Ofertar
+            </button>
+          </div>
         ),
       },
     ],
-    []
+    [assignScout, scoutBusy, scouting?.assignment?.player_id]
   );
 
   return (

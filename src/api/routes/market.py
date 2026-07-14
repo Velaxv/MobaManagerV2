@@ -27,7 +27,10 @@ async def get_market_players(
     """
     Mercado: jogadores de outros times + agentes livres.
     exclude_team_id remove o elenco do manager da listagem.
+    Atributos ocultos (Consistência, BMA, PA) vêm mascarados pelo scouting do manager.
     """
+    from src.modules.career.scouting_service import ScoutingService
+
     query = select(Player).options(selectinload(Player.contracts))
     if exclude_team_id:
         query = query.where(
@@ -35,7 +38,20 @@ async def get_market_players(
         )
     result = await db.execute(query)
     players = result.scalars().all()
-    return [serialize_player(p) for p in players]
+
+    knowledge: dict = {}
+    if exclude_team_id:
+        knowledge = await ScoutingService(db).get_knowledge(exclude_team_id)
+
+    return [
+        serialize_player(
+            p,
+            scouting_knowledge=knowledge.get(str(p.id)),
+            is_own_roster=False,
+            apply_scouting_mask=True,
+        )
+        for p in players
+    ]
 
 
 @router.get("/transfers/valuation/{player_id}", status_code=status.HTTP_200_OK)

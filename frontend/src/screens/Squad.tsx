@@ -4,9 +4,37 @@ import { ROLE_LABELS } from '../lib/champions';
 import { ChampionImage } from '../components/ChampionImage';
 import { PlayerPortrait } from '../components/PlayerPortrait';
 import { RoleIcon } from '../components/RoleIcon';
-import { Users, Search } from 'lucide-react';
+import { Users, Search, Binoculars } from 'lucide-react';
 import { PlayerRole } from '../types/game';
 import { getPlayerPhotoUrl } from '../lib/playerPhotoMap';
+import type { Player } from '../store/useGameStore';
+
+function formatHiddenAttr(
+  known: boolean | undefined,
+  value: number | null | undefined,
+  min: number | null | undefined,
+  max: number | null | undefined,
+  digits = 0
+): string {
+  if (known && value != null) {
+    return digits > 0 ? Number(value).toFixed(digits) : String(Math.round(Number(value)));
+  }
+  if (min != null && max != null) {
+    const a = digits > 0 ? Number(min).toFixed(digits) : String(Math.round(Number(min)));
+    const b = digits > 0 ? Number(max).toFixed(digits) : String(Math.round(Number(max)));
+    return `${a}–${b}`;
+  }
+  return '???';
+}
+
+function formatPa(p: Player): string {
+  return formatHiddenAttr(
+    p.potentialAbilityKnown,
+    p.potentialAbility,
+    p.potentialAbilityMin,
+    p.potentialAbilityMax
+  );
+}
 
 const ROLE_ORDER = [
   PlayerRole.TOP,
@@ -19,8 +47,12 @@ const ROLE_ORDER = [
 export function Squad() {
   const myPlayers = useGameStore((s) => s.myPlayers);
   const myTeamName = useGameStore((s) => s.myTeamName);
+  const scouting = useGameStore((s) => s.scouting);
+  const assignScout = useGameStore((s) => s.assignScout);
+  const clearScout = useGameStore((s) => s.clearScout);
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [scoutBusy, setScoutBusy] = useState<string | null>(null);
 
   const starters = useMemo(() => {
     return ROLE_ORDER.map((role) => myPlayers.find((p) => p.role === role)).filter(Boolean) as typeof myPlayers;
@@ -124,25 +156,58 @@ export function Squad() {
                     </div>
                     <div>
                       <div className="text-white/35">PA</div>
-                      <div className="text-white/70 text-sm">{p.potentialAbility}</div>
+                      <div
+                        className={`text-sm ${
+                          p.potentialAbilityKnown ? 'text-white/70' : 'text-amber-300/80'
+                        }`}
+                      >
+                        {formatPa(p)}
+                      </div>
                     </div>
                     <div>
                       <div className="text-white/35">Mec</div>
                       <div className="text-lol-gold-soft text-sm">{p.mechanics}</div>
                     </div>
                   </div>
-                  {/* Barra de progresso CA→PA */}
+                  <div className="grid grid-cols-2 gap-1 text-[9px] font-mono">
+                    <div>
+                      <span className="text-white/35">Consist. </span>
+                      <span className={p.consistencyKnown ? 'text-white/70' : 'text-amber-300/80'}>
+                        {formatHiddenAttr(
+                          p.consistencyKnown,
+                          p.consistency,
+                          p.consistencyMin,
+                          p.consistencyMax,
+                          1
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/35">BMA </span>
+                      <span
+                        className={p.bigMatchAptitudeKnown ? 'text-white/70' : 'text-amber-300/80'}
+                      >
+                        {formatHiddenAttr(
+                          p.bigMatchAptitudeKnown,
+                          p.bigMatchAptitude,
+                          p.bigMatchAptitudeMin,
+                          p.bigMatchAptitudeMax,
+                          1
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Barra de progresso CA→PA (se PA conhecido) */}
                   <div>
                     <div className="flex justify-between text-[9px] text-white/35 mb-0.5">
-                      <span>Progresso</span>
+                      <span>Progresso / Scout</span>
                       <span>
-                        {p.potentialAbility > 0
-                          ? Math.min(
+                        {p.potentialAbilityKnown && p.potentialAbility
+                          ? `${Math.min(
                               100,
                               Math.round((p.currentAbility / p.potentialAbility) * 100)
-                            )
-                          : 0}
-                        %
+                            )}% CA`
+                          : `${Math.round(p.scoutingProgress || 0)}% scout`}
                       </span>
                     </div>
                     <div className="stat-bar">
@@ -150,14 +215,44 @@ export function Squad() {
                         className="stat-bar-fill bg-sky-500/80"
                         style={{
                           width: `${
-                            p.potentialAbility > 0
+                            p.potentialAbilityKnown && p.potentialAbility
                               ? Math.min(100, (p.currentAbility / p.potentialAbility) * 100)
-                              : 0
+                              : Math.min(100, p.scoutingProgress || 0)
                           }%`,
                         }}
                       />
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={!!scoutBusy || p.scoutingFullyScouted}
+                    onClick={async () => {
+                      setScoutBusy(p.id);
+                      try {
+                        if (scouting?.assignment?.player_id === p.id) {
+                          await clearScout();
+                        } else {
+                          await assignScout(p.id, 'ALL');
+                        }
+                      } finally {
+                        setScoutBusy(null);
+                      }
+                    }}
+                    className={`mt-1 flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border ${
+                      scouting?.assignment?.player_id === p.id
+                        ? 'border-violet-400/50 bg-violet-950/40 text-violet-200'
+                        : p.scoutingFullyScouted
+                          ? 'border-emerald-700/30 text-emerald-500/60 opacity-60'
+                          : 'border-white/10 text-white/45 hover:border-violet-400/40 hover:text-violet-200'
+                    }`}
+                  >
+                    <Binoculars className="w-3 h-3" />
+                    {p.scoutingFullyScouted
+                      ? 'Scout completo'
+                      : scouting?.assignment?.player_id === p.id
+                        ? 'Cancelar scout'
+                        : 'Scoutar'}
+                  </button>
 
                   <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                     <div>
@@ -285,7 +380,13 @@ export function Squad() {
                     </td>
                     <td className="px-2 font-mono">{p.age}</td>
                     <td className="px-2 font-mono text-emerald-400 font-bold">{p.currentAbility}</td>
-                    <td className="px-2 font-mono text-white/50">{p.potentialAbility}</td>
+                    <td
+                      className={`px-2 font-mono ${
+                        p.potentialAbilityKnown ? 'text-white/50' : 'text-amber-300/80'
+                      }`}
+                    >
+                      {formatPa(p)}
+                    </td>
                     <td className="px-2">
                       <div className="flex gap-0.5">
                         {(p.championPool || []).slice(0, 3).map((c) => (
