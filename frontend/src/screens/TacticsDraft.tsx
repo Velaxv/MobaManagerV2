@@ -157,6 +157,8 @@ export function TacticsDraft() {
   const myTeamName = useGameStore((s) => s.myTeamName);
   const activeMatch = useGameStore((s) => s.activeMatch);
   const manager = useGameStore((s) => s.manager);
+  const scoutSessionId = useGameStore((s) => s.scoutSessionId);
+  const setScoutSessionId = useGameStore((s) => s.setScoutSessionId);
   const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
 
   const [selectedRole, setSelectedRole] = useState<PlayerRole>(PlayerRole.MID);
@@ -250,9 +252,13 @@ export function TacticsDraft() {
           })),
           focus_role: selectedRole,
           limit: 5,
+          session_id: scoutSessionId || undefined,
         });
         if (cancelled) return;
         if (useGameStore.getState().draft.currentTurn !== turnSnapshot) return;
+        if (res.session_id && res.session_id !== scoutSessionId) {
+          setScoutSessionId(res.session_id);
+        }
         setScoutAdvice(res);
       } catch (e) {
         if (cancelled) return;
@@ -282,6 +288,8 @@ export function TacticsDraft() {
     managedTeamId,
     resolvedSide,
     selectedRole,
+    scoutSessionId,
+    setScoutSessionId,
   ]);
 
   const applyScoutPick = useCallback(
@@ -352,12 +360,27 @@ export function TacticsDraft() {
   const runLockIn = useCallback(
     (champion: string, action: DraftAction, team: DraftTeam, role?: PlayerRole) => {
       return new Promise<void>((resolve) => {
+        const turnAtLock = useGameStore.getState().draft.currentTurn;
+        const sessionId = useGameStore.getState().scoutSessionId;
+        const mySide = resolvedSide;
         setLockIn({ champion, action, team, role });
         if (action === DraftAction.BAN) {
           setLastBanned(champion);
           setTimeout(() => setLastBanned(null), 1200);
         }
         setTimeout(() => {
+          // Registra se o manager seguiu o scout (só no turno dele)
+          if (sessionId && team === mySide) {
+            void api
+              .recordDraftScoutAction({
+                session_id: sessionId,
+                current_turn: turnAtLock,
+                action: action === DraftAction.BAN ? 'BAN' : 'PICK',
+                champion,
+                role: role || selectedRole,
+              })
+              .catch(() => undefined);
+          }
           processDraftAction(champion, role || selectedRole);
           setLockIn(null);
           setSelectedChamp('');
@@ -365,7 +388,7 @@ export function TacticsDraft() {
         }, LOCK_IN_MS);
       });
     },
-    [processDraftAction, selectedRole]
+    [processDraftAction, selectedRole, resolvedSide]
   );
 
   const handleConfirm = async () => {
@@ -765,11 +788,27 @@ export function TacticsDraft() {
                           {scoutAdvice.intel_note}
                         </p>
                       )}
+                      {!scoutLoading &&
+                        (scoutAdvice?.opponent_stars?.length || 0) > 0 && (
+                          <div className="flex flex-wrap gap-1 px-0.5">
+                            {scoutAdvice!.opponent_stars!.slice(0, 3).map((s) => (
+                              <span
+                                key={s.player_id}
+                                className="text-[8px] px-1.5 py-0.5 rounded-sm border border-amber-500/30 bg-amber-950/40 text-amber-200/90"
+                                title={`Scouting ${s.scouting_progress}% · score ${s.star_score}`}
+                              >
+                                ★ {s.player_name} · {s.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                       <div className="flex flex-col gap-1.5 max-h-[148px] overflow-y-auto">
                         {(scoutAdvice?.recommendations || []).map((rec) => {
                           const topReason = rec.reasons?.[0]?.label;
                           const active = selectedChamp === rec.champion;
+                          const wr = rec.global_meta?.win_rate_proxy;
+                          const pr = rec.global_meta?.pick_rate_proxy;
                           return (
                             <button
                               key={`${rec.priority}-${rec.champion}`}
@@ -803,6 +842,9 @@ export function TacticsDraft() {
                                   )}
                                 </div>
                                 <div className="text-[9px] text-white/45 truncate">
+                                  {wr != null && pr != null
+                                    ? `${wr}% WR · ${pr}% PR · `
+                                    : ''}
                                   {topReason || rec.summary}
                                 </div>
                               </div>

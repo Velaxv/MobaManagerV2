@@ -31,7 +31,7 @@ def _normalize_event_log(log: Dict[str, Any]) -> Dict[str, Any]:
         event_type = str(normalized.get("event_type", "")).upper()
         if event_type in {"SOLO_KILL", "TEAMFIGHT", "BARON_SECURED", "SNOWBALL", "VICTORY"}:
             normalized["severity"] = "high"
-        elif event_type in {"DRAGON_SECURED", "TURRET_DESTROYED", "COACH_COMM"}:
+        elif event_type in {"DRAGON_SECURED", "TURRET_DESTROYED", "COACH_COMM", "SCOUT_REPORT"}:
             normalized["severity"] = "medium"
         else:
             normalized["severity"] = "low"
@@ -91,6 +91,13 @@ class LiveMatchState(BaseModel):
     blue_coach_comms_max: int = 3
     red_coach_comms_max: int = 2
 
+    # Draft scout session (avaliação pós-partida)
+    scout_session_id: Optional[str] = None
+    managed_team_id: Optional[str] = None
+    blue_bans: List[str] = []
+    red_bans: List[str] = []
+    scout_evaluation: Optional[Dict[str, Any]] = None
+
 
 # Speeds permitidas (label → tick_ms)
 LIVE_SPEED_PRESETS: Dict[str, int] = {
@@ -143,6 +150,10 @@ class MatchEngineService:
         red_game_style: str = "BALANCED",
         blue_coach_comms_max: int = 3,
         red_coach_comms_max: int = 2,
+        scout_session_id: Optional[str] = None,
+        managed_team_id: Optional[str] = None,
+        blue_bans: Optional[List[str]] = None,
+        red_bans: Optional[List[str]] = None,
     ) -> LiveMatchState:
         """Inicializa o estado da partida ao vivo no Redis e dispara a background task do loop de ticks."""
         from src.modules.simulation.tactics import clamp_coach_comms, normalize_style
@@ -173,11 +184,23 @@ class MatchEngineService:
             red_game_style=normalize_style(red_game_style),
             blue_coach_comms_max=clamp_coach_comms(blue_coach_comms_max),
             red_coach_comms_max=clamp_coach_comms(red_coach_comms_max),
+            scout_session_id=scout_session_id,
+            managed_team_id=str(managed_team_id) if managed_team_id else None,
+            blue_bans=list(blue_bans or []),
+            red_bans=list(red_bans or []),
         )
         
         # Grava estado inicial
         key = f"live_match:{match_id}"
         await redis_client.set_generic(key, _state_to_dict(state))
+
+        if scout_session_id:
+            try:
+                from src.modules.draft.scout_session import ScoutSessionService
+
+                await ScoutSessionService().bind_match(scout_session_id, match_id)
+            except Exception as se:
+                logger.warning(f"[MatchEngineService] bind scout session: {se}")
         
         # Dispara background task para simulação em tempo real
         asyncio.create_task(self._run_simulation_loop(match_id))
@@ -728,6 +751,76 @@ class MatchEngineService:
                 except Exception as pe:
                     logger.error(
                         f"[MatchEngineService] Falha ao resolver série de playoff: {pe}",
+                        exc_info=True,
+                    )
+
+            # 2b. Avalia sessão do draft scout (acertos/erros)
+            if getattr(state, "scout_session_id", None):
+                try:
+                    from src.modules.draft.scout_session import ScoutSessionService
+
+                    managed = str(state.managed_team_id or "")
+                    managed_side = "BLUE" if managed == str(state.blue_team_id) else "RED"
+                    if managed_side == "BLUE":
+                        my_bans, opp_bans = list(state.blue_bans or []), list(state.red_bans or [])
+                        my_picks, opp_picks = list(state.blue_draft or []), list(state.red_draft or [])
+                        opp_id = state.red_team_id
+                    else:
+                        my_bans, opp_bans = list(state.red_bans or []), list(state.blue_bans or [])
+                        my_picks, opp_picks = list(state.red_draft or []), list(state.blue_draft or [])
+                        opp_id = state.blue_team_id
+
+                    opp_pools = []
+                    ot = await db.get(Team, uuid.UUID(str(opp_id)))
+                    if ot:
+                        for p in ot.get_starters():
+                            opp_pools.append(
+                                {
+                                    "name": p.name,
+                                    "champion_pool": p.champion_pool
+                                    if isinstance(p.champion_pool, list)
+                                    else [],
+                                }
+                            )
+
+                    evaluation = await ScoutSessionService().evaluate_and_store(
+                        state.scout_session_id,
+                        my_bans=my_bans,
+                        opp_bans=opp_bans,
+                        my_picks=my_picks,
+                        opp_picks=opp_picks,
+                        opp_starters_pools=opp_pools,
+                        winner_side=state.winner_side,
+                    )
+                    if evaluation:
+                        state.scout_evaluation = evaluation
+                        # Regrava estado live com avaliação para o FE
+                        await redis_client.set_generic(
+                            f"live_match:{state.match_id}", _state_to_dict(state)
+                        )
+                        state.event_logs.append(
+                            _normalize_event_log(
+                                {
+                                    "timestamp": f"{int(state.current_minute):02d}:00",
+                                    "phase": "COMPLETE",
+                                    "event_type": "SCOUT_REPORT",
+                                    "description": evaluation.get("summary")
+                                    or "Relatório do scout disponível.",
+                                    "impact": {
+                                        "grade": evaluation.get("grade"),
+                                        "accuracy": evaluation.get("accuracy"),
+                                        "hits": evaluation.get("hits"),
+                                        "misses": evaluation.get("misses"),
+                                    },
+                                }
+                            )
+                        )
+                        await redis_client.set_generic(
+                            f"live_match:{state.match_id}", _state_to_dict(state)
+                        )
+                except Exception as scout_exc:
+                    logger.error(
+                        f"[MatchEngineService] Falha ao avaliar scout session: {scout_exc}",
                         exc_info=True,
                     )
 

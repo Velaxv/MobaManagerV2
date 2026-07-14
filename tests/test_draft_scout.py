@@ -219,3 +219,101 @@ def test_global_presence_deterministic():
     m2 = a._global_presence("Azir")
     assert m1 == m2
     assert m1["tier"] in ("S", "A", "B", "C", "D")
+    # Azir está no seed de meta global
+    assert m1["source"] == "seed_meta"
+    assert m1["win_rate_proxy"] > 40
+    assert m1["games_played_world"] > 100_000
+
+
+def test_scouted_star_boosts_ban():
+    blue, red = _team_pair()
+    # Dá id aos players e marca mid inimigo como estrela scoutada
+    for i, p in enumerate(red.players):
+        p.id = f"opp-{i}"
+        p.current_ability = 120
+        p.big_match_aptitude = 10
+        p.consistency = 10
+    star = red.players[2]  # MidB — MAIN Sylas
+    star.id = "star-mid"
+    star.current_ability = 185
+    star.big_match_aptitude = 18
+    star.consistency = 16
+
+    knowledge = {
+        "star-mid": {"progress": 90.0, "days_invested": 8},
+    }
+    state = DraftState(
+        match_id="t",
+        blue_bans=[],
+        red_bans=[],
+        blue_picks=[],
+        red_picks=[],
+        current_turn=0,
+        is_complete=False,
+    )
+    advisor = DraftScoutAdvisor(patch_bias={}, patch_version="16.1", rng=random.Random(1))
+    result = advisor.advise(
+        draft_state=state,
+        team_side=DraftTeam.BLUE,
+        my_team=blue,
+        opponent_team=red,
+        staffs=blue.staffs,
+        limit=8,
+        opponent_knowledge=knowledge,
+    )
+    assert result.get("opponent_stars")
+    assert any(s["player_name"] == "MidB" for s in result["opponent_stars"])
+    # Sylas (main do mid estrela) deve aparecer com razão SCOUTED_STAR
+    sylas = next((r for r in result["recommendations"] if r["champion"] == "Sylas"), None)
+    if sylas:
+        codes = [x["code"] for x in sylas.get("reasons") or []]
+        assert "SCOUTED_STAR" in codes or "OPP_MAIN" in codes
+
+
+def test_scout_session_evaluate_hit_ban():
+    from src.modules.draft.scout_session import ScoutSessionService
+
+    svc = ScoutSessionService()
+    session = {
+        "session_id": "s1",
+        "managed_team_id": "blue",
+        "managed_side": "BLUE",
+        "scout_name": "Scout",
+        "patch_version": "16.1",
+        "tips": [
+            {
+                "current_turn": 0,
+                "action": "BAN",
+                "recommendations": [
+                    {"champion": "Sylas", "priority": 1, "role": "MID"},
+                    {"champion": "Gnar", "priority": 2, "role": "TOP"},
+                ],
+            }
+        ],
+        "actions": [
+            {
+                "current_turn": 0,
+                "action": "BAN",
+                "champion": "Sylas",
+                "followed_scout": True,
+                "followed_priority": 1,
+            }
+        ],
+    }
+    ev = svc.evaluate_session(
+        session,
+        my_bans=["Sylas"],
+        opp_bans=[],
+        my_picks=[{"champion": "Azir", "role": "MID"}],
+        opp_picks=[{"champion": "Orianna", "role": "MID"}],
+        opp_starters_pools=[
+            {
+                "name": "MidB",
+                "champion_pool": [{"champion": "Sylas", "tier": "MAIN"}],
+            }
+        ],
+        winner_side="BLUE",
+    )
+    assert ev["hits"] >= 1
+    assert ev["grade"] in ("A", "B", "C", "D")
+    assert "Sylas" in ev["summary"] or "acerto" in ev["summary"].lower()

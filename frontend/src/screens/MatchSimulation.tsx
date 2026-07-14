@@ -11,6 +11,7 @@ import {
   Calendar,
   Crosshair,
   Flame,
+  Radar,
 } from 'lucide-react';
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
@@ -90,6 +91,7 @@ export function MatchSimulation() {
   const syncMatchState = useGameStore((s) => s.syncMatchState);
   const clearActiveMatch = useGameStore((s) => s.clearActiveMatch);
   const draft = useGameStore((s) => s.draft);
+  const lastScoutReport = useGameStore((s) => s.lastScoutReport);
   const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
 
   const [killPop, setKillPop] = useState<'blue' | 'red' | null>(null);
@@ -306,6 +308,8 @@ export function MatchSimulation() {
   const winnerPicks =
     activeMatch.winnerSide === 'RED' ? draft.redPicks : draft.bluePicks;
 
+  const scoutReport = activeMatch.scoutEvaluation || lastScoutReport;
+
   return (
     <div className="match-stage">
       {/* Splash dinâmico */}
@@ -328,11 +332,34 @@ export function MatchSimulation() {
             <p className="text-xs text-white/45 font-mono mb-4">
               {activeMatch.blueKills} – {activeMatch.redKills} kills · {formatMinute(minute)}
             </p>
-            <div className="flex gap-1.5 justify-center flex-wrap mb-6">
+            <div className="flex gap-1.5 justify-center flex-wrap mb-4">
               {winnerPicks.map((p) => (
                 <ChampionImage key={p.champion} name={p.champion} variant="pick" locked />
               ))}
             </div>
+            {scoutReport?.summary && (
+              <div className="mb-5 text-left border border-cyan-500/30 bg-cyan-950/40 rounded-sm p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-cyan-300 font-semibold flex items-center gap-1">
+                    <Radar className="w-3.5 h-3.5" /> Relatório do Scout
+                  </span>
+                  {scoutReport.grade && (
+                    <span className="text-xs font-mono text-lol-gold">
+                      Grade {scoutReport.grade}
+                      {scoutReport.accuracy != null
+                        ? ` · ${Math.round(scoutReport.accuracy * 100)}%`
+                        : ''}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-white/70 leading-snug">{scoutReport.summary}</p>
+                <p className="text-[9px] text-white/40 font-mono">
+                  {scoutReport.hits ?? 0} acertos · {scoutReport.misses ?? 0} erros ·{' '}
+                  {scoutReport.partials ?? 0} parciais
+                  {scoutReport.scout_name ? ` · ${scoutReport.scout_name}` : ''}
+                </p>
+              </div>
+            )}
             <button onClick={() => clearActiveMatch()} className="btn-lol-primary px-8 py-3">
               Voltar ao hub
             </button>

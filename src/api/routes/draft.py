@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.schemas import DraftAIDecisionRequest, DraftScoutAdviceRequest
+from src.api.schemas import (
+    DraftAIDecisionRequest,
+    DraftScoutAdviceRequest,
+    DraftScoutActionRequest,
+    DraftScoutEvaluateRequest,
+)
 from src.core.database import get_db
 from src.models import Champion, Team
 from src.modules.draft.snake_draft import DraftTeam
@@ -131,11 +136,13 @@ async def draft_scout_advice(req: DraftScoutAdviceRequest, db: AsyncSession = De
     """
     Conselho do scout da comissão no turno do manager.
 
-    Combina maestria do elenco, patch, role, presença global, counters e
-    qualidade de meta_reading do staff.
+    Combina maestria, patch, role, meta seed (WR/PR), counters, staff e
+    scouting de estrelas do oponente (conhecimento do hub).
     """
-    from src.modules.draft.snake_draft import DRAFT_ORDER as BACKEND_DRAFT_ORDER
+    from src.modules.career.scouting_service import ScoutingService
     from src.modules.draft.draft_scout import DraftScoutAdvisor
+    from src.modules.draft.scout_session import ScoutSessionService
+    from src.modules.draft.snake_draft import DRAFT_ORDER as BACKEND_DRAFT_ORDER
 
     side = (req.acting_side or "").upper()
     if side not in ("BLUE", "RED"):
@@ -167,7 +174,6 @@ async def draft_scout_advice(req: DraftScoutAdviceRequest, db: AsyncSession = De
     expected_side = expected[1]
     acting = DraftTeam.BLUE if side == "BLUE" else DraftTeam.RED
     if expected_side != acting:
-        # Ainda devolve dica leve do contexto (não bloqueia UI se o turno mudou)
         logger.info(
             "scout-advice fora de turno: turn=%s expected=%s got=%s",
             turn,
@@ -177,7 +183,6 @@ async def draft_scout_advice(req: DraftScoutAdviceRequest, db: AsyncSession = De
 
     my_team = blue if acting == DraftTeam.BLUE else red
     opp_team = red if acting == DraftTeam.BLUE else blue
-    # Garante que o conselho é para o time do manager
     if str(my_team.id) != managed_id:
         my_team, opp_team = opp_team, my_team
         acting = DraftTeam.BLUE if my_team.id == blue.id else DraftTeam.RED
@@ -187,6 +192,9 @@ async def draft_scout_advice(req: DraftScoutAdviceRequest, db: AsyncSession = De
     champs_result = await db.execute(select(Champion))
     champs = list(champs_result.scalars().all())
     champions_by_name = {c.name: c for c in champs}
+
+    # Conhecimento de scouting do manager sobre o oponente
+    knowledge = await ScoutingService(db).get_knowledge(managed_id)
 
     advisor = DraftScoutAdvisor(
         patch_bias=patch_bias or {},
@@ -203,11 +211,139 @@ async def draft_scout_advice(req: DraftScoutAdviceRequest, db: AsyncSession = De
             staffs=list(getattr(my_team, "staffs", []) or []),
             focus_role=req.focus_role,
             limit=max(1, min(int(req.limit or 5), 8)),
+            opponent_knowledge=knowledge,
         )
     except Exception as e:
         logger.error(f"DraftScout falhou: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Draft scout error: {e}")
 
+    # Sessão de histórico de dicas
+    session_svc = ScoutSessionService()
+    session = await session_svc.ensure_session(
+        req.session_id,
+        managed_team_id=managed_id,
+        blue_team_id=str(blue.id),
+        red_team_id=str(red.id),
+        managed_side=acting.value,
+        patch_version=patch_version,
+        scout_name=(payload.get("scout") or {}).get("name"),
+    )
+    session_id = session["session_id"]
+    compact_recs = [
+        {
+            "champion": r.get("champion"),
+            "role": r.get("role"),
+            "priority": r.get("priority"),
+            "score": r.get("score"),
+            "pool_tier": r.get("pool_tier"),
+        }
+        for r in (payload.get("recommendations") or [])[:5]
+    ]
+    await session_svc.append_tip(
+        session_id,
+        {
+            "current_turn": turn,
+            "action": payload.get("action"),
+            "recommendations": compact_recs,
+            "scout_name": (payload.get("scout") or {}).get("name"),
+            "patch_version": patch_version,
+        },
+    )
+
     payload["source"] = "draft_scout"
     payload["managed_team_id"] = managed_id
+    payload["session_id"] = session_id
     return payload
+
+
+@router.post("/draft/scout-session/action", status_code=status.HTTP_200_OK)
+async def draft_scout_session_action(req: DraftScoutActionRequest):
+    """Registra o ban/pick do manager (seguiu o scout?)."""
+    from src.modules.draft.scout_session import ScoutSessionService
+
+    svc = ScoutSessionService()
+    try:
+        session = await svc.record_action(
+            req.session_id,
+            current_turn=int(req.current_turn),
+            action=req.action,
+            champion=req.champion,
+            role=req.role,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        "session_id": req.session_id,
+        "actions_count": len(session.get("actions") or []),
+        "last_action": (session.get("actions") or [])[-1] if session.get("actions") else None,
+    }
+
+
+@router.get("/draft/scout-session/{session_id}", status_code=status.HTTP_200_OK)
+async def get_draft_scout_session(session_id: str):
+    from src.modules.draft.scout_session import ScoutSessionService
+
+    session = await ScoutSessionService().get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão de scout não encontrada.")
+    return session
+
+
+@router.post("/draft/scout-session/evaluate", status_code=status.HTTP_200_OK)
+async def evaluate_draft_scout_session(
+    req: DraftScoutEvaluateRequest, db: AsyncSession = Depends(get_db)
+):
+    """Avalia dicas do scout vs draft final (manual / pós-partida)."""
+    from src.modules.draft.scout_session import ScoutSessionService
+
+    svc = ScoutSessionService()
+    session = await svc.get_session(req.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão de scout não encontrada.")
+
+    managed_side = (req.managed_side or session.get("managed_side") or "BLUE").upper()
+    if managed_side == "BLUE":
+        my_bans, opp_bans = list(req.blue_bans or []), list(req.red_bans or [])
+        my_picks, opp_picks = list(req.blue_picks or []), list(req.red_picks or [])
+        opp_team_id = session.get("red_team_id")
+    else:
+        my_bans, opp_bans = list(req.red_bans or []), list(req.blue_bans or [])
+        my_picks, opp_picks = list(req.red_picks or []), list(req.blue_picks or [])
+        opp_team_id = session.get("blue_team_id")
+
+    opp_pools = []
+    if opp_team_id:
+        try:
+            opp = await db.get(Team, uuid.UUID(str(opp_team_id)))
+            if opp:
+                for p in opp.get_starters():
+                    opp_pools.append(
+                        {
+                            "name": p.name,
+                            "champion_pool": p.champion_pool
+                            if isinstance(p.champion_pool, list)
+                            else [],
+                        }
+                    )
+        except Exception:
+            pass
+
+    evaluation = await svc.evaluate_and_store(
+        req.session_id,
+        my_bans=my_bans,
+        opp_bans=opp_bans,
+        my_picks=my_picks,
+        opp_picks=opp_picks,
+        opp_starters_pools=opp_pools,
+        winner_side=req.winner_side,
+    )
+    return {"session_id": req.session_id, "evaluation": evaluation}
+
+
+@router.get("/teams/{team_id}/scout-history", status_code=status.HTTP_200_OK)
+async def get_team_scout_history(team_id: str):
+    """Histórico de avaliações do scout na carreira."""
+    from src.modules.draft.scout_session import ScoutSessionService
+
+    history = await ScoutSessionService().get_history(team_id)
+    return {"team_id": team_id, "history": history, "count": len(history)}

@@ -246,6 +246,37 @@ export interface DraftScoutAdviceResponse {
   factors?: string[];
   source?: string;
   error?: string;
+  session_id?: string;
+  opponent_stars?: {
+    player_id: string;
+    player_name: string;
+    star_score: number;
+    label: string;
+    scouting_progress: number;
+  }[];
+}
+
+export interface ScoutEvaluation {
+  session_id?: string;
+  scout_name?: string;
+  patch_version?: string;
+  hits?: number;
+  misses?: number;
+  partials?: number;
+  accuracy?: number | null;
+  follow_rate?: number | null;
+  grade?: string;
+  summary?: string;
+  managed_won?: boolean | null;
+  verdicts?: {
+    turn: number;
+    action: string;
+    champion: string;
+    status: string;
+    detail: string;
+    followed?: boolean;
+  }[];
+  evaluated_at?: string;
 }
 
 async function parseJsonOrThrow(response: Response, fallback: string) {
@@ -517,6 +548,7 @@ export const api = {
     red_picks: { champion: string; role: string }[];
     focus_role?: string;
     limit?: number;
+    session_id?: string;
   }): Promise<DraftScoutAdviceResponse> => {
     const response = await fetch(`${API_BASE}/draft/scout-advice`, {
       method: 'POST',
@@ -524,6 +556,30 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return parseJsonOrThrow(response, 'Failed to get draft scout advice');
+  },
+
+  recordDraftScoutAction: async (payload: {
+    session_id: string;
+    current_turn: number;
+    action: string;
+    champion: string;
+    role?: string;
+  }) => {
+    const response = await fetch(`${API_BASE}/draft/scout-session/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to record scout action');
+  },
+
+  getScoutHistory: async (teamId: string): Promise<{
+    team_id: string;
+    history: ScoutEvaluation[];
+    count: number;
+  }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/scout-history`);
+    return parseJsonOrThrow(response, 'Failed to fetch scout history');
   },
 
   getOffseasonStatus: async (managedTeamId?: string) => {
@@ -680,6 +736,9 @@ export const api = {
     game_style?: 'BALANCED' | 'EARLY' | 'MID' | 'LATE';
     coach_comms?: number;
     starter_ids?: string[];
+    scout_session_id?: string;
+    blue_bans?: string[];
+    red_bans?: string[];
   }) => {
     const response = await fetch(`${API_BASE}/matches/live/start`, {
       method: 'POST',

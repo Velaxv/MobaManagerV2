@@ -48,6 +48,29 @@ class DraftScoutAdviceRequest(BaseModel):
     red_picks: List[Dict[str, str]] = []
     focus_role: Optional[str] = None  # role selecionada no FE
     limit: int = 5
+    session_id: Optional[str] = None  # histórico de dicas na sessão de draft
+
+
+class DraftScoutActionRequest(BaseModel):
+    """Registra ban/pick do manager para avaliar se seguiu o scout."""
+
+    session_id: str
+    current_turn: int
+    action: str  # BAN | PICK
+    champion: str
+    role: Optional[str] = None
+
+
+class DraftScoutEvaluateRequest(BaseModel):
+    """Avalia a sessão do scout vs draft final (e opcionalmente vencedor)."""
+
+    session_id: str
+    managed_side: Optional[str] = None
+    blue_bans: List[str] = []
+    red_bans: List[str] = []
+    blue_picks: List[Dict[str, str]] = []
+    red_picks: List[Dict[str, str]] = []
+    winner_side: Optional[str] = None  # BLUE | RED
 
 
 class RenewContractRequest(BaseModel):
@@ -83,6 +106,11 @@ class StartLiveMatchRequest(BaseModel):
     game_style: str = "BALANCED"  # EARLY | MID | LATE | BALANCED
     coach_comms: int = 3
     starter_ids: Optional[List[str]] = None
+    # Sessão do draft scout para avaliar acertos pós-partida
+    scout_session_id: Optional[str] = None
+    # Bans do draft interativo (para avaliação do scout)
+    blue_bans: Optional[List[str]] = None
+    red_bans: Optional[List[str]] = None
 
 
 class CoachCommRequest(BaseModel):

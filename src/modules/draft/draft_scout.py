@@ -29,6 +29,7 @@ from src.models.team import Team
 from src.modules.draft.draft_ai import CHAMPIONS_BY_ROLE, COUNTER_MAP
 from src.modules.draft.snake_draft import DraftState
 from src.shared.enums import ChampionPoolTier, DraftAction, DraftTeam, PlayerRole
+from src.shared.global_meta_data import get_champion_meta
 from src.shared.math_utils import clamp
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,12 @@ class DraftScoutAdvisor:
         *,
         focus_role: Optional[str] = None,
         limit: int = 5,
+        opponent_knowledge: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        """
+        opponent_knowledge: mapa player_id -> entry de ScoutingService (progresso no hub).
+        Quando o manager scoutou estrelas do oponente, bans nos mains delas sobem.
+        """
         current = draft_state.current_action
         if not current:
             return self._empty_payload("Draft já concluído.")
@@ -136,6 +142,7 @@ class DraftScoutAdvisor:
         unavailable = draft_state.unavailable_champions
         my_starters = my_team.get_starters()
         opp_starters = opponent_team.get_starters()
+        star_map = self._build_star_map(opp_starters, opponent_knowledge or {})
 
         if action == DraftAction.BAN:
             scored = self._score_bans(
@@ -145,6 +152,7 @@ class DraftScoutAdvisor:
                 my_starters=my_starters,
                 unavailable=unavailable,
                 focus_role=focus_role,
+                star_map=star_map,
             )
         else:
             scored = self._score_picks(
@@ -172,7 +180,18 @@ class DraftScoutAdvisor:
             rec["priority"] = i
             rec["action"] = action.value if hasattr(action, "value") else str(action)
 
-        intel = self._intel_note(meta_reading, action, self.patch_version)
+        intel = self._intel_note(meta_reading, action, self.patch_version, star_map)
+
+        factors = [
+            "maestria do elenco",
+            "força no patch",
+            "função do campeão",
+            "presença global / win rate seed",
+            "counters e ameaça inimiga",
+            "balanço da composição",
+        ]
+        if star_map:
+            factors.insert(0, "scouting de estrelas do oponente")
 
         return {
             "action": action.value if hasattr(action, "value") else str(action),
@@ -185,13 +204,18 @@ class DraftScoutAdvisor:
             },
             "recommendations": top,
             "intel_note": intel,
-            "factors": [
-                "maestria do elenco",
-                "força no patch",
-                "função do campeão",
-                "presença global / meta",
-                "counters e ameaça inimiga",
-                "balanço da composição",
+            "factors": factors,
+            "opponent_stars": [
+                {
+                    "player_id": pid,
+                    "player_name": info["name"],
+                    "star_score": info["star_score"],
+                    "label": info["label"],
+                    "scouting_progress": info["progress"],
+                }
+                for pid, info in sorted(
+                    star_map.items(), key=lambda x: -x[1]["star_score"]
+                )[:5]
             ],
         }
 
@@ -208,11 +232,14 @@ class DraftScoutAdvisor:
         my_starters: List[Player],
         unavailable: Set[str],
         focus_role: Optional[str],
+        star_map: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         candidates: Set[str] = set()
+        star_map = star_map or {}
 
         # Mains e secondary do oponente
         opp_mains: Dict[str, List[str]] = {}  # champ -> [player names]
+        opp_main_players: Dict[str, List[Player]] = {}  # champ -> players
         for player in opp_starters:
             pool = player.champion_pool if isinstance(player.champion_pool, list) else []
             for item in pool:
@@ -226,6 +253,7 @@ class DraftScoutAdvisor:
                     candidates.add(champ)
                     if tier == ChampionPoolTier.MAIN.value:
                         opp_mains.setdefault(champ, []).append(player.name)
+                        opp_main_players.setdefault(champ, []).append(player)
 
         # Meta forte no patch + champs pro-play por role
         for role, champs in CHAMPIONS_BY_ROLE.items():
@@ -289,6 +317,35 @@ class DraftScoutAdvisor:
                         )
                         break
 
+            # Scouting de estrelas: se scoutamos o dono do main, prioriza ban
+            star_boost = 0.0
+            owners_players = opp_main_players.get(champ_name) or []
+            if not owners_players:
+                for k, plist in opp_main_players.items():
+                    if _norm_name(k) == _norm_name(champ_name):
+                        owners_players = plist
+                        break
+            for pl in owners_players:
+                pid = str(getattr(pl, "id", "") or "")
+                star = star_map.get(pid)
+                if not star:
+                    continue
+                # star_score 0–100 → boost até +28
+                boost = star["star_score"] * 0.28
+                if boost > star_boost:
+                    star_boost = boost
+                bd.reasons.append(
+                    {
+                        "code": "SCOUTED_STAR",
+                        "label": (
+                            f"Estrela scoutada: {star['name']} "
+                            f"({star['label']}, {star['progress']:.0f}% intel)"
+                        ),
+                        "weight": round(boost, 1),
+                    }
+                )
+            threat += star_boost
+
             # Não banir o que o nosso time precisa (leve desincentivo se é main nosso)
             my_main_hit = False
             for player in my_starters:
@@ -317,7 +374,8 @@ class DraftScoutAdvisor:
                 threat * 0.45
                 + patch_s * 0.25
                 + bd.global_meta * 0.20
-                + bd.role_fit * 0.10,
+                + bd.role_fit * 0.10
+                + star_boost * 0.35,
                 0.0,
                 100.0,
             )
@@ -330,7 +388,7 @@ class DraftScoutAdvisor:
                     champion=champ_name,
                     role=self._primary_role_str(champ_name),
                     breakdown=bd,
-                    summary=self._ban_summary(champ_name, owners, meta),
+                    summary=self._ban_summary(champ_name, owners, meta, star_boost > 0),
                     meta=meta,
                     for_player=owners[0] if owners else None,
                 )
@@ -648,12 +706,16 @@ class DraftScoutAdvisor:
         presence = meta["presence_score"]  # 0–100
         global_s = presence * 0.30
         bd.global_meta = global_s
+        wr = meta.get("win_rate_proxy")
+        pr = meta.get("pick_rate_proxy")
+        src = meta.get("source") or "synthetic"
         bd.reasons.append(
             {
                 "code": "GLOBAL_META",
                 "label": (
-                    f"~{meta['games_played_world']:,} partidas globais "
-                    f"(presença {meta['tier']})"
+                    f"{meta['games_played_world']:,} jogos · "
+                    f"{pr}% PR · {wr}% WR · tier {meta['tier']}"
+                    + (" (seed)" if src == "seed_meta" else "")
                 ),
                 "weight": round(global_s, 1),
             }
@@ -663,39 +725,53 @@ class DraftScoutAdvisor:
 
     def _global_presence(self, champion: str) -> Dict[str, Any]:
         """
-        Proxy de 'partidas no mundo' + tier de presença no meta.
-
-        Usa atributos do campeão + bias do patch + seed determinístico,
-        sem API externa.
+        Meta global: prefere seed `global_meta_data` (win/pick rate + games);
+        fallback determinístico por atributos do campeão.
         """
         key = _norm_name(champion)
         cobj = self.champions_by_name.get(key)
         unit = _stable_unit(f"{key}|{self.patch_version}")
-
-        base = 45.0 + unit * 40.0  # 45–85
-        if cobj:
-            # Campeões "pro-ready": early+utility ou late+utility
-            power = (
-                float(cobj.early_game_power or 50)
-                + float(cobj.late_game_scaling or 50)
-                + float(cobj.utility or 50)
-            ) / 3.0
-            base = base * 0.55 + power * 0.45
-            class_boost = _PRO_META_CLASS_BOOST.get(
-                (cobj.class_type or "").upper(), 1.0
-            )
-            base *= class_boost
-            # Alta dificuldade mecânica = um pouco menos ubiquidade soloq
-            mech = float(cobj.mechanical_difficulty or 50)
-            if mech > 75:
-                base *= 0.94
-
         bias = float(self.patch_bias.get(key, 0.0) or 0.0)
-        base *= 1.0 + bias * 2.5  # buff sobe presença
+        seeded = get_champion_meta(champion)
 
-        presence = clamp(base, 5.0, 100.0)
-        # games: 80k–2.5M
-        games = int(80_000 + (presence / 100.0) ** 1.4 * 2_400_000 + unit * 50_000)
+        if seeded:
+            games = int(seeded.get("games_played") or 100_000)
+            pick_rate = float(seeded.get("pick_rate") or 3.0)
+            win_rate = float(seeded.get("win_rate") or 50.0)
+            pro = float(seeded.get("pro_presence") or 0.5)
+            # Presence 0–100: pick rate + pro + patch
+            presence = clamp(
+                pick_rate * 4.5 + pro * 35.0 + (win_rate - 50.0) * 3.0 + bias * 40.0,
+                5.0,
+                100.0,
+            )
+            # Patch move win rate levemente
+            win_rate = round(clamp(win_rate + bias * 12.0, 44.0, 56.5), 1)
+            source = "seed_meta"
+        else:
+            base = 45.0 + unit * 40.0
+            if cobj:
+                power = (
+                    float(cobj.early_game_power or 50)
+                    + float(cobj.late_game_scaling or 50)
+                    + float(cobj.utility or 50)
+                ) / 3.0
+                base = base * 0.55 + power * 0.45
+                class_boost = _PRO_META_CLASS_BOOST.get(
+                    (cobj.class_type or "").upper(), 1.0
+                )
+                base *= class_boost
+                mech = float(cobj.mechanical_difficulty or 50)
+                if mech > 75:
+                    base *= 0.94
+            base *= 1.0 + bias * 2.5
+            presence = clamp(base, 5.0, 100.0)
+            games = int(80_000 + (presence / 100.0) ** 1.4 * 2_400_000 + unit * 50_000)
+            pick_rate = round(presence * 0.18, 1)
+            win_rate = round(
+                clamp(48.0 + (presence - 50) * 0.06 + bias * 25.0, 44.0, 56.0), 1
+            )
+            source = "synthetic"
 
         if presence >= 78:
             tier = "S"
@@ -712,10 +788,9 @@ class DraftScoutAdvisor:
             "games_played_world": games,
             "presence_score": round(presence, 1),
             "tier": tier,
-            "pick_rate_proxy": round(presence * 0.18, 1),  # ~1–18%
-            "win_rate_proxy": round(
-                clamp(48.0 + (presence - 50) * 0.06 + bias * 25.0, 44.0, 56.0), 1
-            ),
+            "pick_rate_proxy": round(float(pick_rate), 1),
+            "win_rate_proxy": round(float(win_rate), 1),
+            "source": source,
         }
 
     def _to_recommendation(
@@ -757,13 +832,24 @@ class DraftScoutAdvisor:
         }
 
     def _ban_summary(
-        self, champion: str, owners: List[str], meta: Dict[str, Any]
+        self,
+        champion: str,
+        owners: List[str],
+        meta: Dict[str, Any],
+        scouted_star: bool = False,
     ) -> str:
         bits = []
+        if scouted_star:
+            bits.append("estrela scoutada do oponente")
         if owners:
             bits.append(f"ameaça o pool de {owners[0]}")
         if meta.get("tier") in ("S", "A"):
-            bits.append(f"meta global {meta['tier']} (~{meta['games_played_world']:,} jogos)")
+            wr = meta.get("win_rate_proxy")
+            bits.append(
+                f"meta {meta['tier']} ({meta['games_played_world']:,} jogos"
+                + (f", {wr}% WR" if wr is not None else "")
+                + ")"
+            )
         bias = float(self.patch_bias.get(_norm_name(champion), 0) or 0)
         if bias > 0.02:
             bits.append(f"buff no patch {self.patch_version}")
@@ -772,6 +858,65 @@ class DraftScoutAdvisor:
         if not bits:
             bits.append("presença sólida no competitivo atual")
         return f"Scout sugere banir {champion}: " + "; ".join(bits) + "."
+
+    def _build_star_map(
+        self,
+        opp_starters: List[Player],
+        knowledge: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Estrelas reveladas pelo scouting de hub.
+        progress baixo → pouco intel; progress alto + CA/BMA altos → estrela.
+        """
+        stars: Dict[str, Dict[str, Any]] = {}
+        for player in opp_starters:
+            pid = str(getattr(player, "id", "") or "")
+            if not pid:
+                continue
+            entry = knowledge.get(pid) or {}
+            progress = float(entry.get("progress") or 0)
+            # Sem scouting nenhum: só CA bruto com peso baixo
+            ca = float(getattr(player, "current_ability", 100) or 100)
+            ca_norm = clamp(ca / 200.0, 0.0, 1.0)
+
+            bma = float(getattr(player, "big_match_aptitude", 10) or 10)
+            consistency = float(getattr(player, "consistency", 10) or 10)
+            # Só confia em BMA/consistency com progresso suficiente
+            if progress < 35:
+                mental = 0.45  # desconhecido
+                label = "desconhecido"
+            elif progress < 70:
+                mental = clamp(((bma + consistency) / 2.0) / 20.0, 0.2, 1.0) * 0.7
+                label = "parcialmente scoutado"
+            else:
+                mental = clamp(((bma + consistency) / 2.0) / 20.0, 0.2, 1.0)
+                label = "scoutado" if progress < 100 else "totalmente revelado"
+
+            # progress multiplica confiança no perfil
+            conf = clamp(0.25 + progress / 100.0 * 0.75, 0.25, 1.0)
+            star_score = clamp((ca_norm * 0.62 + mental * 0.38) * conf * 100.0, 0.0, 100.0)
+
+            # Só entra no mapa se progress > 0 ou CA elite óbvio
+            if progress <= 0 and ca < 155:
+                continue
+            if star_score < 40 and progress < 35:
+                continue
+
+            if star_score >= 78:
+                label = f"estrela ({label})"
+            elif star_score >= 60:
+                label = f"ameaça ({label})"
+            else:
+                label = f"monitorado ({label})"
+
+            stars[pid] = {
+                "name": player.name,
+                "star_score": round(star_score, 1),
+                "progress": progress,
+                "label": label,
+                "ca": ca,
+            }
+        return stars
 
     def _pick_summary(
         self,
@@ -829,7 +974,13 @@ class DraftScoutAdvisor:
             "communication": round(float(s.communication or 10), 1),
         }
 
-    def _intel_note(self, meta_reading: float, action: DraftAction, patch: str) -> str:
+    def _intel_note(
+        self,
+        meta_reading: float,
+        action: DraftAction,
+        patch: str,
+        star_map: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> str:
         act = "banimentos" if action == DraftAction.BAN else "picks"
         if meta_reading >= 16:
             quality = "leitura de meta elite"
@@ -839,10 +990,16 @@ class DraftScoutAdvisor:
             quality = "leitura de meta mediana"
         else:
             quality = "leitura de meta limitada — confie com cautela"
-        return (
+        note = (
             f"Comissão com {quality} (meta_reading {meta_reading:.0f}/20). "
-            f"Sugestões de {act} no patch {patch}, ponderando maestria, counters e presença global."
+            f"Sugestões de {act} no patch {patch}, ponderando maestria, counters, "
+            f"win rate seed e presença global."
         )
+        if star_map:
+            top = sorted(star_map.values(), key=lambda s: -s["star_score"])[:2]
+            names = ", ".join(f"{s['name']} ({s['label']})" for s in top)
+            note += f" Intel de scouting: {names}."
+        return note
 
     def _primary_role_str(self, champion: str) -> Optional[str]:
         cobj = self.champions_by_name.get(_norm_name(champion))

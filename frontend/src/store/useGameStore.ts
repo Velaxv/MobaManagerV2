@@ -304,6 +304,27 @@ interface GameState {
     coachCommsFeedback: string;
     winnerSide?: string | null;
     speed?: '1x' | '2x' | '4x' | 'instant';
+    scoutEvaluation?: {
+      grade?: string;
+      summary?: string;
+      accuracy?: number | null;
+      hits?: number;
+      misses?: number;
+      partials?: number;
+      scout_name?: string;
+    } | null;
+  } | null;
+
+  // Sessão do draft scout (histórico de dicas da partida)
+  scoutSessionId: string | null;
+  lastScoutReport: {
+    grade?: string;
+    summary?: string;
+    accuracy?: number | null;
+    hits?: number;
+    misses?: number;
+    partials?: number;
+    scout_name?: string;
   } | null;
   
   // --- Estado do Draft ---
@@ -408,6 +429,7 @@ interface GameState {
   triggerCoachComm: () => void;
   startSimulation: (blueTeam: string, redTeam: string, blueTeamId?: string, redTeamId?: string) => void;
   processDraftAction: (champion: string, role?: PlayerRole) => void;
+  setScoutSessionId: (id: string | null) => void;
   setMatchTactics: (partial: Partial<{
     gameStyle: 'BALANCED' | 'EARLY' | 'MID' | 'LATE';
     coachComms: number;
@@ -548,6 +570,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // --- Estado da Partida e Simulação ---
   activeMatch: null,
+  scoutSessionId: null,
+  lastScoutReport: null,
   
   // --- Estado do Draft ---
   draft: {
@@ -821,6 +845,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     set({
       activeMatch: null,
       currentScreen: 'DASHBOARD',
+      scoutSessionId: null,
       draft: {
         currentTurn: 0,
         blueBans: [],
@@ -906,6 +931,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   resetDraft: () => {
     set({
+      scoutSessionId: null,
       draft: {
         currentTurn: 0,
         blueBans: [],
@@ -917,6 +943,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     });
   },
+
+  setScoutSessionId: (id) => set({ scoutSessionId: id }),
 
   // Botão de Ação "Coach Comms"
   triggerCoachComm: async () => {
@@ -1404,7 +1432,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   submitDraftAndStartMatch: async (speed = '2x') => {
-    const { draft, activeMatch, teams, matchTactics, manager, myPlayers } = get();
+    const { draft, activeMatch, teams, matchTactics, manager, myPlayers, scoutSessionId } = get();
     if (!activeMatch) return;
 
     try {
@@ -1432,6 +1460,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         game_style: matchTactics.gameStyle,
         coach_comms: matchTactics.coachComms,
         starter_ids: starterIds,
+        scout_session_id: scoutSessionId || undefined,
+        blue_bans: draft.blueBans,
+        red_bans: draft.redBans,
       });
 
       const phase = response.state?.phase === 'FINISHED' ? 'COMPLETE' : (response.state?.phase || 'EARLY_GAME');
@@ -1500,6 +1531,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         phase = 'COMPLETE';
       }
 
+      const scoutEval = state.scout_evaluation || null;
       set({
         activeMatch: {
           ...activeMatch,
@@ -1517,7 +1549,21 @@ export const useGameStore = create<GameState>((set, get) => ({
           winnerSide: state.winner_side,
           coachCommsUsed: state.blue_coach_comms_used ?? activeMatch.coachCommsUsed,
           speed: (state.speed_label as typeof activeMatch.speed) || activeMatch.speed,
-        }
+          scoutEvaluation: scoutEval || activeMatch.scoutEvaluation || null,
+        },
+        ...(scoutEval
+          ? {
+              lastScoutReport: {
+                grade: scoutEval.grade,
+                summary: scoutEval.summary,
+                accuracy: scoutEval.accuracy,
+                hits: scoutEval.hits,
+                misses: scoutEval.misses,
+                partials: scoutEval.partials,
+                scout_name: scoutEval.scout_name,
+              },
+            }
+          : {}),
       });
 
       // Partida acabou: recarrega elenco (burnout aplicado no backend)

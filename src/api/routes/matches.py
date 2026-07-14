@@ -318,6 +318,10 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         red_game_style=red_style,
         blue_coach_comms_max=blue_comms,
         red_coach_comms_max=red_comms,
+        scout_session_id=req.scout_session_id,
+        managed_team_id=managed,
+        blue_bans=list(req.blue_bans or []),
+        red_bans=list(req.red_bans or []),
     )
 
     state_payload = live_state.model_dump()
