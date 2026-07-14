@@ -891,6 +891,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshRoundResults();
         void get().refreshOffseason();
         void get().refreshFinance();
+        void get().refreshTraining();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);
