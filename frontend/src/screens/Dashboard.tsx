@@ -178,6 +178,8 @@ export function Dashboard() {
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {calendar.map((day, idx) => {
             const isToday = idx === currentDayIndex;
+            const isMatch = day.type === CalendarDayType.MATCH_DAY;
+            const hasOpponent = Boolean(day.opponentAbbr);
             return (
               <div
                 key={day.dayIndex}
@@ -190,11 +192,26 @@ export function Dashboard() {
                 )}
                 <span className="font-mono font-bold text-[10px] opacity-70">{day.dayOfWeek}</span>
                 <span className="text-[10px] font-semibold mt-1 uppercase tracking-wide">
-                  {day.type.replace('_', ' ')}
+                  {isMatch && hasOpponent
+                    ? day.isHome
+                      ? 'Casa'
+                      : 'Fora'
+                    : day.type.replace('_', ' ')}
                 </span>
-                <p className="text-[10px] mt-auto pt-2 line-clamp-2 opacity-60 leading-snug">
-                  {day.eventName || 'Rotina'}
-                </p>
+                {isMatch && hasOpponent ? (
+                  <div className="mt-auto pt-2 space-y-0.5">
+                    <p className="text-[11px] font-bold text-lol-gold leading-tight">
+                      vs {day.opponentAbbr}
+                    </p>
+                    <p className="text-[9px] opacity-50 line-clamp-1 leading-snug">
+                      {day.opponentName || day.eventName}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[10px] mt-auto pt-2 line-clamp-2 opacity-60 leading-snug">
+                    {day.eventName || 'Rotina'}
+                  </p>
+                )}
               </div>
             );
           })}

@@ -63,6 +63,32 @@ export interface ApiPlayer {
   monthlySalary: number;
 }
 
+export interface WeekCalendarDay {
+  dayIndex: number;
+  dayOfWeek: string;
+  week: number;
+  type: string;
+  eventName?: string | null;
+  isToday?: boolean;
+  phase?: string;
+  opponentId?: string | null;
+  opponentName?: string | null;
+  opponentAbbr?: string | null;
+  isHome?: boolean | null;
+  sideLabel?: string | null;
+  homeTeamId?: string | null;
+  awayTeamId?: string | null;
+  homeTeamAbbr?: string | null;
+  awayTeamAbbr?: string | null;
+  roundIndex?: number | null;
+  allMatches?: {
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamAbbr?: string;
+    awayTeamAbbr?: string;
+  }[];
+}
+
 export interface CalendarState {
   current_day: number;
   current_week: number;
@@ -70,15 +96,16 @@ export interface CalendarState {
   day_of_week: number;
   league_id: string | null;
   league_name?: string;
-  week_calendar: {
+  week_calendar: WeekCalendarDay[];
+  next_match?: {
     dayIndex: number;
     dayOfWeek: string;
-    week: number;
-    type: string;
     eventName?: string | null;
-    isToday?: boolean;
-    phase?: string;
-  }[];
+    opponentAbbr?: string | null;
+    opponentName?: string | null;
+    isHome?: boolean | null;
+    roundIndex?: number | null;
+  } | null;
 }
 
 export interface StandingRow {
@@ -191,8 +218,9 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to send coach comms');
   },
 
-  getCalendar: async (): Promise<CalendarState> => {
-    const response = await fetch(`${API_BASE}/calendar`);
+  getCalendar: async (managedTeamId?: string): Promise<CalendarState> => {
+    const qs = managedTeamId ? `?managed_team_id=${encodeURIComponent(managedTeamId)}` : '';
+    const response = await fetch(`${API_BASE}/calendar${qs}`);
     return parseJsonOrThrow(response, 'Failed to fetch calendar');
   },
 

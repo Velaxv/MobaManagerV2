@@ -42,6 +42,14 @@ function mapWeekCalendar(
     week: number;
     type: string;
     eventName?: string | null;
+    opponentId?: string | null;
+    opponentName?: string | null;
+    opponentAbbr?: string | null;
+    isHome?: boolean | null;
+    sideLabel?: string | null;
+    homeTeamAbbr?: string | null;
+    awayTeamAbbr?: string | null;
+    roundIndex?: number | null;
   }[]
 ): CalendarDay[] {
   return days.map((d) => ({
@@ -50,6 +58,14 @@ function mapWeekCalendar(
     week: d.week,
     type: (d.type as CalendarDayType) || CalendarDayType.TRAINING,
     eventName: d.eventName || undefined,
+    opponentId: d.opponentId ?? undefined,
+    opponentName: d.opponentName ?? undefined,
+    opponentAbbr: d.opponentAbbr ?? undefined,
+    isHome: d.isHome ?? undefined,
+    sideLabel: d.sideLabel ?? undefined,
+    homeTeamAbbr: d.homeTeamAbbr ?? undefined,
+    awayTeamAbbr: d.awayTeamAbbr ?? undefined,
+    roundIndex: d.roundIndex ?? undefined,
   }));
 }
 
@@ -88,6 +104,14 @@ export interface CalendarDay {
   week: number;
   type: CalendarDayType;
   eventName?: string;
+  opponentId?: string;
+  opponentName?: string;
+  opponentAbbr?: string;
+  isHome?: boolean;
+  sideLabel?: string;
+  homeTeamAbbr?: string;
+  awayTeamAbbr?: string;
+  roundIndex?: number;
 }
 
 // Log de simulação de partida
@@ -312,7 +336,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       const { manager, totalDaysElapsed, leagueId } = get();
       const myTeamId = manager?.teamId;
       const advanceResponse = await api.advanceCalendar(myTeamId);
-      const calendarData = await api.getCalendar();
+      const calendarData = await api.getCalendar(myTeamId);
 
       const weekCalendar = calendarData.week_calendar
         ? mapWeekCalendar(calendarData.week_calendar)
@@ -602,14 +626,16 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   loadData: async () => {
     try {
+      const { manager } = get();
+      const managedId = manager?.teamId;
+
       const [teamsData, champsData, calendarData, leagues] = await Promise.all([
         api.getTeams(),
         api.getChampions(),
-        api.getCalendar(),
+        api.getCalendar(managedId),
         api.getLeagues().catch(() => []),
       ]);
 
-      const { manager } = get();
       const leagueId = calendarData.league_id || leagues[0]?.id || null;
 
       let targetTeam = manager

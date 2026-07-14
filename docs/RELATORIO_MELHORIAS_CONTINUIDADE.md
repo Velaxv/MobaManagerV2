@@ -36,7 +36,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 |----|----------|---------|---------|-------------------|
 | P0-1 | **Commit / versionar** as mudanças locais desta sessão | Continuidade em outra máquina/sessão | Baixo | `git status` limpo ou PR aberta |
 | P0-2 | **Burnout pós-live-match** no elenco do manager | Match day real sem consequência de forma | Médio | ✅ Feito (2026-07-14) — titulares + refresh no hub |
-| P0-3 | **Sincronizar calendário visual com a SM** | Grade semanal ainda é template | Médio | Dias/eventos batem com `advance` e match day |
+| P0-3 | **Sincronizar calendário visual com a SM** | Grade semanal ainda é template | Médio | ✅ Feito (2026-07-14) — `week_calendar.py` + adversário RR no hub |
 | P0-4 | **Pareamento determinístico (round-robin)** | Shuffle aleatório quebra sensação de liga | Médio | ✅ Feito (2026-07-14) — `round_robin.py` + dispatch |
 | P0-5 | **Velocidade configurável da live** | ~80s por partida cansa em playtest | Baixo | ✅ Feito (2026-07-14) — 1x/2x/4x/instant + mid-match |
 

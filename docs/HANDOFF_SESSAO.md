@@ -17,7 +17,7 @@
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. Verificar: `pytest` deve dar **23 passed**
+6. Verificar: `pytest` deve dar **30 passed**
 
 ---
 
@@ -45,16 +45,22 @@
 - Este handoff
 
 ### Testes
-- **23 passed** (unitários backend)
+- **30 passed** (unitários backend)
+
+### P0-3 (sessão atual)
+- `src/shared/week_calendar.py` — grade SEG–DOM com adversário RR
+- `GET /calendar?managed_team_id=` personaliza vs casa/fora
+- Dashboard mostra **vs TAG** nos match days
 
 ---
 
 ## Próxima sessão (prioridade)
 
-1. **P0-3** — Calendário visual com adversário real do round-robin  
-2. **P1-1** — Playoffs (top 6)  
-3. **P1-3** — Save/Load de carreira  
-4. Commit já feito localmente; **push para origin** se quiser backup remoto:
+1. **P1-1** — Playoffs (top 6)  
+2. **P1-3** — Save/Load de carreira  
+3. **P1-6** — Resultados da rodada no hub  
+4. **P0-3** — ✅ Calendário visual com adversário RR (sessão atual)  
+5. Commit local + **push para origin** se quiser backup remoto:
    ```bat
    git push origin main
    ```

@@ -145,39 +145,88 @@ def _serialize_player(player: Player, contract: Optional[Contract] = None) -> di
     }
 
 
-def _build_week_calendar(current_day_of_week: int, current_week: int, phase: str) -> list:
-    """Monta grade semanal simples (SEG-DOM) com tipos de dia coerentes."""
-    labels = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"]
-    # Na regular season: Qua/Sáb = match day aproximado; Dom = rest
-    week_types = [
-        CalendarDayType.TRAINING,
-        CalendarDayType.TRAINING,
-        CalendarDayType.MATCH_DAY,
-        CalendarDayType.SCRIM,
-        CalendarDayType.TRAINING,
-        CalendarDayType.MATCH_DAY,
-        CalendarDayType.REST,
+async def _teams_for_week_calendar(db: AsyncSession, league_id) -> list:
+    """Times da liga no formato usado por build_week_calendar (ordem livre)."""
+    from src.models.league import LeagueTeam
+
+    result = await db.execute(
+        select(Team)
+        .join(LeagueTeam, LeagueTeam.team_id == Team.id)
+        .where(LeagueTeam.league_id == league_id)
+    )
+    return [
+        {"id": str(t.id), "name": t.name, "abbreviation": t.abbreviation}
+        for t in result.scalars().all()
     ]
-    days = []
-    for i, label in enumerate(labels):
-        day_type = week_types[i]
-        event = None
-        if day_type == CalendarDayType.MATCH_DAY:
-            event = f"CBLOL — Rodada (Semana {current_week})"
-        elif day_type == CalendarDayType.REST:
-            event = "Descanso obrigatório"
-        elif day_type == CalendarDayType.SCRIM:
-            event = "Scrim agendado"
-        days.append({
-            "dayIndex": i,
-            "dayOfWeek": label,
-            "week": current_week,
-            "type": day_type.value,
-            "eventName": event,
-            "isToday": i == (current_day_of_week % 7),
-            "phase": phase,
-        })
-    return days
+
+
+async def _build_week_calendar_for_league(
+    db: AsyncSession,
+    league: League,
+    managed_team_id: Optional[str] = None,
+) -> dict:
+    """
+    Estado do calendário + grade semanal com adversário real do round-robin.
+    Prefere a State Machine (Redis) quando disponível para week/day_of_week.
+    """
+    from src.shared.week_calendar import build_week_calendar
+
+    phase = league.current_phase.value if league.current_phase else "OFFSEASON"
+    day_of_week = max(0, (league.current_day - 1) % 7)
+    current_week = int(league.current_week or 0)
+
+    calendar_service = CalendarService(db)
+    sm_status = await calendar_service.get_league_calendar_status(str(league.id))
+    if sm_status:
+        day_of_week = int(sm_status.get("day_of_week") or 0)
+        current_week = int(sm_status.get("week") or 0)
+        if sm_status.get("state"):
+            phase = sm_status["state"]
+
+    team_rows = await _teams_for_week_calendar(db, league.id)
+    week_calendar = build_week_calendar(
+        current_day_of_week=day_of_week,
+        current_week=current_week,
+        phase=phase,
+        teams=team_rows,
+        managed_team_id=managed_team_id,
+    )
+
+    # Próximo confronto do manager na semana atual (match day futuro ou hoje)
+    next_match = None
+    today = day_of_week % 7
+    for day in week_calendar:
+        if day.get("type") != CalendarDayType.MATCH_DAY.value:
+            continue
+        if day.get("dayIndex", 0) < today:
+            continue
+        if managed_team_id and day.get("opponentAbbr"):
+            next_match = day
+            break
+        if not managed_team_id and day.get("eventName"):
+            next_match = day
+            break
+
+    return {
+        "current_day": league.current_day if not sm_status else sm_status.get("total_days", league.current_day),
+        "current_week": current_week,
+        "current_phase": phase,
+        "day_of_week": day_of_week,
+        "league_id": str(league.id),
+        "league_name": league.name,
+        "week_calendar": week_calendar,
+        "next_match": {
+            "dayIndex": next_match["dayIndex"],
+            "dayOfWeek": next_match["dayOfWeek"],
+            "eventName": next_match.get("eventName"),
+            "opponentAbbr": next_match.get("opponentAbbr"),
+            "opponentName": next_match.get("opponentName"),
+            "isHome": next_match.get("isHome"),
+            "roundIndex": next_match.get("roundIndex"),
+        }
+        if next_match
+        else None,
+    }
 
 
 # --- Rotas Auxiliares / Admin ---
@@ -484,34 +533,34 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
 
 # --- Calendário / Rotina Diária ---
 @app.get("/calendar", status_code=status.HTTP_200_OK)
-async def get_calendar_state(db: AsyncSession = Depends(get_db)):
+async def get_calendar_state(
+    managed_team_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Retorna o estado atual do calendário (liga ativa) + grade semanal.
+
+    Query param opcional:
+      managed_team_id — personaliza match days com adversário real do round-robin.
     """
+    from src.shared.week_calendar import build_week_calendar
+
     league_query = await db.execute(select(League).limit(1))
     league = league_query.scalar_one_or_none()
     if not league:
         return {
             "current_day": 1,
-            "current_week": 1,
+            "current_week": 0,
             "current_phase": "OFFSEASON",
             "day_of_week": 0,
             "league_id": None,
-            "week_calendar": _build_week_calendar(0, 1, "OFFSEASON"),
+            "week_calendar": build_week_calendar(0, 0, "OFFSEASON"),
+            "next_match": None,
         }
 
-    # day_of_week aproximado a partir do contador (1-indexed no seed)
-    day_of_week = max(0, (league.current_day - 1) % 7)
-    phase = league.current_phase.value if league.current_phase else "OFFSEASON"
-    return {
-        "current_day": league.current_day,
-        "current_week": league.current_week,
-        "current_phase": phase,
-        "day_of_week": day_of_week,
-        "league_id": str(league.id),
-        "league_name": league.name,
-        "week_calendar": _build_week_calendar(day_of_week, league.current_week, phase),
-    }
+    return await _build_week_calendar_for_league(
+        db, league, managed_team_id=managed_team_id
+    )
 
 @app.post("/calendar/advance", status_code=status.HTTP_200_OK)
 async def advance_calendar(
