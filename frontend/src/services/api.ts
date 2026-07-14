@@ -200,6 +200,54 @@ export interface PlayoffsResponse {
   bracket: PlayoffBracket | null;
 }
 
+export interface DraftScoutReason {
+  code: string;
+  label: string;
+  weight: number;
+}
+
+export interface DraftScoutRecommendation {
+  champion: string;
+  role?: string | null;
+  score: number;
+  confidence: number;
+  priority: number;
+  action?: string;
+  summary: string;
+  reasons: DraftScoutReason[];
+  factors?: Record<string, number>;
+  global_meta?: {
+    games_played_world: number;
+    presence_score: number;
+    tier: string;
+    pick_rate_proxy?: number;
+    win_rate_proxy?: number;
+  };
+  for_player?: string | null;
+  pool_tier?: string | null;
+}
+
+export interface DraftScoutAdviceResponse {
+  action?: string | null;
+  team?: string | null;
+  current_turn?: number | null;
+  scout?: {
+    name: string;
+    role: string;
+    meta_reading: number;
+    communication?: number;
+  } | null;
+  patch?: {
+    version?: string;
+    bias_applied?: boolean;
+  };
+  recommendations: DraftScoutRecommendation[];
+  intel_note?: string;
+  factors?: string[];
+  source?: string;
+  error?: string;
+}
+
 async function parseJsonOrThrow(response: Response, fallback: string) {
   if (!response.ok) {
     let detail = fallback;
@@ -455,6 +503,27 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return parseJsonOrThrow(response, 'Failed to get draft AI decision');
+  },
+
+  getDraftScoutAdvice: async (payload: {
+    blue_team_id: string;
+    red_team_id: string;
+    managed_team_id: string;
+    acting_side: 'BLUE' | 'RED';
+    current_turn: number;
+    blue_bans: string[];
+    red_bans: string[];
+    blue_picks: { champion: string; role: string }[];
+    red_picks: { champion: string; role: string }[];
+    focus_role?: string;
+    limit?: number;
+  }): Promise<DraftScoutAdviceResponse> => {
+    const response = await fetch(`${API_BASE}/draft/scout-advice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to get draft scout advice');
   },
 
   getOffseasonStatus: async (managedTeamId?: string) => {

@@ -34,6 +34,22 @@ class DraftAIDecisionRequest(BaseModel):
     red_picks: List[Dict[str, str]] = []
 
 
+class DraftScoutAdviceRequest(BaseModel):
+    """Recomendações do scout da comissão no draft interativo."""
+
+    blue_team_id: str
+    red_team_id: str
+    managed_team_id: str  # time do manager (quem recebe o conselho)
+    acting_side: str  # BLUE | RED — lado do manager no draft
+    current_turn: int = 0
+    blue_bans: List[str] = []
+    red_bans: List[str] = []
+    blue_picks: List[Dict[str, str]] = []
+    red_picks: List[Dict[str, str]] = []
+    focus_role: Optional[str] = None  # role selecionada no FE
+    limit: int = 5
+
+
 class RenewContractRequest(BaseModel):
     team_id: str
     player_id: str

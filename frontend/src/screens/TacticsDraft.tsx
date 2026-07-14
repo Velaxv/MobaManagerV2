@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { Ban, RotateCcw, Swords, Sparkles, Volume2, Crosshair } from 'lucide-react';
+import { Ban, RotateCcw, Swords, Sparkles, Volume2, Crosshair, Radar, Eye } from 'lucide-react';
 import { PlayerRole, ChampionPoolTier, DraftTeam, DraftAction } from '../types/game';
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
-import { api } from '../services/api';
+import { api, type DraftScoutAdviceResponse, type DraftScoutRecommendation } from '../services/api';
 
 const DRAFT_SEQUENCES = [
   { team: DraftTeam.BLUE, action: DraftAction.BAN },
@@ -156,6 +156,7 @@ export function TacticsDraft() {
   const setMatchTactics = useGameStore((s) => s.setMatchTactics);
   const myTeamName = useGameStore((s) => s.myTeamName);
   const activeMatch = useGameStore((s) => s.activeMatch);
+  const manager = useGameStore((s) => s.manager);
   const setCurrentScreen = useGameStore((s) => s.setCurrentScreen);
 
   const [selectedRole, setSelectedRole] = useState<PlayerRole>(PlayerRole.MID);
@@ -164,6 +165,9 @@ export function TacticsDraft() {
   const [lockIn, setLockIn] = useState<LockInState | null>(null);
   const [lastBanned, setLastBanned] = useState<string | null>(null);
   const [isStartingMatch, setIsStartingMatch] = useState(false);
+  const [scoutAdvice, setScoutAdvice] = useState<DraftScoutAdviceResponse | null>(null);
+  const [scoutLoading, setScoutLoading] = useState(false);
+  const [scoutError, setScoutError] = useState<string | null>(null);
 
   const starters = myPlayers.slice(0, 5);
   const isComplete = draft.isComplete;
@@ -197,6 +201,99 @@ export function TacticsDraft() {
   }, [activeMatch, myTeamName]);
 
   const isMyTurn = !!(currentStep && currentStep.team === resolvedSide && !isBusy);
+
+  const managedTeamId = useMemo(() => {
+    if (manager?.teamId) return manager.teamId;
+    if (!activeMatch) return undefined;
+    if (resolvedSide === DraftTeam.BLUE) return activeMatch.blueTeamId;
+    return activeMatch.redTeamId;
+  }, [manager?.teamId, activeMatch, resolvedSide]);
+
+  const scoutRecByChamp = useMemo(() => {
+    const map = new Map<string, DraftScoutRecommendation>();
+    for (const rec of scoutAdvice?.recommendations || []) {
+      map.set(rec.champion.toLowerCase(), rec);
+    }
+    return map;
+  }, [scoutAdvice]);
+
+  // Conselho do scout no turno do manager (patch + maestria + meta global)
+  useEffect(() => {
+    if (!isMyTurn || isComplete || isBusy || !currentStep) {
+      if (!isMyTurn) setScoutAdvice(null);
+      return;
+    }
+    if (!activeMatch?.blueTeamId || !activeMatch?.redTeamId || !managedTeamId) return;
+
+    let cancelled = false;
+    const turnSnapshot = draft.currentTurn;
+    setScoutLoading(true);
+    setScoutError(null);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.getDraftScoutAdvice({
+          blue_team_id: activeMatch.blueTeamId!,
+          red_team_id: activeMatch.redTeamId!,
+          managed_team_id: managedTeamId,
+          acting_side: resolvedSide,
+          current_turn: turnSnapshot,
+          blue_bans: draft.blueBans,
+          red_bans: draft.redBans,
+          blue_picks: draft.bluePicks.map((p) => ({
+            champion: p.champion,
+            role: p.role,
+          })),
+          red_picks: draft.redPicks.map((p) => ({
+            champion: p.champion,
+            role: p.role,
+          })),
+          focus_role: selectedRole,
+          limit: 5,
+        });
+        if (cancelled) return;
+        if (useGameStore.getState().draft.currentTurn !== turnSnapshot) return;
+        setScoutAdvice(res);
+      } catch (e) {
+        if (cancelled) return;
+        setScoutError(e instanceof Error ? e.message : 'Scout indisponível');
+        setScoutAdvice(null);
+      } finally {
+        if (!cancelled) setScoutLoading(false);
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    isMyTurn,
+    isComplete,
+    isBusy,
+    currentStep,
+    draft.currentTurn,
+    draft.blueBans,
+    draft.redBans,
+    draft.bluePicks,
+    draft.redPicks,
+    activeMatch?.blueTeamId,
+    activeMatch?.redTeamId,
+    managedTeamId,
+    resolvedSide,
+    selectedRole,
+  ]);
+
+  const applyScoutPick = useCallback(
+    (rec: DraftScoutRecommendation) => {
+      if (!isMyTurn || isBusy) return;
+      setSelectedChamp(rec.champion);
+      if (rec.role && Object.values(PlayerRole).includes(rec.role as PlayerRole)) {
+        setSelectedRole(rec.role as PlayerRole);
+      }
+    },
+    [isMyTurn, isBusy]
+  );
 
   const usedChamps = useMemo(
     () =>
@@ -623,12 +720,118 @@ export function TacticsDraft() {
                       <span className="text-lol-gold-soft">Patch v{patchStatus.active.version}</span>
                       <span className="text-emerald-400">▲ BUFF</span>
                       <span className="text-red-400">▼ NERF</span>
+                      <span className="text-cyan-300/80">◎ Scout</span>
                       <span className="text-white/30">ordenam o grid e guiam a IA</span>
                     </div>
                   )}
+
+                  {/* Painel Scout — recomenda ban/pick com patch + maestria + meta */}
+                  {isMyTurn && (
+                    <div className="border border-cyan-500/25 bg-gradient-to-r from-cyan-950/40 via-black/50 to-black/40 rounded-sm p-2.5 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cyan-300/90 font-semibold">
+                          <Radar className="w-3.5 h-3.5" />
+                          Scout
+                          {scoutAdvice?.scout?.name && (
+                            <span className="text-white/50 font-normal normal-case tracking-normal">
+                              · {scoutAdvice.scout.name}
+                              <span className="text-white/30 ml-1">
+                                (meta {scoutAdvice.scout.meta_reading}/20)
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[9px] font-mono text-white/40 flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          {currentStep.action === DraftAction.BAN ? 'BAN tip' : 'PICK tip'}
+                          {scoutAdvice?.patch?.version && (
+                            <span className="text-lol-gold-soft ml-1">
+                              p{scoutAdvice.patch.version}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {scoutLoading && (
+                        <p className="text-[10px] text-cyan-200/50 font-mono animate-pulse px-0.5">
+                          Analisando pool, patch e meta global…
+                        </p>
+                      )}
+                      {scoutError && !scoutLoading && (
+                        <p className="text-[10px] text-red-300/70 px-0.5">{scoutError}</p>
+                      )}
+                      {!scoutLoading && !scoutError && scoutAdvice?.intel_note && (
+                        <p className="text-[9px] text-white/40 leading-snug px-0.5">
+                          {scoutAdvice.intel_note}
+                        </p>
+                      )}
+
+                      <div className="flex flex-col gap-1.5 max-h-[148px] overflow-y-auto">
+                        {(scoutAdvice?.recommendations || []).map((rec) => {
+                          const topReason = rec.reasons?.[0]?.label;
+                          const active = selectedChamp === rec.champion;
+                          return (
+                            <button
+                              key={`${rec.priority}-${rec.champion}`}
+                              type="button"
+                              onClick={() => applyScoutPick(rec)}
+                              disabled={isBusy}
+                              className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-sm border transition-colors ${
+                                active
+                                  ? 'border-cyan-400/60 bg-cyan-500/15'
+                                  : 'border-white/10 bg-black/35 hover:border-cyan-500/35 hover:bg-cyan-950/30'
+                              }`}
+                            >
+                              <span className="text-[10px] font-mono text-cyan-300/80 w-4 shrink-0">
+                                #{rec.priority}
+                              </span>
+                              <ChampionImage
+                                name={rec.champion}
+                                variant="portrait"
+                                className="!w-8 !h-8 shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90">
+                                  <span className="truncate">{rec.champion}</span>
+                                  {rec.pool_tier === ChampionPoolTier.MAIN && (
+                                    <span className="text-[8px] text-emerald-400 uppercase">Main</span>
+                                  )}
+                                  {rec.global_meta?.tier && (
+                                    <span className="text-[8px] font-mono text-lol-gold/80">
+                                      meta {rec.global_meta.tier}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[9px] text-white/45 truncate">
+                                  {topReason || rec.summary}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="text-[11px] font-mono text-cyan-300">
+                                  {Math.round(rec.score)}
+                                </div>
+                                <div className="text-[8px] text-white/30">
+                                  {Math.round((rec.confidence || 0) * 100)}% conf
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {!scoutLoading &&
+                          !scoutError &&
+                          (scoutAdvice?.recommendations?.length || 0) === 0 && (
+                            <p className="text-[10px] text-white/35 px-0.5 py-1">
+                              Aguardando análise do scout…
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex-1 overflow-y-auto max-h-[280px] sm:max-h-[300px] grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 gap-1.5 p-1 content-start">
                     {championsList.map((c) => {
                       const badge = patchBadges[c.name.toLowerCase()];
+                      const scoutRec = scoutRecByChamp.get(c.name.toLowerCase());
                       return (
                         <div key={c.id} className="relative">
                           <ChampionImage
@@ -638,8 +841,15 @@ export function TacticsDraft() {
                             highlighted={selectedChamp === c.name}
                             disabled={!isMyTurn || isBusy}
                             onClick={() => isMyTurn && !isBusy && setSelectedChamp(c.name)}
-                            className="!w-full !h-auto aspect-square"
+                            className={`!w-full !h-auto aspect-square ${
+                              scoutRec ? 'ring-1 ring-cyan-400/50' : ''
+                            }`}
                           />
+                          {scoutRec && (
+                            <span className="absolute top-0.5 left-0.5 text-[8px] font-bold px-1 rounded-sm border z-10 bg-cyan-950/90 text-cyan-200 border-cyan-500/50">
+                              #{scoutRec.priority}
+                            </span>
+                          )}
                           {badge && (
                             <span
                               className={`absolute top-0.5 right-0.5 text-[8px] font-bold px-1 rounded-sm border z-10 ${
