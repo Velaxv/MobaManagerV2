@@ -226,6 +226,21 @@ interface GameState {
       error?: string;
     }[]
   >;
+  offseasonContracts: {
+    player_id: string;
+    player_name: string;
+    role?: string;
+    current_ability?: number;
+    remaining_seasons: number;
+    monthly_salary: number;
+    needs_renewal: boolean;
+    status: string;
+  }[];
+  refreshOffseason: () => Promise<void>;
+  renewContract: (playerId: string, seasons?: number) => Promise<void>;
+  releasePlayer: (playerId: string) => Promise<void>;
+  startNewSplit: () => Promise<void>;
+  startOffseasonDev: () => Promise<void>;
   setCalendarDayType: (dayIndex: number, type: CalendarDayType) => void;
   triggerCoachComm: () => void;
   startSimulation: (blueTeam: string, redTeam: string, blueTeamId?: string, redTeamId?: string) => void;
@@ -329,6 +344,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   roundResults: [],
   roundResultsWeek: null,
   matchLogPreview: null,
+  offseasonContracts: [],
   myTeamName: "Moba Manager Club", // Default
   myBudget: 0,
   myPlayers: [],
@@ -398,6 +414,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
         void get().refreshPlayoffs();
         void get().refreshRoundResults();
+        void get().refreshOffseason();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -741,6 +758,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (leagueId) {
         void get().refreshPlayoffs();
         void get().refreshRoundResults();
+        void get().refreshOffseason();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);
@@ -910,6 +928,78 @@ export const useGameStore = create<GameState>((set, get) => ({
     await get().refreshRosterAndMarket();
     await get().refreshPlayoffs();
     await get().refreshRoundResults();
+    await get().refreshOffseason();
+  },
+
+  refreshOffseason: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) {
+      set({ offseasonContracts: [] });
+      return;
+    }
+    try {
+      const status = await api.getOffseasonStatus(teamId);
+      if (status.is_offseason && status.contracts) {
+        set({
+          offseasonContracts: status.contracts,
+          splitPhase: SplitPhase.OFFSEASON,
+        });
+      } else {
+        set({ offseasonContracts: [] });
+        if (status.phase) {
+          set({ splitPhase: status.phase as SplitPhase });
+        }
+      }
+    } catch (e) {
+      console.warn('Offseason status indisponível:', e);
+    }
+  },
+
+  renewContract: async (playerId, seasons = 1) => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time');
+    await api.renewContract({ team_id: teamId, player_id: playerId, seasons });
+    await get().refreshRosterAndMarket();
+    await get().refreshOffseason();
+  },
+
+  releasePlayer: async (playerId) => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) throw new Error('Sem time');
+    await api.releasePlayer({ team_id: teamId, player_id: playerId });
+    await get().refreshRosterAndMarket();
+    await get().refreshOffseason();
+  },
+
+  startNewSplit: async () => {
+    const res = await api.startNewSplit();
+    set({
+      splitPhase: SplitPhase.REGULAR_SEASON,
+      currentWeek: 0,
+      offseasonContracts: [],
+      playoffBracket: null,
+      roundResults: [],
+      lastAutoResults: [],
+      activeMatch: null,
+    });
+    await get().loadData();
+    await get().refreshRosterAndMarket();
+    if (res.phase) set({ splitPhase: res.phase as SplitPhase });
+  },
+
+  startOffseasonDev: async () => {
+    await api.startOffseason();
+    set({ splitPhase: SplitPhase.OFFSEASON });
+    await get().refreshOffseason();
+    const calendarData = await api.getCalendar(get().manager?.teamId);
+    set({
+      currentWeek: calendarData.current_week,
+      splitPhase: calendarData.current_phase as SplitPhase,
+      currentDayIndex: calendarData.day_of_week ?? 0,
+      calendar: calendarData.week_calendar
+        ? mapWeekCalendar(calendarData.week_calendar)
+        : get().calendar,
+    });
   },
 
   submitDraftAndStartMatch: async (speed = '2x') => {

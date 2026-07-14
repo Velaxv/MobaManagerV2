@@ -12,6 +12,7 @@ import {
   Wallet,
   Activity,
   Trophy,
+  FileSignature,
 } from 'lucide-react';
 import { CalendarDayType, SplitPhase } from '../types/game';
 import { ROLE_LABELS } from '../lib/champions';
@@ -20,6 +21,8 @@ import { ChampionImage } from '../components/ChampionImage';
 
 export function Dashboard() {
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [offseasonBusy, setOffseasonBusy] = useState<string | null>(null);
+  const [offseasonMsg, setOffseasonMsg] = useState<string | null>(null);
   const {
     currentWeek,
     currentDayIndex,
@@ -39,9 +42,15 @@ export function Dashboard() {
     manager,
     splitPhase,
     playoffBracket,
+    offseasonContracts,
+    renewContract,
+    releasePlayer,
+    startNewSplit,
+    startOffseasonDev,
   } = useGameStore();
 
   const myTeamId = manager?.teamId;
+  const isOffseason = splitPhase === SplitPhase.OFFSEASON;
 
   const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
   const myStanding = standings.find((s) => s.team_name === myTeamName);
@@ -131,7 +140,7 @@ export function Dashboard() {
       </div>
 
       {/* Playoffs banner */}
-      {(splitPhase === SplitPhase.PLAYOFFS || playoffBracket) && (
+      {(splitPhase === SplitPhase.PLAYOFFS || playoffBracket) && !isOffseason && (
         <div className="panel-lol border-lol-gold/25 bg-lol-gold/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-lol-gold" />
@@ -153,6 +162,136 @@ export function Dashboard() {
             className="text-[10px] uppercase tracking-wide text-lol-gold border border-lol-gold/30 px-3 py-1.5 rounded-sm hover:bg-lol-gold/10"
           >
             Ver chave →
+          </button>
+        </div>
+      )}
+
+      {/* Offseason panel */}
+      {isOffseason && (
+        <div className="panel-lol border-sky-500/25 bg-sky-950/20">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <FileSignature className="w-4 h-4 text-sky-300" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">
+                Offseason · Contratos
+              </span>
+            </div>
+            <span className="text-[10px] text-white/35 font-mono">
+              {offseasonContracts.filter((c) => c.needs_renewal).length} precisam atenção
+            </span>
+          </div>
+          <div className="p-3 space-y-3">
+            <p className="text-[11px] text-white/45 leading-relaxed">
+              Renove ou liberte atletas com contrato curto. Depois inicie o novo split (tabela
+              zerada, playoffs limpos, 1 temporada consumida nos contratos).
+            </p>
+            <ul className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto">
+              {offseasonContracts.length === 0 ? (
+                <li className="text-xs text-white/35 font-mono p-2">Carregando elenco…</li>
+              ) : (
+                offseasonContracts.map((c) => (
+                  <li
+                    key={c.player_id}
+                    className={`flex flex-wrap items-center gap-2 p-2.5 rounded-sm border text-[11px] ${
+                      c.needs_renewal
+                        ? 'border-amber-600/40 bg-amber-950/20'
+                        : 'border-white/5 bg-black/30'
+                    }`}
+                  >
+                    <span className="font-semibold text-white min-w-[7rem]">{c.player_name}</span>
+                    <span className="text-white/35 font-mono">
+                      {c.role} · CA {c.current_ability}
+                    </span>
+                    <span className="text-white/40 font-mono">
+                      {c.remaining_seasons} split(s) · €
+                      {Math.round(c.monthly_salary).toLocaleString('pt-BR')}/mês
+                    </span>
+                    {c.needs_renewal && (
+                      <span className="text-[9px] uppercase text-amber-400 border border-amber-600/30 px-1 rounded-sm">
+                        Renovar
+                      </span>
+                    )}
+                    <div className="ml-auto flex gap-1.5">
+                      <button
+                        type="button"
+                        disabled={!!offseasonBusy}
+                        onClick={async () => {
+                          setOffseasonBusy(c.player_id);
+                          setOffseasonMsg(null);
+                          try {
+                            await renewContract(c.player_id, 1);
+                            setOffseasonMsg(`Renovado: ${c.player_name}`);
+                          } catch (e) {
+                            setOffseasonMsg(e instanceof Error ? e.message : 'Erro ao renovar');
+                          } finally {
+                            setOffseasonBusy(null);
+                          }
+                        }}
+                        className="text-[9px] uppercase tracking-wide text-emerald-400 border border-emerald-700/40 px-2 py-1 rounded-sm hover:bg-emerald-950/40 disabled:opacity-40"
+                      >
+                        {offseasonBusy === c.player_id ? '…' : '+1 split'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!!offseasonBusy}
+                        onClick={async () => {
+                          if (!confirm(`Liberar ${c.player_name}?`)) return;
+                          setOffseasonBusy(c.player_id);
+                          setOffseasonMsg(null);
+                          try {
+                            await releasePlayer(c.player_id);
+                            setOffseasonMsg(`Liberado: ${c.player_name}`);
+                          } catch (e) {
+                            setOffseasonMsg(e instanceof Error ? e.message : 'Erro ao liberar');
+                          } finally {
+                            setOffseasonBusy(null);
+                          }
+                        }}
+                        className="text-[9px] uppercase tracking-wide text-lol-red-side border border-lol-red-side/30 px-2 py-1 rounded-sm hover:bg-red-950/30 disabled:opacity-40"
+                      >
+                        Liberar
+                      </button>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
+              <button
+                type="button"
+                disabled={!!offseasonBusy}
+                onClick={async () => {
+                  setOffseasonBusy('split');
+                  setOffseasonMsg(null);
+                  try {
+                    await startNewSplit();
+                    setOffseasonMsg('Novo split iniciado!');
+                  } catch (e) {
+                    setOffseasonMsg(e instanceof Error ? e.message : 'Erro no novo split');
+                  } finally {
+                    setOffseasonBusy(null);
+                  }
+                }}
+                className="btn-lol-primary text-xs py-2 px-4"
+              >
+                {offseasonBusy === 'split' ? 'Iniciando…' : 'Iniciar novo split'}
+              </button>
+              {offseasonMsg && (
+                <span className="text-[10px] font-mono text-white/50">{offseasonMsg}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isOffseason && splitPhase === SplitPhase.REGULAR_SEASON && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => void startOffseasonDev().catch(() => undefined)}
+            className="text-[9px] uppercase tracking-wide text-white/25 hover:text-sky-300 border border-white/5 hover:border-sky-500/30 px-2 py-1 rounded-sm"
+          >
+            [Dev] Forçar offseason
           </button>
         </div>
       )}

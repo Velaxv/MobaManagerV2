@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-3 save/load)  
+**Última atualização:** 2026-07-14 (P1-2 offseason)  
 **Branch:** `main`  
-**Estado:** P1-1 + P1-6 + P1-3 entregues  
+**Estado:** Sprint B/C core: playoffs + resultados + save + offseason  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -16,10 +16,11 @@
 - **P1-1:** Playoffs top 6 (bye 1–2, QF/SF/Final, campeão + prêmios)  
 - **P1-6:** Resultados da rodada no hub + `GET /leagues/{id}/matches` + ver log  
 - **P1-3:** Save/Load JSON (`saves/`) · botão Salvar no hub · Carregar no menu  
-- Testes: **40 passed** · `npm run build` OK  
+- **P1-2:** Offseason — renovar/liberar + iniciar novo split  
+- Testes: **43 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-2 offseason → P1-4 DraftAI → P1-5 táticas  
+P1-4 DraftAI backend → P1-5 táticas → P2 finanças  
 
 ```bat
 run_game.bat

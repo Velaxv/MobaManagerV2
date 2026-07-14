@@ -586,3 +586,13 @@ class PlayoffService:
             f"[PlayoffService] Campeão: {bracket.get('champion_name')} "
             f"({champion_id}). Placements aplicados."
         )
+
+        # Abre offseason automaticamente após coroar o campeão
+        try:
+            from src.modules.career.offseason_service import OffseasonService
+
+            osvc = OffseasonService(self.db)
+            await osvc.force_offseason(league)
+            bracket["offseason_started"] = True
+        except Exception as exc:
+            logger.warning(f"[PlayoffService] Não foi possível abrir offseason: {exc}")

@@ -249,6 +249,54 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch playoffs');
   },
 
+  getOffseasonStatus: async (managedTeamId?: string) => {
+    const qs = managedTeamId
+      ? `?managed_team_id=${encodeURIComponent(managedTeamId)}`
+      : '';
+    const response = await fetch(`${API_BASE}/offseason/status${qs}`);
+    return parseJsonOrThrow(response, 'Failed to fetch offseason status');
+  },
+
+  startOffseason: async () => {
+    const response = await fetch(`${API_BASE}/offseason/start`, { method: 'POST' });
+    return parseJsonOrThrow(response, 'Failed to start offseason');
+  },
+
+  getOffseasonContracts: async (teamId: string) => {
+    const response = await fetch(
+      `${API_BASE}/offseason/contracts?team_id=${encodeURIComponent(teamId)}`
+    );
+    return parseJsonOrThrow(response, 'Failed to fetch contracts');
+  },
+
+  renewContract: async (payload: {
+    team_id: string;
+    player_id: string;
+    seasons?: number;
+    monthly_salary?: number;
+  }) => {
+    const response = await fetch(`${API_BASE}/offseason/renew`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to renew contract');
+  },
+
+  releasePlayer: async (payload: { team_id: string; player_id: string }) => {
+    const response = await fetch(`${API_BASE}/offseason/release`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to release player');
+  },
+
+  startNewSplit: async () => {
+    const response = await fetch(`${API_BASE}/offseason/new-split`, { method: 'POST' });
+    return parseJsonOrThrow(response, 'Failed to start new split');
+  },
+
   listCareerSaves: async (): Promise<{
     saves: {
       slot: string;
