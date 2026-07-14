@@ -19,9 +19,7 @@ from src.models.contract import Contract
 
 def _state_to_dict(state: "LiveMatchState") -> Dict[str, Any]:
     """Serializa LiveMatchState de forma compatível com Pydantic v1/v2."""
-    if hasattr(state, "model_dump"):
-        return state.model_dump()
-    return state.dict()
+    return state.model_dump()
 
 
 def _normalize_event_log(log: Dict[str, Any]) -> Dict[str, Any]:

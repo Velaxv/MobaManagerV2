@@ -1,13 +1,20 @@
 """
 Configurações centralizadas da aplicação LoL Manager.
-Carregadas a partir do arquivo .env via Pydantic Settings.
+Carregadas a partir do arquivo .env via Pydantic Settings (v2).
 """
 
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     # ── Banco de dados ────────────────────────────────────────────────────────
     # URL assíncrona usada pelo SQLAlchemy/FastAPI (driver asyncpg)
     database_url: str
@@ -58,10 +65,6 @@ class Settings(BaseSettings):
     coach_comms_max_before_confusion: int = 3
     # Probabilidade base de confusão ao ultrapassar o limite de comunicações
     coach_comms_confusion_base_chance: float = 0.15
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 @lru_cache()

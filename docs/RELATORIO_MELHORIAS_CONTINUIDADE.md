@@ -69,7 +69,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 | P3-1 | **Modularizar `main.py`** em routers | Manutenção e testes de API | Médio | ✅ Feito (2026-07-14) — `src/api/routes/*` + `main.py` slim |
 | P3-2 | **Testes de integração API** (httpx) | Unitários não cobrem seed→advance→match | Médio | ✅ Feito (2026-07-14) — `test_api_integration.py` + conftest ASGI |
 | P3-3 | **Testes frontend** (Vitest) store + componentes chave | UI quebra sem rede de segurança | Médio | Testes do store e mapeamento de players |
-| P3-4 | **Pydantic v2 / lifespan FastAPI** | Warnings e deprecações | Baixo | Zero warnings nos testes |
+| P3-4 | **Pydantic v2 / lifespan FastAPI** | Warnings e deprecações | Baixo | ✅ Feito (2026-07-14) — ConfigDict + lifespan; 0 warnings |
 | P3-5 | **Redis real opcional sem mock frágil** | Live match over restarts | Médio | Persistência AOF/dev com fallback documentado |
 | P3-6 | **CI (GitHub Actions)** | Qualidade em todo push | Médio | pytest + npm build no CI |
 

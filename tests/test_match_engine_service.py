@@ -102,7 +102,7 @@ async def test_live_coach_comm_success():
         red_team_name="LOUD",
         phase="EARLY_GAME"
     )
-    await redis_client.set_generic(key, state.dict())
+    await redis_client.set_generic(key, state.model_dump())
     
     # Mock do banco de dados e consulta do time
     mock_coach = MockStaff("Sarkis", "HEAD_COACH", 20.0) # alta comunicação

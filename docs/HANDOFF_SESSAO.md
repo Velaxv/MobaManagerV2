@@ -11,7 +11,7 @@
 1. Abrir a pasta do projeto  
 2. Ler este arquivo + `CONTINUIDADE.md`  
 3. Roadmap: `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`  
-4. Rodar testes: deve dar **92+ passed** (inclui integração httpx)
+4. Rodar testes: deve dar **92 passed, 0 warnings**
    ```bat
    set PYTHONPATH=.
    venv\Scripts\python -m pytest tests -q
@@ -61,8 +61,8 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P3-4** — Pydantic v2 / lifespan  
-2. **P3-6** — CI GitHub Actions  
+1. **P3-6** — CI GitHub Actions  
+2. **P3-3** — Testes frontend (Vitest)  
 3. Push remoto se ainda não fez: `git push origin main`
 
 ### Feito nesta retomada
@@ -74,6 +74,7 @@
 | P2-5 | Academy | `is_starter`, promote/demote, cláusulas rookie na UI, seções Elenco |
 | P2-6 | Patches | Notas 16.1/16.2, tela Patch, badges no draft, bias na DraftAI |
 | P3-2 | Integração API | httpx ASGI + SQLite temp: seed→advance→standings + academy/patch |
+| P3-4 | Pydantic v2 + lifespan | `SettingsConfigDict`, `lifespan=`, `model_dump`; 0 warnings |
 
 ---
 

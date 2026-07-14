@@ -320,7 +320,7 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         red_coach_comms_max=red_comms,
     )
 
-    state_payload = live_state.model_dump() if hasattr(live_state, "model_dump") else live_state.dict()
+    state_payload = live_state.model_dump()
     return {
         "message": "Simulação de partida ao vivo iniciada com sucesso!",
         "match_id": match_id,

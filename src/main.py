@@ -6,6 +6,7 @@ Rotas HTTP vivem em src/api/routes/* e são registradas via include_routers.
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,10 +25,53 @@ logging.basicConfig(
 logger = logging.getLogger("lol_manager_api")
 settings = get_settings()
 
+
+async def _sqlite_bootstrap() -> None:
+    """Auto-cria tabelas e aplica migrações leves no SQLite local."""
+    if not settings.database_url.startswith("sqlite"):
+        return
+    logger.info("Iniciando auto-criação de tabelas no SQLite local...")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+        def _sqlite_light_migrate(sync_conn):
+            from sqlalchemy import text
+
+            cols = {
+                row[1]
+                for row in sync_conn.execute(text("PRAGMA table_info(players)")).fetchall()
+            }
+            if "is_starter" not in cols:
+                sync_conn.execute(
+                    text(
+                        "ALTER TABLE players ADD COLUMN is_starter BOOLEAN "
+                        "NOT NULL DEFAULT 0"
+                    )
+                )
+                logger.info("SQLite: coluna players.is_starter adicionada.")
+
+        await conn.run_sync(_sqlite_light_migrate)
+    logger.info("Tabelas SQLite auto-criadas com sucesso.")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown (substitui on_event deprecado)."""
+    logger.info("Iniciando conexões do sistema...")
+    await redis_client.connect()
+    logger.info("Redis conectado com sucesso.")
+    await _sqlite_bootstrap()
+    yield
+    logger.info("Fechando conexões do sistema...")
+    await redis_client.disconnect()
+    logger.info("Redis desconectado.")
+
+
 app = FastAPI(
     title="League of Legends Manager Backend",
     description="Engine e Simulador de Gestão de Esports de alta performance matemática.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -37,47 +81,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# --- Lifespan Events ---
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Iniciando conexões do sistema...")
-    await redis_client.connect()
-    logger.info("Redis conectado com sucesso.")
-
-    # Auto-criação de tabelas no banco de dados SQLite (Zero Dependency Mode)
-    if settings.database_url.startswith("sqlite"):
-        logger.info("Iniciando auto-criação de tabelas no SQLite local...")
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            # Migração leve: colunas novas em DBs já existentes (sem reseed)
-            def _sqlite_light_migrate(sync_conn):
-                from sqlalchemy import text
-
-                cols = {
-                    row[1]
-                    for row in sync_conn.execute(text("PRAGMA table_info(players)")).fetchall()
-                }
-                if "is_starter" not in cols:
-                    sync_conn.execute(
-                        text(
-                            "ALTER TABLE players ADD COLUMN is_starter BOOLEAN "
-                            "NOT NULL DEFAULT 0"
-                        )
-                    )
-                    logger.info("SQLite: coluna players.is_starter adicionada.")
-
-            await conn.run_sync(_sqlite_light_migrate)
-        logger.info("Tabelas SQLite auto-criadas com sucesso.")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Fechando conexões do sistema...")
-    await redis_client.disconnect()
-    logger.info("Redis desconectado.")
-
 
 # --- Routers modulares ---
 include_routers(app)
