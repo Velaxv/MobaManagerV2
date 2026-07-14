@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-5 táticas pré-partida)  
+**Última atualização:** 2026-07-14 (P2-1 finanças reais)  
 **Branch:** `main`  
-**Estado:** P1 alto valor fechado (playoffs → save → offseason → draft AI → táticas)  
+**Estado:** P1 completo + finanças (folha/receita/tick mensal)  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -20,10 +20,11 @@
 - **P1-4:** Draft AI backend no oponente (`POST /draft/ai-decision`)  
 - **P1-5:** Táticas pós-draft (estilo Early/Mid/Late, lineup, coach comms)  
 - **Fotos de jogadores:** 42/45 com retrato real (Leaguepedia); 3 silhueta (Ayu, Curse, Envy)  
-- Testes: **48 passed** · `npm run build` OK  
+- **P2-1:** Finanças — receita − folha a cada 28 dias; painel no hub; insolvência  
+- Testes: **51 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P2 finanças / modularizar API / scouting  
+P2-2 transferências profundas · P3-1 modularizar API  
 
 ```bat
 run_game.bat

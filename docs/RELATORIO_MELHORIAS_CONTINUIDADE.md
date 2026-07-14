@@ -55,7 +55,7 @@ Enquanto M1–M2 não existem, o jogo é um **demo loop** excelente, não ainda 
 
 | ID | Melhoria | Por quê | Esforço | Critério de pronto |
 |----|----------|---------|---------|-------------------|
-| P2-1 | **Finanças reais** (salários, receita, multas) | Budget hoje é quase cosmético | Alto | Fluxo mensal e falência / corte |
+| P2-1 | **Finanças reais** (salários, receita, multas) | Budget hoje é quase cosmético | Alto | ✅ Feito (2026-07-14) — tick 28d, folha, insolvência, hub |
 | P2-2 | **Negociação de transferência** | Taxa fixa €250k é MVP | Médio | Oferta, contra-oferta, salário, duração |
 | P2-3 | **Treino e desenvolvimento** (CA→PA) | Sem progressão de elenco | Alto | Treino por role; CA sobe com uso/treino |
 | P2-4 | **Scouting / atributos ocultos** | Consistency e BMA existem mas não brilham | Médio | Staff revela atributos com tempo |

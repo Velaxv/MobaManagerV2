@@ -795,6 +795,35 @@ async def get_team_players(team_id: str, db: AsyncSession = Depends(get_db)):
     return [_serialize_player(p) for p in players]
 
 
+@app.get("/teams/{team_id}/finance", status_code=status.HTTP_200_OK)
+async def get_team_finance(team_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Snapshot financeiro do clube: caixa, receita, folha, net mensal e lista de salários.
+    """
+    from src.modules.career.finance_service import FinanceService
+
+    try:
+        return await FinanceService(db).get_snapshot(team_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/teams/{team_id}/finance/month-tick", status_code=status.HTTP_200_OK)
+async def force_finance_month_tick(team_id: str, db: AsyncSession = Depends(get_db)):
+    """Dev: força um tick mensal (receita − folha) neste time."""
+    from src.modules.career.finance_service import FinanceService
+
+    team = await db.get(Team, uuid.UUID(team_id))
+    if not team:
+        raise HTTPException(status_code=404, detail="Time não encontrado.")
+    try:
+        event = await FinanceService(db).process_monthly_tick_for_team(team)
+        return {"message": "Tick financeiro aplicado.", "event": event}
+    except Exception as e:
+        logger.error(f"Finance tick: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/leagues", status_code=status.HTTP_200_OK)
 async def get_leagues(db: AsyncSession = Depends(get_db)):
     """Lista ligas ativas (seed atual = 1 CBLOL)."""

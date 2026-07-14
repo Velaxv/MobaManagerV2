@@ -47,10 +47,16 @@ export function Dashboard() {
     releasePlayer,
     startNewSplit,
     startOffseasonDev,
+    finance,
+    lastFinanceEvent,
   } = useGameStore();
 
   const myTeamId = manager?.teamId;
   const isOffseason = splitPhase === SplitPhase.OFFSEASON;
+  const fmtK = (n: number) =>
+    Math.abs(n) >= 1_000_000
+      ? `€${(n / 1_000_000).toFixed(2)}M`
+      : `€${(n / 1000).toFixed(0)}k`;
 
   const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
   const myStanding = standings.find((s) => s.team_name === myTeamName);
@@ -300,11 +306,24 @@ export function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="hub-stat-card">
           <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
-            <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Orçamento
+            <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Caixa
           </div>
-          <div className="font-mono text-lg sm:text-xl font-bold text-emerald-400">
+          <div
+            className={`font-mono text-lg sm:text-xl font-bold ${
+              finance?.health === 'critical'
+                ? 'text-lol-red-side'
+                : finance?.health === 'warning'
+                  ? 'text-amber-400'
+                  : 'text-emerald-400'
+            }`}
+          >
             €{(myBudget / 1_000_000).toFixed(2)}M
           </div>
+          {finance && (
+            <div className="text-[9px] font-mono text-white/35 mt-0.5">
+              Folha {fmtK(finance.monthly_payroll)}/mês
+            </div>
+          )}
         </div>
         <div className="hub-stat-card">
           <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
@@ -338,6 +357,120 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Finanças */}
+      {finance && (
+        <div className="panel-lol">
+          <div className="panel-lol-header">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+                Finanças do clube
+              </span>
+            </div>
+            <span
+              className={`text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-sm border ${
+                finance.health === 'healthy'
+                  ? 'text-emerald-400 border-emerald-700/40'
+                  : finance.health === 'tight'
+                    ? 'text-sky-300 border-sky-700/40'
+                    : finance.health === 'warning'
+                      ? 'text-amber-400 border-amber-600/40'
+                      : 'text-lol-red-side border-lol-red-side/40'
+              }`}
+            >
+              {finance.health}
+            </span>
+          </div>
+          <div className="p-3 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="hub-stat-card !p-2.5">
+                <div className="text-[9px] text-white/35 uppercase">Receita/mês</div>
+                <div className="font-mono font-bold text-emerald-400">
+                  +{fmtK(finance.monthly_revenue)}
+                </div>
+              </div>
+              <div className="hub-stat-card !p-2.5">
+                <div className="text-[9px] text-white/35 uppercase">Folha/mês</div>
+                <div className="font-mono font-bold text-lol-red-side">
+                  −{fmtK(finance.monthly_payroll)}
+                </div>
+              </div>
+              <div className="hub-stat-card !p-2.5">
+                <div className="text-[9px] text-white/35 uppercase">Saldo/mês</div>
+                <div
+                  className={`font-mono font-bold ${
+                    finance.monthly_net >= 0 ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
+                >
+                  {finance.monthly_net >= 0 ? '+' : ''}
+                  {fmtK(finance.monthly_net)}
+                </div>
+              </div>
+              <div className="hub-stat-card !p-2.5">
+                <div className="text-[9px] text-white/35 uppercase">Runway</div>
+                <div className="font-mono font-bold text-white/80">
+                  {finance.runway_months == null
+                    ? '∞'
+                    : `${finance.runway_months.toFixed(1)} m`}
+                </div>
+              </div>
+            </div>
+
+            {lastFinanceEvent && (
+              <div
+                className={`text-[11px] font-mono p-2.5 rounded-sm border ${
+                  lastFinanceEvent.insolvent
+                    ? 'border-lol-red-side/40 bg-red-950/20 text-lol-red-side'
+                    : 'border-emerald-700/30 bg-emerald-950/20 text-emerald-300/90'
+                }`}
+              >
+                Último mês:{' '}
+                {fmtK(lastFinanceEvent.budget_before || 0)} +
+                {fmtK(lastFinanceEvent.revenue || 0)} −
+                {fmtK(lastFinanceEvent.paid || 0)} ={' '}
+                <strong>{fmtK(lastFinanceEvent.budget_after || 0)}</strong>
+                {lastFinanceEvent.insolvent && ' · INSOLVÊNCIA'}
+                {lastFinanceEvent.released && lastFinanceEvent.released.length > 0 && (
+                  <span className="block mt-1 text-white/50">
+                    Liberados: {lastFinanceEvent.released.join(', ')}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {finance.wages.length > 0 && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/35 mb-1.5">
+                  Maiores salários
+                </p>
+                <ul className="max-h-28 overflow-y-auto space-y-1">
+                  {finance.wages.slice(0, 8).map((w) => (
+                    <li
+                      key={w.player_id}
+                      className="flex justify-between text-[11px] font-mono text-white/60 px-1"
+                    >
+                      <span className="truncate mr-2">
+                        {w.player_name}
+                        {w.role ? (
+                          <span className="text-white/30"> · {w.role}</span>
+                        ) : null}
+                      </span>
+                      <span className="text-white/80 shrink-0">
+                        {fmtK(w.monthly_salary)}/m
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-[9px] text-white/30 font-mono">
+              Tick financeiro a cada 28 dias de calendário (receita − folha).
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Calendário */}
       <div className="panel-lol">

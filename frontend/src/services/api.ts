@@ -201,6 +201,27 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch teams');
   },
 
+  getTeamFinance: async (teamId: string): Promise<{
+    team_id: string;
+    team_name: string;
+    budget: number;
+    monthly_revenue: number;
+    monthly_payroll: number;
+    monthly_net: number;
+    runway_months: number | null;
+    health: string;
+    wages: {
+      player_id: string;
+      player_name: string;
+      role?: string;
+      monthly_salary: number;
+    }[];
+    player_count: number;
+  }> => {
+    const response = await fetch(`${API_BASE}/teams/${teamId}/finance`);
+    return parseJsonOrThrow(response, 'Failed to fetch team finance');
+  },
+
   getTeamPlayers: async (teamId: string): Promise<ApiPlayer[]> => {
     const response = await fetch(`${API_BASE}/teams/${teamId}/players`);
     return parseJsonOrThrow(response, 'Failed to fetch players');

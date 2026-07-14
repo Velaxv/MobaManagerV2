@@ -156,6 +156,23 @@ interface GameState {
   } | null;
   myTeamName: string;
   myBudget: number;
+  finance: {
+    monthly_revenue: number;
+    monthly_payroll: number;
+    monthly_net: number;
+    runway_months: number | null;
+    health: string;
+    wages: { player_id: string; player_name: string; role?: string; monthly_salary: number }[];
+  } | null;
+  lastFinanceEvent: {
+    revenue?: number;
+    payroll?: number;
+    paid?: number;
+    budget_before?: number;
+    budget_after?: number;
+    insolvent?: boolean;
+    released?: string[];
+  } | null;
   myPlayers: Player[];
   marketPlayers: Player[];
   playersCache: Player[]; // Compat: myPlayers + market (legado de telas)
@@ -244,6 +261,7 @@ interface GameState {
     status: string;
   }[];
   refreshOffseason: () => Promise<void>;
+  refreshFinance: () => Promise<void>;
   renewContract: (playerId: string, seasons?: number) => Promise<void>;
   releasePlayer: (playerId: string) => Promise<void>;
   startNewSplit: () => Promise<void>;
@@ -359,6 +377,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   offseasonContracts: [],
   myTeamName: "Moba Manager Club", // Default
   myBudget: 0,
+  finance: null,
+  lastFinanceEvent: null,
   myPlayers: [],
   marketPlayers: [],
   playersCache: [],
@@ -432,6 +452,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshPlayoffs();
         void get().refreshRoundResults();
         void get().refreshOffseason();
+        void get().refreshFinance();
       }
 
       // Bracket vindo no advance (transição / match day playoff)
@@ -442,6 +463,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Intercepta dias de jogo do manager + resultados da rodada
       if (advanceResponse?.results?.length > 0) {
         const dayInfo = advanceResponse.results[0];
+        if (dayInfo.managed_finance) {
+          set({
+            lastFinanceEvent: dayInfo.managed_finance,
+            myBudget:
+              dayInfo.managed_finance.budget_after ?? get().myBudget,
+          });
+        }
         const roundResults =
           dayInfo.round_results ||
           dayInfo.auto_simulated_matches ||
@@ -776,6 +804,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         void get().refreshPlayoffs();
         void get().refreshRoundResults();
         void get().refreshOffseason();
+        void get().refreshFinance();
       }
     } catch (error) {
       console.error('Failed to load game data:', error);
@@ -812,8 +841,33 @@ export const useGameStore = create<GameState>((set, get) => ({
         myBudget: myTeam?.budget ?? get().myBudget,
         myTeamName: myTeam?.name ?? get().myTeamName,
       });
+      void get().refreshFinance();
     } catch (err) {
       console.error('Falha ao atualizar elenco/mercado:', err);
+    }
+  },
+
+  refreshFinance: async () => {
+    const teamId = get().manager?.teamId;
+    if (!teamId) {
+      set({ finance: null });
+      return;
+    }
+    try {
+      const snap = await api.getTeamFinance(teamId);
+      set({
+        finance: {
+          monthly_revenue: snap.monthly_revenue,
+          monthly_payroll: snap.monthly_payroll,
+          monthly_net: snap.monthly_net,
+          runway_months: snap.runway_months,
+          health: snap.health,
+          wages: snap.wages || [],
+        },
+        myBudget: snap.budget,
+      });
+    } catch (e) {
+      console.warn('Finanças indisponíveis:', e);
     }
   },
 

@@ -166,6 +166,34 @@ class CalendarService:
                         exc_info=True,
                     )
 
+            # Finanças: tick mensal (a cada 28 dias de calendário)
+            try:
+                from src.modules.career.finance_service import FinanceService
+
+                fin = FinanceService(self.db)
+                if FinanceService.is_month_boundary(day_info.get("total_days") or 0):
+                    finance_events = await fin.process_monthly_tick_all_league_teams(
+                        teams_in_league
+                    )
+                    day_info["finance_events"] = finance_events
+                    day_info["is_finance_day"] = True
+                    if managed_team_id:
+                        mine = next(
+                            (
+                                e
+                                for e in finance_events
+                                if e.get("team_id") == str(managed_team_id)
+                            ),
+                            None,
+                        )
+                        if mine:
+                            day_info["managed_finance"] = mine
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Erro no tick financeiro: {exc}",
+                    exc_info=True,
+                )
+
             # Despacha partidas se for dia de jogo (regular RR ou playoffs)
             if day_info["is_match_day"]:
                 phase_name = day_info.get("state") or ""
