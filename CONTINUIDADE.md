@@ -1,8 +1,8 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P1-2 offseason)  
+**Última atualização:** 2026-07-14 (P1-4 DraftAI interativo)  
 **Branch:** `main`  
-**Estado:** Sprint B/C core: playoffs + resultados + save + offseason  
+**Estado:** P1 core fechado até DraftAI adversário  
 
 ### Leitura na retomada (ordem)
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
@@ -17,10 +17,11 @@
 - **P1-6:** Resultados da rodada no hub + `GET /leagues/{id}/matches` + ver log  
 - **P1-3:** Save/Load JSON (`saves/`) · botão Salvar no hub · Carregar no menu  
 - **P1-2:** Offseason — renovar/liberar + iniciar novo split  
-- Testes: **43 passed** · `npm run build` OK  
+- **P1-4:** Draft AI backend no oponente (`POST /draft/ai-decision`)  
+- Testes: **44 passed** · `npm run build` OK  
 
 ### Próxima sessão
-P1-4 DraftAI backend → P1-5 táticas → P2 finanças  
+P1-5 táticas pré-partida → P2 finanças / modularizar API  
 
 ```bat
 run_game.bat
@@ -227,7 +228,7 @@ CONTINUIDADE.md  (este arquivo)
 |------|---------|
 | MockRedis | Estado live some se o processo uvicorn reiniciar mid-match |
 | Live match duration | ~2s real × até 40 min de jogo ≈ ~80s por partida |
-| Draft FE | Jogador clica os 20 turns (BLUE e RED); ideal: IA no adversário |
+| Draft FE | Manager joga o próprio lado; oponente usa DraftAI backend (fallback aleatório se API falhar) |
 | Seed drop_all | `POST /db/seed` **apaga** o banco SQLite e invalida saves (UUIDs mudam) |
 | Save/Load | JSON em `saves/`; exige o **mesmo** DB/seed em que salvou |
 | monólito | Quase toda a API ainda está em `main.py` |

@@ -17,7 +17,7 @@
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. Verificar: `pytest` deve dar **43 passed**
+6. Verificar: `pytest` deve dar **44 passed**
 
 ---
 
@@ -56,10 +56,10 @@
 
 ## Próxima sessão (prioridade)
 
-1. **P1-4** — Draft AI backend no fluxo interativo  
-2. **P1-5** — Táticas pré-partida  
-3. **P1-2** — ✅ Offseason (renovar/liberar + novo split)  
-4. **P1-3 / P1-6 / P1-1** — ✅  
+1. **P1-5** — Táticas pré-partida  
+2. **P2** — Finanças / modularizar API  
+3. **P1-4** — ✅ Draft AI backend no oponente  
+4. **P1-1…P1-3** — ✅  
 5. Commit local + **push para origin** se quiser backup remoto:
    ```bat
    git push origin main

@@ -69,6 +69,27 @@ def mock_teams():
         MockTeam("red-id", "Red Team", red_players),
     )
 
+def test_draft_ai_from_partial_state(mock_teams):
+    """Simula reconstrução do estado FE e uma decisão de ban RED no turno 1."""
+    blue, red = mock_teams
+    state = DraftState(
+        match_id="interactive",
+        blue_bans=["Azir"],
+        red_bans=[],
+        blue_picks=[],
+        red_picks=[],
+        current_turn=1,
+    )
+    champ, role = DraftAI().make_decision(
+        draft_state=state,
+        team_side=DraftTeam.RED,
+        team_obj=red,
+        opponent_team_obj=blue,
+    )
+    assert isinstance(champ, str) and len(champ) > 0
+    assert role is None  # ban
+
+
 def test_snake_draft_sequence():
     draft = SnakeDraft(match_id="test-match")
     state = draft.initialize()

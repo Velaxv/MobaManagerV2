@@ -5,6 +5,7 @@ import { PlayerRole, ChampionPoolTier, DraftTeam, DraftAction } from '../types/g
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
+import { api } from '../services/api';
 
 const DRAFT_SEQUENCES = [
   { team: DraftTeam.BLUE, action: DraftAction.BAN },
@@ -247,18 +248,26 @@ export function TacticsDraft() {
     );
   };
 
-  // IA adversária com lock-in visual
+  // IA adversária via backend DraftAI (pool + counters), fallback aleatório
   useEffect(() => {
     if (isBusy || isComplete || !currentStep || isMyTurn || champions.length === 0) return;
+    if (!activeMatch?.blueTeamId || !activeMatch?.redTeamId) return;
+
+    let cancelled = false;
+    const turnSnapshot = draft.currentTurn;
 
     const timer = setTimeout(async () => {
+      if (cancelled) return;
       const available = champions.filter((c) => !usedChamps.has(c.name));
       if (!available.length) return;
 
-      if (currentStep.action === DraftAction.BAN) {
-        const pick = available[Math.floor(Math.random() * available.length)].name;
-        await runLockIn(pick, DraftAction.BAN, currentStep.team);
-      } else {
+      const fallback = () => {
+        if (currentStep.action === DraftAction.BAN) {
+          return {
+            champion: available[Math.floor(Math.random() * available.length)].name,
+            role: undefined as PlayerRole | undefined,
+          };
+        }
         const aiPicks =
           currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
         const rolesPicked = aiPicks.map((p) => p.role);
@@ -267,15 +276,70 @@ export function TacticsDraft() {
         const roleChamps = available.filter(
           (c) => c.primary_role === availableRole || c.secondary_role === availableRole
         );
-        const champ =
-          roleChamps.length > 0
-            ? roleChamps[Math.floor(Math.random() * roleChamps.length)].name
-            : available[0].name;
-        await runLockIn(champ, DraftAction.PICK, currentStep.team, availableRole);
-      }
-    }, 700);
+        return {
+          champion:
+            roleChamps.length > 0
+              ? roleChamps[Math.floor(Math.random() * roleChamps.length)].name
+              : available[0].name,
+          role: availableRole,
+        };
+      };
 
-    return () => clearTimeout(timer);
+      let champion: string;
+      let role: PlayerRole | undefined;
+
+      try {
+        const res = await api.getDraftAiDecision({
+          blue_team_id: activeMatch.blueTeamId!,
+          red_team_id: activeMatch.redTeamId!,
+          acting_side: currentStep.team,
+          current_turn: turnSnapshot,
+          blue_bans: draft.blueBans,
+          red_bans: draft.redBans,
+          blue_picks: draft.bluePicks.map((p) => ({
+            champion: p.champion,
+            role: p.role,
+          })),
+          red_picks: draft.redPicks.map((p) => ({
+            champion: p.champion,
+            role: p.role,
+          })),
+        });
+        champion = res.champion;
+        if (usedChamps.has(champion)) {
+          const fb = fallback();
+          champion = fb.champion;
+          role = fb.role;
+        } else if (res.role && Object.values(PlayerRole).includes(res.role as PlayerRole)) {
+          role = res.role as PlayerRole;
+        } else if (currentStep.action === DraftAction.PICK) {
+          const aiPicks =
+            currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
+          const rolesPicked = aiPicks.map((p) => p.role);
+          role = ROLES_ORDER.find((r) => !rolesPicked.includes(r)) || PlayerRole.MID;
+        }
+      } catch {
+        const fb = fallback();
+        champion = fb.champion;
+        role = fb.role;
+      }
+
+      if (cancelled) return;
+      // Evita aplicar se o turno já avançou (race)
+      if (useGameStore.getState().draft.currentTurn !== turnSnapshot) return;
+
+      await runLockIn(
+        champion,
+        currentStep.action,
+        currentStep.team,
+        currentStep.action === DraftAction.PICK ? role : undefined
+      );
+    }, 650);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     draft.currentTurn,
     isComplete,
@@ -287,6 +351,10 @@ export function TacticsDraft() {
     runLockIn,
     draft.bluePicks,
     draft.redPicks,
+    draft.blueBans,
+    draft.redBans,
+    activeMatch?.blueTeamId,
+    activeMatch?.redTeamId,
   ]);
 
   const blueName = activeMatch?.blueTeam || 'Blue Side';

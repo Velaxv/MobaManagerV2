@@ -249,6 +249,31 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to fetch playoffs');
   },
 
+  getDraftAiDecision: async (payload: {
+    blue_team_id: string;
+    red_team_id: string;
+    acting_side: 'BLUE' | 'RED';
+    current_turn: number;
+    blue_bans: string[];
+    red_bans: string[];
+    blue_picks: { champion: string; role: string }[];
+    red_picks: { champion: string; role: string }[];
+  }): Promise<{
+    champion: string;
+    role?: string | null;
+    action: string;
+    team: string;
+    current_turn: number;
+    source?: string;
+  }> => {
+    const response = await fetch(`${API_BASE}/draft/ai-decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonOrThrow(response, 'Failed to get draft AI decision');
+  },
+
   getOffseasonStatus: async (managedTeamId?: string) => {
     const qs = managedTeamId
       ? `?managed_team_id=${encodeURIComponent(managedTeamId)}`
