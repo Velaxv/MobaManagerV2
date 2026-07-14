@@ -1,8 +1,9 @@
-# Handoff de sessão — 2026-07-14
+# Handoff de sessão — 2026-07-14 (playtest)
 
-**Status:** sessão encerrada com segurança — tudo commitado em `main` (local).  
-**Working tree:** limpa.  
-**Branch:** `main` **ahead of origin by 13** (após este handoff).
+**Status:** sessão salva — working tree limpa; `main` = `origin/main`.  
+**Remote:** `https://github.com/Velaxv/MobaManagerV2.git`  
+**Último commit:** `1b734fb` — CI GitHub Actions (P3-6)  
+**CI:** configurado e validado no GitHub Actions  
 
 ---
 
@@ -10,8 +11,8 @@
 
 1. Abrir a pasta do projeto  
 2. Ler este arquivo + `CONTINUIDADE.md`  
-3. Roadmap: `docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`  
-4. Rodar testes: deve dar **92 passed, 0 warnings**
+3. Colar/anotar melhorias do playtest (abaixo ou novo arquivo)  
+4. Opcional — testes: deve dar **92 passed**
    ```bat
    set PYTHONPATH=.
    venv\Scripts\python -m pytest tests -q
@@ -22,60 +23,54 @@
    ```
    ou backend + seed + `cd frontend && npm run dev`
 
-6. **Opcional (backup remoto):**
-   ```bat
-   git push origin main
-   ```
-
 ---
 
 ## O que está pronto (jornada 2026-07-14)
 
-| ID | Entrega | Commit (ref) |
-|----|---------|--------------|
-| P0-3 | Calendário visual com adversário RR | `a9f00b2` + fix UUID |
-| P1-1 | Playoffs top 6 + campeão | `6fb1f27` |
-| P1-6 | Resultados da rodada + ver log | `67b685f` |
-| P1-3 | Save/Load JSON (`saves/`) | `0d923ce` |
-| P1-2 | Offseason renovar/liberar + novo split | `39a8c9a` |
-| P1-4 | Draft AI backend no oponente | `e3a3470` |
-| P1-5 | Táticas pré-partida | `7b2f3cb` |
-| — | Fotos reais + silhueta | `b6dd6cf` |
-| P2-1 | Finanças (folha/receita/tick 28d) | `6590620` |
-| P2-2 | Negociação transferência | `19dd0fc` |
+| ID | Entrega |
+|----|---------|
+| P0 | Calendário RR, burnout, velocidade live |
+| P1 | Playoffs, resultados, save/load, offseason, DraftAI, táticas |
+| P2 | Finanças, transferências, treino CA→PA, scouting, academy, patches |
+| P3 | API modular, integração httpx, Pydantic v2 + lifespan, **CI** |
+| — | Fotos reais + silhueta; seed CBLOL 2026 |
 
 ### Stack / como rodar
 - Backend: FastAPI + SQLite + MockRedis  
 - Frontend: React/Vite/Tailwind  
 - Seed: `POST /db/seed` ou `seed_runner.py` (**apaga DB e invalida saves**)  
 - Save/load: pasta `saves/` — não rode seed entre save e load  
+- Repo: https://github.com/Velaxv/MobaManagerV2  
 
 ### Armadilhas
 | Item | Detalhe |
 |------|---------|
 | Seed | Recria UUIDs → saves quebram |
 | MockRedis | Live/calendário/playoffs em memória somem se reiniciar uvicorn mid-session |
-| Fotos | 42/45 OK; Ayu, Curse, Envy = silhueta |
+| Fotos | Alguns jogadores = silhueta (ex.: Ayu, Curse, Envy) |
 
 ---
 
-## Próxima sessão (prioridade)
+## Playtest em andamento
 
-1. **`git push origin main`** — sobe commits locais e **dispara o CI** no GitHub  
-2. **P3-3** — Testes frontend (Vitest)  
-3. Playtest / polish (P4)
+O usuário vai jogar e anotar melhorias **na mão**.
 
-### Feito nesta retomada
-| ID | Entrega | Notas |
-|----|---------|-------|
-| P3-1 | Modularizar `main.py` | `src/api/` — schemas, serializers, routes por domínio; `main.py` ~70 linhas |
-| P2-3 | Treino / CA→PA | `TrainingService`, plano foco/intensidade, XP em treino+partida, UI no Painel |
-| P2-4 | Scouting | Consistência/BMA/PA mascarados; assignment + progresso diário; UI Elenco/Mercado/Painel |
-| P2-5 | Academy | `is_starter`, promote/demote, cláusulas rookie na UI, seções Elenco |
-| P2-6 | Patches | Notas 16.1/16.2, tela Patch, badges no draft, bias na DraftAI |
-| P3-2 | Integração API | httpx ASGI + SQLite temp: seed→advance→standings + academy/patch |
-| P3-4 | Pydantic v2 + lifespan | `SettingsConfigDict`, `lifespan=`, `model_dump`; 0 warnings |
-| P3-6 | CI GitHub Actions | `.github/workflows/ci.yml` — pytest + npm build em push/PR |
+**Ao voltar:** trazer a lista de notas → priorizar e implementar.
+
+### Espaço para colar notas (opcional)
+```
+( ) 
+( ) 
+( ) 
+```
+
+---
+
+## Próxima sessão (após playtest)
+
+1. Revisar anotações de melhorias  
+2. Priorizar 1–3 itens (bugs > UX > features)  
+3. Opcional: P3-3 Vitest / polish P4  
 
 ---
 
@@ -97,10 +92,10 @@ venv\Scripts\python seed_runner.py
 cd frontend
 npm run dev
 
-:: Fotos (regerar mapa)
-venv\Scripts\python scripts\fetch_player_photos.py --missing
+:: Jogo completo
+run_game.bat
 ```
 
 ---
 
-*Pode fechar a sessão. Retomar por `CONTINUIDADE.md` → este handoff.*
+*Pode fechar a sessão. Retomar por `CONTINUIDADE.md` → este handoff + notas de playtest.*

@@ -1,22 +1,23 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 (P3-6 CI GitHub Actions)  
-**Branch:** `main`  
-**Estado:** P3-6 feito — workflow CI (pytest + npm build)  
+**Última atualização:** 2026-07-14 (sessão salva — playtest)  
+**Branch:** `main` (= `origin/main`)  
+**Remote:** https://github.com/Velaxv/MobaManagerV2.git  
+**Estado:** **salvo** — working tree limpa; CI no GitHub; usuário em playtest  
 
 ### Leitura na retomada (ordem)
-1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist de 2 min  
-2. [`docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`](docs/RELATORIO_MELHORIAS_CONTINUIDADE.md) — o que fazer a seguir  
-3. Este arquivo — stack + como rodar  
+1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — checklist + notas de playtest  
+2. Notas de melhoria do playtest (manual / este handoff)  
+3. [`docs/RELATORIO_MELHORIAS_CONTINUIDADE.md`](docs/RELATORIO_MELHORIAS_CONTINUIDADE.md)  
 
 ### Entregue nesta jornada (fechado)
-P0…P3-4 · **P3-6 CI** (`.github/workflows/ci.yml`)  
-**Testes: 92 passed** · `npm run build` OK  
+P0…P2 sistemas · P3-1 API · P3-2 integração · P3-4 Pydantic/lifespan · **P3-6 CI**  
+**Testes: 92 passed** · push em `MobaManagerV2` OK  
 
 ### Próxima sessão
-1. **`git push origin main`** — ativa o CI no GitHub (branch 21+ commits ahead)  
-2. **P3-3** Testes frontend (Vitest)  
-3. Polish / P4 conforme playtest  
+1. Revisar anotações do playtest  
+2. Priorizar e implementar melhorias  
+3. Opcional: Vitest (P3-3)  
 
 ```bat
 run_game.bat
