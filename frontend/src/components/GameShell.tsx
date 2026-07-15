@@ -13,6 +13,7 @@ import {
   FileCode2,
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
+import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
 
 export type AppScreen = 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH';
 
@@ -73,6 +74,9 @@ export function GameShell({ children }: GameShellProps) {
   const myRank = standings.findIndex((s) => s.team_name === myTeamName) + 1;
   const myStanding = standings.find((s) => s.team_name === myTeamName);
   const burnoutCount = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70).length;
+  const brand = getOrgBrand(myTeamName);
+  const crestStyle = orgCrestStyle(myTeamName);
+  const crestTag = brand.tag !== '???' ? brand.tag : teamInitials(myTeamName);
 
   const manageNav = NAV.filter((n) => n.group === 'manage');
   const competeNav = NAV.filter((n) => n.group === 'compete');
@@ -114,7 +118,9 @@ export function GameShell({ children }: GameShellProps) {
       <aside className="hub-sidebar">
         <div className="px-4 py-4 border-b border-lol-gold/15">
           <div className="flex items-center gap-3">
-            <div className="team-crest text-xs shadow-lol-gold">LM</div>
+            <div className="team-crest text-xs shadow-lol-gold" style={crestStyle}>
+              {crestTag.slice(0, 3)}
+            </div>
             <div>
               <div className="font-display font-bold text-sm tracking-wide text-lol-gold-soft uppercase leading-tight">
                 LoL Manager
@@ -125,9 +131,14 @@ export function GameShell({ children }: GameShellProps) {
         </div>
 
         {/* Team strip */}
-        <div className="px-3 py-3 border-b border-white/5 bg-black/20">
+        <div
+          className="px-3 py-3 border-b border-white/5 bg-black/20"
+          style={{ boxShadow: `inset 3px 0 0 ${brand.primary}` }}
+        >
           <div className="flex items-center gap-2.5">
-            <div className="team-crest !w-11 !h-11 text-sm">{teamInitials(myTeamName)}</div>
+            <div className="team-crest !w-11 !h-11 text-sm font-bold" style={crestStyle}>
+              {crestTag.slice(0, 3)}
+            </div>
             <div className="min-w-0">
               <div className="text-xs font-bold text-white truncate">{myTeamName}</div>
               {manager && (
@@ -176,8 +187,11 @@ export function GameShell({ children }: GameShellProps) {
         <header className="hub-topbar">
           <div className="px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="md:hidden team-crest !w-8 !h-8 text-[10px]">
-                {teamInitials(myTeamName)}
+              <div
+                className="md:hidden team-crest !w-8 !h-8 text-[10px] font-bold"
+                style={crestStyle}
+              >
+                {crestTag.slice(0, 3)}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

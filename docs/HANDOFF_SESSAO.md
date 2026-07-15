@@ -1,6 +1,6 @@
 # Handoff de sessão — SALVO 2026-07-15
 
-**Status:** Sprint G commitado (após push E+F).  
+**Status:** Sprint H (polish seletivo) commitado.  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
 
@@ -12,45 +12,40 @@
 run_game.bat
 ```
 
-Seed **seguro** por padrão (não apaga DB se já semeado).  
-Reseed destrutivo: `set SEED_FORCE=1` ou `seed_runner.py --force`.
+Seed seguro por padrão. Reseed: `SEED_FORCE=1` ou `seed_runner.py --force`.
 
 ---
 
-## O que está no jogo
+## Sprints entregues
 
 | Sprint | Feature |
 |--------|---------|
 | Base–S4 | CBLOL, draft, live, playoffs, finanças, treino, scouting, scrim/VOD, board |
 | **E** | Motor profundo, Rift, ratings, win reasons |
-| **F** | Forma, bench, staff powers, board semanal, pool penalty |
-| **G** | Save Redis completo · seed seguro · Vitest · IA mercado · patch mid-split |
+| **F** | Forma, bench, staff powers, board semanal, pool |
+| **G** | Save Redis, seed seguro, Vitest, IA mercado, patch mid-split |
+| **H** | Brand kit orgs · narração · counter-pick early · sponsors com metas |
 
-### Sprint G — detalhes
-- **IN-1** Save v2 grava moral/org/form/treino/scouting/practice/patch no JSON  
-- **IN-4** `GET /db/seed/status` · `POST /db/seed?force=true` · runner não-destrutivo  
-- **IN-3** Vitest: `frontend/src/lib/riftMap.test.ts` (`npm test`)  
-- **MK-1** Rivais fazem até 2 moves/semana na janela (Redis idempotente)  
-- **DR-5** Transição de patch no advance (`patch_transition` + feed do board)  
+### Sprint H — o que entrou
+- **Brand kit** — cores/crest por org no hub, tabela e wizard  
+- **Narração** — templates PT-BR por tipo de evento (live feed)  
+- **DR-2** — counter lane → mult de duelo early + relatório no start da live  
+- **OR-2** — sponsors com meta de ranking + vitórias; payout sobe/desce  
 
----
-
-## Próximo (Sprint H — polish / conteúdo)
-- Brand kit orgs, narração rica, Desafiante, tutorial, som  
-- ME-6 coach mid/late · DR-2 counter-pick · OR-2 sponsors com metas  
-
-Plano: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.md)
+### Explicitamente **fora** deste sprint (pedido)
+- Coach mid/late (não faz sentido em LoL real)  
+- Tutorial interativo  
+- Desafiante / i18n / som  
 
 ---
 
-## Armadilhas
-
-| Item | Detalhe |
-|------|---------|
-| Seed force | `force=true` / `SEED_FORCE=1` **apaga DB** e invalida saves |
-| MockRedis | Restart uvicorn perde estado **não salvo** |
-| Saves | Pasta `saves/` — v2 inclui career Redis; load restaura chaves |
-| Série BO | Avance o dia entre maps da série |
+## Próximas ideias (backlog livre)
+- ME-7 UI Rift refinada (contest bar / HP torre)  
+- DR-3 flex picks DraftAI  
+- MK-2 cláusulas ricas  
+- OR-3 facility tree granular  
+- Som sutil (mute default)  
+- Desafiante tier-2  
 
 ---
 
@@ -59,7 +54,7 @@ Plano: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.md)
 ```bat
 set PYTHONPATH=.
 venv\Scripts\python -m pytest tests -q
-cd frontend && npm test
+cd frontend && npm test && npm run build
 ```
 
 ---

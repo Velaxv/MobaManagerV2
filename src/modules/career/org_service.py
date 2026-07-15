@@ -78,14 +78,22 @@ FACILITY_LEVELS = {
     },
 }
 
+# OR-2: meta do sponsor + métrica de progresso (standings e/ou vitórias)
 SPONSOR_TEMPLATES = [
-    {"name": "HyperX Kit", "tier": "C", "base": 8000, "goal": "MID_TABLE"},
-    {"name": "Local Telecom", "tier": "C", "base": 10000, "goal": "PLAYOFFS"},
-    {"name": "Energy Drink BR", "tier": "B", "base": 18000, "goal": "PLAYOFFS"},
-    {"name": "Bank Partner", "tier": "B", "base": 25000, "goal": "TOP4"},
-    {"name": "Global Soft", "tier": "A", "base": 40000, "goal": "TOP4"},
-    {"name": "Title Sponsor", "tier": "S", "base": 65000, "goal": "TITLE"},
+    {"name": "HyperX Kit", "tier": "C", "base": 8000, "goal": "MID_TABLE", "min_wins": 2},
+    {"name": "Local Telecom", "tier": "C", "base": 10000, "goal": "PLAYOFFS", "min_wins": 3},
+    {"name": "Energy Drink BR", "tier": "B", "base": 18000, "goal": "PLAYOFFS", "min_wins": 4},
+    {"name": "Bank Partner", "tier": "B", "base": 25000, "goal": "TOP4", "min_wins": 5},
+    {"name": "Global Soft", "tier": "A", "base": 40000, "goal": "TOP4", "min_wins": 6},
+    {"name": "Title Sponsor", "tier": "S", "base": 65000, "goal": "TITLE", "min_wins": 8},
 ]
+
+GOAL_PROGRESS_LABELS = {
+    "MID_TABLE": "evitar zona inferior (top 6)",
+    "PLAYOFFS": "classificar playoffs (top 6)",
+    "TOP4": "terminar no top 4",
+    "TITLE": "1º da regular / campeão",
+}
 
 
 def _default_org(team_id: str) -> Dict[str, Any]:
@@ -120,7 +128,12 @@ class OrgService:
                     "name": "Starter Merch Co",
                     "tier": "C",
                     "monthly_payout": 12000,
+                    "base_payout": 12000,
                     "goal": "PLAYOFFS",
+                    "min_wins": 3,
+                    "wins_credited": 0,
+                    "on_track": True,
+                    "bonus_pct": 0.0,
                     "active": True,
                     "months_left": 6,
                 }
@@ -174,6 +187,17 @@ class OrgService:
 
         fac = self.facility_info(int(state.get("facility_level") or 1))
         sponsors = [s for s in (state.get("sponsors") or []) if s.get("active")]
+        # Enriquecer UI com progresso de meta (OR-2)
+        sponsors_pub = []
+        for s in sponsors:
+            sp = dict(s)
+            sp["goal_label"] = GOAL_LABELS.get(str(s.get("goal") or ""), s.get("goal"))
+            sp["goal_detail"] = (
+                f"{GOAL_PROGRESS_LABELS.get(str(s.get('goal') or ''), s.get('goal'))} "
+                f"· vitórias {int(s.get('wins_credited') or 0)}/"
+                f"{int(s.get('min_wins') or 3)}"
+            )
+            sponsors_pub.append(sp)
         sponsor_income = sum(float(s.get("monthly_payout") or 0) for s in sponsors)
         goal = state.get("board_goal") or "PLAYOFFS"
 
@@ -189,7 +213,7 @@ class OrgService:
             ],
             "facility": fac,
             "brand": round(float(state.get("brand") or 0), 1),
-            "sponsors": sponsors,
+            "sponsors": sponsors_pub,
             "sponsor_monthly_income": sponsor_income,
             "facility_monthly_cost": fac["monthly_cost"],
             "org_monthly_net_extra": sponsor_income - fac["monthly_cost"],
@@ -220,8 +244,14 @@ class OrgService:
                     "name": tpl["name"],
                     "tier": tpl["tier"],
                     "monthly_payout": payout,
+                    "base_payout": payout,
                     "goal": tpl["goal"],
                     "goal_label": GOAL_LABELS.get(tpl["goal"], tpl["goal"]),
+                    "min_wins": int(tpl.get("min_wins") or 3),
+                    "goal_detail": (
+                        f"Meta: {GOAL_PROGRESS_LABELS.get(tpl['goal'], tpl['goal'])} "
+                        f"+ ≥{tpl.get('min_wins', 3)} vitórias no contrato"
+                    ),
                     "months": 4 if tpl["tier"] in ("C", "B") else 6,
                 }
             )
@@ -270,12 +300,18 @@ class OrgService:
         if len(active) >= 4:
             raise ValueError("Máximo de 4 sponsors ativos. Encerre um contrato.")
 
+        base = int(offer.get("base_payout") or offer["monthly_payout"])
         sponsor = {
             "id": str(uuid.uuid4()),
             "name": offer["name"],
             "tier": offer["tier"],
-            "monthly_payout": offer["monthly_payout"],
+            "monthly_payout": base,
+            "base_payout": base,
             "goal": offer["goal"],
+            "min_wins": int(offer.get("min_wins") or 3),
+            "wins_credited": 0,
+            "on_track": True,
+            "bonus_pct": 0.0,
             "active": True,
             "months_left": offer["months"],
         }
@@ -386,6 +422,14 @@ class OrgService:
         state["brand"] = clamp(
             float(state.get("brand") or 45) + (2.0 if won else -1.0), 0, 100
         )
+        # OR-2: vitórias contam para meta de sponsor (proxy de "views"/resultado)
+        if won:
+            sponsors = list(state.get("sponsors") or [])
+            for s in sponsors:
+                if not s.get("active"):
+                    continue
+                s["wins_credited"] = int(s.get("wins_credited") or 0) + 1
+            state["sponsors"] = sponsors
         self._push(
             state,
             ("Board satisfeita com a vitória" if won else "Board preocupada com a derrota")
@@ -462,6 +506,8 @@ class OrgService:
         self._push(state, msg, kind)
         if w:
             state["last_weekly_review_week"] = w
+        # OR-2: sponsors reavaliam meta semanalmente junto com o board
+        await self._apply_sponsor_goal_payouts(state, rank)
         await self._check_firing(state, team_id)
         await self.save_state(team_id, state)
         pub = await self.get_public(team_id)
@@ -543,9 +589,83 @@ class OrgService:
                         "bad",
                     )
 
+        # OR-2: reavalia payout de cada sponsor vs ranking + vitórias
+        await self._apply_sponsor_goal_payouts(state, rank)
+
         await self._check_firing(state, team_id)
         await self.save_state(team_id, state)
         return state
+
+    async def _apply_sponsor_goal_payouts(
+        self, state: Dict[str, Any], rank: Optional[int]
+    ) -> None:
+        """
+        Ajusta monthly_payout com bônus/penalidade conforme meta do sponsor.
+        Bônus +15% se ranking OK e wins >= min; −20% se ranking falha.
+        """
+        sponsors = list(state.get("sponsors") or [])
+        changed = False
+        for s in sponsors:
+            if not s.get("active"):
+                continue
+            base = float(s.get("base_payout") or s.get("monthly_payout") or 0)
+            if base <= 0:
+                continue
+            s_goal = str(s.get("goal") or "PLAYOFFS")
+            rank_ok = True
+            if rank is not None:
+                rank_ok = self._goal_satisfied(s_goal, rank)
+            wins = int(s.get("wins_credited") or 0)
+            need = int(s.get("min_wins") or 3)
+            wins_ok = wins >= need
+            # no início do contrato, wins baixos não punem forte
+            months_left = int(s.get("months_left") or 6)
+            early_contract = months_left >= 4 and wins < need
+
+            if rank_ok and (wins_ok or early_contract):
+                bonus = 0.15 if wins_ok and rank_ok else 0.05
+                new_pay = int(base * (1.0 + bonus) / 500) * 500
+                on_track = True
+                kind = "good"
+                msg = (
+                    f"{s.get('name')}: meta no caminho "
+                    f"(#{rank if rank else '?'} · {wins}V) payout €{new_pay}/mês"
+                )
+            elif not rank_ok:
+                bonus = -0.20
+                new_pay = max(500, int(base * (1.0 + bonus) / 500) * 500)
+                on_track = False
+                kind = "bad"
+                msg = (
+                    f"{s.get('name')}: meta em risco "
+                    f"(#{rank} · {wins}/{need}V) payout reduzido a €{new_pay}/mês"
+                )
+            else:
+                # ranking ok mas poucas vitórias no fim do contrato
+                bonus = -0.05
+                new_pay = max(500, int(base * (1.0 + bonus) / 500) * 500)
+                on_track = False
+                kind = "mixed"
+                msg = (
+                    f"{s.get('name')}: pede mais vitórias "
+                    f"({wins}/{need}V) — payout €{new_pay}/mês"
+                )
+
+            old = float(s.get("monthly_payout") or base)
+            s["monthly_payout"] = new_pay
+            s["bonus_pct"] = round(bonus * 100, 1)
+            s["on_track"] = on_track
+            if abs(old - new_pay) >= 500:
+                self._push(state, msg, kind)
+                changed = True
+                if not on_track:
+                    state["brand"] = clamp(float(state.get("brand") or 45) - 1.5, 0, 100)
+                elif wins_ok and rank_ok:
+                    state["brand"] = clamp(float(state.get("brand") or 45) + 1.0, 0, 100)
+
+        state["sponsors"] = sponsors
+        if changed:
+            logger.info("[Org] Sponsor payouts reavaliados (OR-2)")
 
     async def _team_rank(
         self, team_id: str, league_id: Optional[str] = None

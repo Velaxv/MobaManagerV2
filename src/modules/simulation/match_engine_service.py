@@ -160,6 +160,10 @@ class LiveMatchState(BaseModel):
     # Pós-partida
     player_ratings: Optional[List[Dict[str, Any]]] = None
     win_reason: Optional[Dict[str, Any]] = None
+    # DR-2: mult de duelo por role (counter-pick)
+    blue_counter_mults: Dict[str, float] = {}
+    red_counter_mults: Dict[str, float] = {}
+    counter_report: Optional[Dict[str, Any]] = None
 
 
 # Speeds permitidas (label → tick_ms)
@@ -265,6 +269,43 @@ class MatchEngineService:
             map_structures=match_depth.default_map_structures(),
             role_contrib=match_depth.default_role_contrib(),
         )
+
+        # DR-2: counter-pick → mult early por lane
+        try:
+            from src.modules.draft.counter_matchup import early_duel_mults
+
+            b_m, r_m, report = early_duel_mults(blue_draft or [], red_draft or [])
+            state.blue_counter_mults = b_m
+            state.red_counter_mults = r_m
+            state.counter_report = {
+                "summary": report.get("summary"),
+                "draft_edge_side": report.get("draft_edge_side"),
+                "blue_counter_score": report.get("blue_counter_score"),
+                "red_counter_score": report.get("red_counter_score"),
+                "tips": report.get("tips") or [],
+            }
+            if report.get("tips"):
+                from src.modules.simulation.narration import narrate
+
+                tip_line = narrate(
+                    "SCOUT_REPORT",
+                    minute=0,
+                    extra=report.get("summary") or "; ".join(report["tips"][:3]),
+                    seed=hash(match_id) % 10_000,
+                )
+                state.event_logs.append(
+                    _normalize_event_log(
+                        {
+                            "timestamp": "00:00",
+                            "phase": "SETUP",
+                            "event_type": "SCOUT_REPORT",
+                            "description": tip_line,
+                            "impact": {},
+                        }
+                    )
+                )
+        except Exception as ce:
+            logger.warning(f"[MatchEngineService] counter matchup: {ce}")
 
         # Momentum: ouro inicial extra no lado do vencedor do map anterior
         if momentum_team_id:
@@ -795,6 +836,8 @@ class MatchEngineService:
             focus_blue = p_blue.focus - state.blue_focus_debuffs.get(str(p_blue.id), 0.0)
             focus_red = p_red.focus - state.red_focus_debuffs.get(str(p_red.id), 0.0)
 
+            c_mult_b = float((state.blue_counter_mults or {}).get(active_role.value, 1.0))
+            c_mult_r = float((state.red_counter_mults or {}).get(active_role.value, 1.0))
             val_blue = self._resolve_duel(
                 p_blue,
                 c_blue,
@@ -802,6 +845,7 @@ class MatchEngineService:
                 0.70,
                 0.30,
                 chemistry_bonus=self._chem_bonus(state, "BLUE", active_role, p_blue),
+                counter_mult=c_mult_b,
             )
             val_red = self._resolve_duel(
                 p_red,
@@ -810,6 +854,7 @@ class MatchEngineService:
                 0.70,
                 0.30,
                 chemistry_bonus=self._chem_bonus(state, "RED", active_role, p_red),
+                counter_mult=c_mult_r,
             )
 
             gold_swing = int(self.rng.uniform(80, 180))
@@ -830,17 +875,30 @@ class MatchEngineService:
                     state.lane_pressure = match_depth.add_lane_pressure(
                         state.lane_pressure, active_role, 6.0
                     )
+                    from src.modules.simulation.narration import narrate
+
+                    et = "COUNTER_SPIKE" if c_mult_b > 1.05 else "SOLO_KILL"
+                    desc = narrate(
+                        et,
+                        minute=state.current_minute,
+                        role=active_role.value,
+                        side="BLUE",
+                        actor=p_blue.name,
+                        victim=p_red.name,
+                        champion=c_blue.name,
+                        location=loc,
+                        seed=state.current_minute * 17 + hash(p_blue.name) % 97,
+                    )
                     cand = {
-                        "score": margin + 20,
+                        "score": margin + 20 + (5 if c_mult_b > 1.05 else 0),
                         "log": _normalize_event_log(
                             {
                                 "timestamp": f"{state.current_minute:02d}:00",
                                 "phase": "EARLY_GAME",
-                                "event_type": "SOLO_KILL",
-                                "description": (
-                                    f"[{active_role.value}] {p_blue.name} executou um solo kill "
-                                    f"em {p_red.name} (chem/duo e mecânica)!"
-                                ),
+                                "event_type": et,
+                                "description": desc,
+                                "actor": p_blue.name,
+                                "victim": p_red.name,
                                 "impact": {"blue_gold": f"+{gold_swing + 280}"},
                                 "map": _map_meta(
                                     loc, role=active_role.value, side="BLUE", intensity=0.9
@@ -875,17 +933,30 @@ class MatchEngineService:
                     state.lane_pressure = match_depth.add_lane_pressure(
                         state.lane_pressure, active_role, -6.0
                     )
+                    from src.modules.simulation.narration import narrate
+
+                    et = "COUNTER_SPIKE" if c_mult_r > 1.05 else "SOLO_KILL"
+                    desc = narrate(
+                        et,
+                        minute=state.current_minute,
+                        role=active_role.value,
+                        side="RED",
+                        actor=p_red.name,
+                        victim=p_blue.name,
+                        champion=c_red.name,
+                        location=loc,
+                        seed=state.current_minute * 19 + hash(p_red.name) % 97,
+                    )
                     cand = {
-                        "score": margin + 20,
+                        "score": margin + 20 + (5 if c_mult_r > 1.05 else 0),
                         "log": _normalize_event_log(
                             {
                                 "timestamp": f"{state.current_minute:02d}:00",
                                 "phase": "EARLY_GAME",
-                                "event_type": "SOLO_KILL",
-                                "description": (
-                                    f"[{active_role.value}] {p_red.name} abateu {p_blue.name} "
-                                    f"em duelo de rota!"
-                                ),
+                                "event_type": et,
+                                "description": desc,
+                                "actor": p_red.name,
+                                "victim": p_blue.name,
                                 "impact": {"red_gold": f"+{gold_swing + 280}"},
                                 "map": _map_meta(
                                     loc, role=active_role.value, side="RED", intensity=0.9
@@ -1268,8 +1339,9 @@ class MatchEngineService:
         tech_weight: float,
         mental_weight: float,
         chemistry_bonus: float = 0.0,
+        counter_mult: float = 1.0,
     ) -> float:
-        """Fórmula estocástica de duelo + bônus de chemistry/duo."""
+        """Fórmula estocástica de duelo + chemistry + counter-pick (DR-2)."""
         tech_score = normalize_attribute(player.mechanics)
         mental_score = normalize_attribute(focus_val)
         weighted_attr = (tech_score * tech_weight) + (mental_score * mental_weight)
@@ -1280,7 +1352,15 @@ class MatchEngineService:
             1.12 if pool_tier == "MAIN" else (0.88 if pool_tier == "SECONDARY" else 0.52)
         )
 
-        base_ability = (player.current_ability / 200.0) * weighted_attr * conforto_multiplier
+        c_mult = float(counter_mult or 1.0)
+        if c_mult < 0.85:
+            c_mult = 0.85
+        if c_mult > 1.2:
+            c_mult = 1.2
+
+        base_ability = (
+            (player.current_ability / 200.0) * weighted_attr * conforto_multiplier * c_mult
+        )
         rolled_value = stochastic_roll(base_ability * 100.0, player.consistency, self.np_rng)
         return rolled_value + float(chemistry_bonus or 0.0)
 

@@ -16,6 +16,7 @@ import { PlayerPortrait } from '../components/PlayerPortrait';
 import { RoleIcon } from '../components/RoleIcon';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
 import { PlayerRole } from '../types/game';
+import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
 
 const STEPS = [
   { id: 1, label: 'Treinador', icon: User },
@@ -307,6 +308,7 @@ export function NewGameWizard() {
                   {filteredTeams.map((team) => {
                     const active = selectedTeamId === team.id;
                     const budgetPct = (team.budget / maxBudget) * 100;
+                    const brand = getOrgBrand(team.abbreviation);
                     return (
                       <button
                         key={team.id}
@@ -317,13 +319,19 @@ export function NewGameWizard() {
                             ? 'border-lol-gold bg-lol-gold/15 shadow-lol-gold'
                             : 'border-white/10 bg-black/35 hover:border-white/25 hover:bg-black/50'
                         }`}
+                        style={
+                          active
+                            ? { boxShadow: `0 0 0 1px ${brand.primary}66, 0 8px 24px ${brand.primary}22` }
+                            : undefined
+                        }
                       >
                         <div
-                          className={`team-crest !w-12 !h-12 text-xs shrink-0 ${
-                            active ? 'shadow-lol-gold' : 'opacity-90'
+                          className={`team-crest !w-12 !h-12 text-xs shrink-0 font-bold ${
+                            active ? '' : 'opacity-95'
                           }`}
+                          style={orgCrestStyle(team.abbreviation)}
                         >
-                          {teamInitials(team.name, team.abbreviation)}
+                          {brand.tag.slice(0, 3)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">

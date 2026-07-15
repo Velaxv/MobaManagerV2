@@ -211,8 +211,14 @@ Foco: motor + feedback. Entrega: o jogador entende *por que* ganhou/perdeu.
 5. **DR-5** Patch mid-split — ✅ `patch_transition` no advance + board feed  
 
 
-### Sprint H — “Conteúdo / polish” (quando F+G estáveis)
-- Brand kit orgs, narração rica, Desafiante, i18n, tutorial, som.
+### Sprint H — “Conteúdo / polish” ✅ parcial 2026-07-15
+- **Brand kit orgs** ✅ (`frontend/src/lib/orgBrands.ts` + hub/tabela/wizard)  
+- **Narração rica** ✅ (`narration.py` + live early/counter)  
+- **DR-2 counter-pick** ✅ mult early + relatório no start  
+- **OR-2 sponsors com metas** ✅ ranking + wins → payout  
+- ~~Coach mid/late~~ **cancelado** (sem sentido em LoL real)  
+- ~~Tutorial~~ **adiado**  
+- Desafiante / i18n / som — backlog
 
 ---
 

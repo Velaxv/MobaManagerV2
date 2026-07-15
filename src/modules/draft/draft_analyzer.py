@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from src.models.champion import Champion
 from src.shared.enums import DamageType, ClassType
 
@@ -96,3 +96,26 @@ class DraftAnalyzer:
                 "average_late_scaling": round(avg_late, 1)
             }
         }
+
+    def analyze_with_counters(
+        self,
+        champions: List[Champion],
+        *,
+        blue_draft: Optional[List[dict]] = None,
+        red_draft: Optional[List[dict]] = None,
+        side: str = "BLUE",
+    ) -> Dict[str, Any]:
+        """
+        Comp analysis + DR-2 counter report quando drafts lane-a-lane estão disponíveis.
+        """
+        base = self.analyze_composition(champions)
+        if blue_draft is not None and red_draft is not None:
+            from src.modules.draft.counter_matchup import analyze_lane_counters
+
+            counters = analyze_lane_counters(blue_draft, red_draft)
+            base["counters"] = counters
+            edge = counters.get("blue_counter_norm" if side.upper() == "BLUE" else "red_counter_norm", 0)
+            # Pequeno ajuste de “confiança de draft” exposto ao FE/scout
+            base["counter_edge"] = edge
+            base["counter_summary"] = counters.get("summary")
+        return base

@@ -1,33 +1,27 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-15 — Sprint G (carreira estável)  
+**Última atualização:** 2026-07-15 — Sprint H (polish seletivo)  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Estado:** E+F+G · save Redis · seed seguro · Vitest · market AI · patch mid-split  
+**Estado:** E+F+G+H · brand · narração · counters · sponsors metas  
 
 ### Retomar
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  
 2. [`docs/PLANO_MELHORIAS_SISTEMAS.md`](docs/PLANO_MELHORIAS_SISTEMAS.md)  
 3. `run_game.bat`  
 
-### Entregue nesta jornada
-S1–S4 + Rift + Sprint E + Sprint F  
-+ **Sprint G:** IN-1 save Redis · IN-3 Vitest · IN-4 seed seguro · MK-1 IA mercado · DR-5 patch mid-split  
+### Entregue
+S1–S4 + E + F + G  
++ **Sprint H:** brand kit CBLOL · narração de partida · DR-2 counter early · OR-2 sponsors com metas  
+
+### Não feito (de propósito)
+- Coach mid/late  
+- Tutorial  
 
 ### Como rodar
 ```bat
 run_game.bat
 ```
 
-Reseed destrutivo (opcional):
-```bat
-set SEED_FORCE=1
-venv\Scripts\python seed_runner.py --force
-```
-
 ### Stack
 Backend FastAPI + SQLite + MockRedis · Frontend React/Vite/Tailwind · seed CBLOL 2026  
-
-### Aviso seed
-`POST /db/seed?force=true` **apaga o SQLite** e quebra saves antigos.  
-Sem `force`, o seed **pula** se o banco já tiver a liga.  

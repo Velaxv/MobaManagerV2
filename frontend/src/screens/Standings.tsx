@@ -1,6 +1,7 @@
 import { useGameStore } from '../store/useGameStore';
 import { TableProperties, Medal, TrendingUp, Trophy, Swords } from 'lucide-react';
 import { SplitPhase } from '../types/game';
+import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
 
 function seriesSideLabel(side?: {
   team_id?: string | null;
@@ -276,6 +277,7 @@ export function Standings() {
                       (row.final_placement == null && idx < 6);
                     const seed = row.playoff_seed;
                     const place = row.final_placement;
+                    const brand = getOrgBrand(row.team_name);
                     return (
                       <tr
                         key={row.team_id}
@@ -286,6 +288,11 @@ export function Standings() {
                               ? 'hub-table-row-playoff text-white/85'
                               : 'hub-table-row-out text-white/55'
                         } hover:bg-white/[0.03] transition-colors`}
+                        style={
+                          isMine
+                            ? { boxShadow: `inset 3px 0 0 ${brand.primary}` }
+                            : undefined
+                        }
                       >
                         <td className="py-3 px-3 font-mono text-white/40">
                           <span className="inline-flex items-center gap-1.5">
@@ -296,7 +303,16 @@ export function Standings() {
                           </span>
                         </td>
                         <td className="px-3 font-semibold">
-                          {row.team_name}
+                          <span className="inline-flex items-center gap-2 min-w-0">
+                            <span
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-[9px] font-bold shrink-0"
+                              style={orgCrestStyle(row.team_name)}
+                              title={brand.name}
+                            >
+                              {brand.tag.slice(0, 3)}
+                            </span>
+                            <span className="truncate">{row.team_name}</span>
+                          </span>
                           {seed != null && (
                             <span className="ml-2 text-[9px] text-emerald-400/90 font-mono">
                               seed {seed}
