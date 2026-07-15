@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -17,12 +17,14 @@ import {
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
+import { badgeForScreen, type HubAlertInput } from '../lib/hubAlerts';
 import type { AppScreen } from '../types/screens';
 
 /**
  * Navegação inspirada em management sims (FM):
  * - categorias no sidebar (Rotina / Time / Clube / Competição)
- * - Painel = inbox; áreas profundas em telas próprias
+ * - Competição: ações de partida primeiro (Draft → Live → Tabela → Patch)
+ * - Painel = inbox; badges só em alertas reais
  */
 const NAV: {
   id: AppScreen;
@@ -31,14 +33,17 @@ const NAV: {
   icon: typeof LayoutDashboard;
   hint?: string;
   group: 'routine' | 'squad' | 'club' | 'compete';
+  /** 1 = ação prioritária no grupo */
+  priority?: number;
 }[] = [
   {
     id: 'DASHBOARD',
     label: 'Painel',
     short: 'Home',
     icon: LayoutDashboard,
-    hint: 'Inbox do dia',
+    hint: 'O que fazer agora',
     group: 'routine',
+    priority: 1,
   },
   {
     id: 'TRAINING',
@@ -47,6 +52,7 @@ const NAV: {
     icon: Dumbbell,
     hint: 'Plano & moral',
     group: 'routine',
+    priority: 2,
   },
   {
     id: 'SQUAD',
@@ -55,6 +61,7 @@ const NAV: {
     icon: UserCircle2,
     hint: 'Plantel',
     group: 'squad',
+    priority: 1,
   },
   {
     id: 'STAFF',
@@ -63,14 +70,16 @@ const NAV: {
     icon: Briefcase,
     hint: 'Comissão',
     group: 'squad',
+    priority: 2,
   },
   {
     id: 'ORG',
     label: 'Organização',
     short: 'Org',
     icon: Landmark,
-    hint: 'Board & $',
+    hint: 'Board, $ e sede',
     group: 'club',
+    priority: 1,
   },
   {
     id: 'MARKET',
@@ -79,23 +88,9 @@ const NAV: {
     icon: Users,
     hint: 'Transfers',
     group: 'club',
+    priority: 2,
   },
-  {
-    id: 'STANDINGS',
-    label: 'Tabela',
-    short: 'Tabela',
-    icon: TableProperties,
-    hint: 'CBLOL',
-    group: 'compete',
-  },
-  {
-    id: 'PATCH',
-    label: 'Patch',
-    short: 'Patch',
-    icon: FileCode2,
-    hint: 'Meta',
-    group: 'compete',
-  },
+  // Competição: match actions first
   {
     id: 'DRAFT',
     label: 'Draft',
@@ -103,6 +98,7 @@ const NAV: {
     icon: Swords,
     hint: 'Picks & bans',
     group: 'compete',
+    priority: 1,
   },
   {
     id: 'SIMULATION',
@@ -111,14 +107,33 @@ const NAV: {
     icon: Trophy,
     hint: 'Ao vivo',
     group: 'compete',
+    priority: 2,
+  },
+  {
+    id: 'STANDINGS',
+    label: 'Tabela',
+    short: 'Tabela',
+    icon: TableProperties,
+    hint: 'Classificação',
+    group: 'compete',
+    priority: 3,
+  },
+  {
+    id: 'PATCH',
+    label: 'Patch',
+    short: 'Patch',
+    icon: FileCode2,
+    hint: 'Meta',
+    group: 'compete',
+    priority: 4,
   },
 ];
 
 const GROUP_LABELS: Record<(typeof NAV)[number]['group'], string> = {
-  routine: 'Rotina',
-  squad: 'Time',
-  club: 'Clube',
-  compete: 'Competição',
+  routine: '1 · Rotina',
+  squad: '2 · Time',
+  club: '3 · Clube',
+  compete: '4 · Competição',
 };
 
 interface GameShellProps {
@@ -165,26 +180,62 @@ export function GameShell({ children }: GameShellProps) {
   const crestStyle = orgCrestStyle(myTeamName);
   const crestTag = brand.tag !== '???' ? brand.tag : teamInitials(myTeamName);
 
+  const finance = useGameStore((s) => s.finance);
+  const lastBoardReview = useGameStore((s) => s.lastBoardReview);
+  const offseasonContracts = useGameStore((s) => s.offseasonContracts);
+  const scouting = useGameStore((s) => s.scouting);
+
+  const alertInput: HubAlertInput = useMemo(
+    () => ({
+      burnoutCount,
+      matchPending: !!matchPending,
+      matchLive: !!matchLive,
+      financeHealth: finance?.health ?? null,
+      boardOnTrack:
+        lastBoardReview && !lastBoardReview.skipped ? lastBoardReview.on_track : null,
+      boardFired: !!lastBoardReview?.fired,
+      boardMessage: lastBoardReview?.message,
+      renewalsNeeded: offseasonContracts.filter((c) => c.needs_renewal).length,
+      isOffseason: String(splitPhase || '').includes('OFFSEASON'),
+      scoutingActive: !!scouting?.assignment,
+      scoutingProgress: scouting?.assignment?.progress ?? null,
+    }),
+    [
+      burnoutCount,
+      matchPending,
+      matchLive,
+      finance?.health,
+      lastBoardReview,
+      offseasonContracts,
+      splitPhase,
+      scouting,
+    ],
+  );
+
   const groups = (['routine', 'squad', 'club', 'compete'] as const).map((g) => ({
     key: g,
     label: GROUP_LABELS[g],
-    items: NAV.filter((n) => n.group === g),
+    items: NAV.filter((n) => n.group === g).sort(
+      (a, b) => (a.priority ?? 99) - (b.priority ?? 99),
+    ),
   }));
 
   const renderNav = (items: typeof NAV) =>
     items.map((item) => {
       const active = currentScreen === item.id;
       const Icon = item.icon;
-      const badge =
-        (item.id === 'DRAFT' && matchPending) ||
-        (item.id === 'SIMULATION' && matchLive) ||
-        (item.id === 'DASHBOARD' && burnoutCount > 0) ||
-        (item.id === 'TRAINING' && burnoutCount > 0);
+      const badge = badgeForScreen(item.id, alertInput);
+      const toneCls =
+        badge?.tone === 'critical'
+          ? 'hub-nav-badge-critical'
+          : badge?.tone === 'warning'
+            ? 'hub-nav-badge-warning'
+            : 'hub-nav-badge-info';
       return (
         <button
           key={item.id}
           onClick={() => setCurrentScreen(item.id as never)}
-          className={`hub-nav-item ${active ? 'hub-nav-item-active' : 'hub-nav-item-idle'}`}
+          className={`hub-nav-item group ${active ? 'hub-nav-item-active' : 'hub-nav-item-idle'}`}
         >
           <Icon
             className={`w-4 h-4 shrink-0 ${active ? 'text-lol-gold' : 'text-white/35 group-hover:text-lol-gold-soft'}`}
@@ -195,8 +246,10 @@ export function GameShell({ children }: GameShellProps) {
               {item.hint}
             </span>
           </span>
-          {badge && (
-            <span className="w-2 h-2 rounded-full bg-lol-gold animate-pulse shadow-lol-gold shrink-0" />
+          {badge?.show && (
+            <span className={`hub-nav-badge ${toneCls}`} aria-label="alerta">
+              {badge.count != null && badge.count > 0 ? badge.count : '!'}
+            </span>
           )}
           {active && <ChevronRight className="w-3.5 h-3.5 text-lol-gold/70 shrink-0" />}
         </button>
@@ -374,21 +427,33 @@ export function GameShell({ children }: GameShellProps) {
             </div>
           </div>
 
-          {/* Mobile nav — scroll horizontal por grupos */}
+          {/* Mobile nav — scroll horizontal */}
           <div className="md:hidden flex overflow-x-auto border-t border-white/5 px-1 gap-0.5 pb-1 scrollbar-none">
             {NAV.map((item) => {
               const active = currentScreen === item.id;
               const Icon = item.icon;
+              const badge = badgeForScreen(item.id, alertInput);
               return (
                 <button
                   key={item.id}
                   onClick={() => setCurrentScreen(item.id as never)}
-                  className={`flex flex-col items-center gap-0.5 px-2.5 py-2 min-w-[3.6rem] rounded-sm text-[8px] uppercase tracking-wide ${
+                  className={`relative flex flex-col items-center gap-0.5 px-2.5 py-2 min-w-[3.6rem] rounded-sm text-[8px] uppercase tracking-wide ${
                     active ? 'text-lol-gold bg-lol-hextech/40' : 'text-white/45'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   {item.short}
+                  {badge?.show && (
+                    <span
+                      className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
+                        badge.tone === 'critical'
+                          ? 'bg-red-500'
+                          : badge.tone === 'warning'
+                            ? 'bg-amber-400'
+                            : 'bg-sky-400'
+                      }`}
+                    />
+                  )}
                 </button>
               );
             })}

@@ -37,7 +37,7 @@ export function Training() {
       <HubPageHeader
         icon={Dumbbell}
         title="Treino & preparação"
-        subtitle="Plano de treino, moral, scrims, VOD e scouting — o que o plantel faz entre os match days."
+        subtitle="Entre match days: plano CA→PA, moral/chemistry, scrim, VOD e scouting. Forma física e desenvolvimento ficam aqui — não no Painel."
         actions={
           myTeamId ? (
             <button

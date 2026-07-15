@@ -49,7 +49,7 @@ export function Staff() {
       <HubPageHeader
         icon={Briefcase}
         title="Comissão técnica"
-        subtitle="Head coach, strategic e performance — poderes que mudam draft scout, coach comms e recuperação."
+        subtitle="Pessoas fora do elenco: contratar/demitir coaches. Efeito no scouting, draft tips e coach comms da live."
         actions={
           <button
             type="button"

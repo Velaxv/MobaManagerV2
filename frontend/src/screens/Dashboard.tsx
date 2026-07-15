@@ -27,9 +27,10 @@ import { RoleIcon } from '../components/RoleIcon';
 import { PlayerPortrait } from '../components/PlayerPortrait';
 import { api } from '../services/api';
 import type { AppScreen } from '../types/screens';
+import { buildHubAlerts, type HubAlertInput } from '../lib/hubAlerts';
 
-/** Atalhos do hub (FM-like: overview → áreas dedicadas). */
-const SHORTCUTS: {
+/** Gestão do dia a dia (prioridade no inbox). */
+const SHORTCUTS_PRIMARY: {
   id: AppScreen;
   label: string;
   hint: string;
@@ -44,26 +45,30 @@ const SHORTCUTS: {
     accent: 'border-sky-500/25 hover:border-sky-400/45 hover:bg-sky-950/20',
   },
   {
-    id: 'STAFF',
-    label: 'Staff',
-    hint: 'Comissão técnica',
-    icon: Briefcase,
-    accent: 'border-violet-500/25 hover:border-violet-400/45 hover:bg-violet-950/20',
-  },
-  {
-    id: 'ORG',
-    label: 'Organização',
-    hint: 'Board, sponsors, caixa',
-    icon: Landmark,
-    accent: 'border-amber-500/25 hover:border-amber-400/45 hover:bg-amber-950/20',
-  },
-  {
     id: 'SQUAD',
     label: 'Elenco',
     hint: 'Titulares e academy',
     icon: UserCircle2,
     accent: 'border-emerald-500/25 hover:border-emerald-400/45 hover:bg-emerald-950/20',
   },
+  {
+    id: 'ORG',
+    label: 'Organização',
+    hint: 'Board, sponsors e caixa',
+    icon: Landmark,
+    accent: 'border-amber-500/25 hover:border-amber-400/45 hover:bg-amber-950/20',
+  },
+  {
+    id: 'STAFF',
+    label: 'Staff',
+    hint: 'Comissão técnica',
+    icon: Briefcase,
+    accent: 'border-violet-500/25 hover:border-violet-400/45 hover:bg-violet-950/20',
+  },
+];
+
+/** Referência / mercado (secundário). */
+const SHORTCUTS_SECONDARY: typeof SHORTCUTS_PRIMARY = [
   {
     id: 'MARKET',
     label: 'Mercado',
@@ -127,10 +132,19 @@ export function Dashboard() {
     patchStatus,
     practice,
     training,
+    scouting,
   } = useGameStore();
 
   const myTeamId = manager?.teamId;
   const isOffseason = splitPhase === SplitPhase.OFFSEASON;
+  const matchPending = !!(activeMatch && activeMatch.currentPhase === 'DRAFT');
+  const matchLive = !!(
+    activeMatch?.matchId &&
+    activeMatch.currentPhase !== 'DRAFT' &&
+    activeMatch.currentPhase !== 'DRAFT_COMPLETE' &&
+    activeMatch.currentPhase !== 'COMPLETE' &&
+    activeMatch.currentPhase !== 'FINISHED'
+  );
 
   useEffect(() => {
     if (isOffseason && myTeamId) {
@@ -142,6 +156,23 @@ export function Dashboard() {
   }, [myTeamId, isOffseason]);
 
   const burnoutAlerts = myPlayers.filter((p) => p.burnoutMeter > 70 || p.visualFatigue > 70);
+  const renewalsNeeded = offseasonContracts.filter((c) => c.needs_renewal).length;
+  const alertInput: HubAlertInput = {
+    burnoutCount: burnoutAlerts.length,
+    matchPending,
+    matchLive,
+    financeHealth: finance?.health ?? null,
+    boardOnTrack:
+      lastBoardReview && !lastBoardReview.skipped ? lastBoardReview.on_track : null,
+    boardFired: !!lastBoardReview?.fired,
+    boardMessage: lastBoardReview?.message,
+    renewalsNeeded,
+    isOffseason,
+    scoutingActive: !!scouting?.assignment,
+    scoutingProgress: scouting?.assignment?.progress ?? null,
+  };
+  const hubAlerts = buildHubAlerts(alertInput);
+
   const myStanding = standings.find((s) => s.team_name === myTeamName);
   const myRank = standings.findIndex((s) => s.team_name === myTeamName) + 1;
   const starters = myPlayers.slice(0, 5);
@@ -153,6 +184,14 @@ export function Dashboard() {
     myPlayers.length > 0
       ? Math.round(myPlayers.reduce((s, p) => s + p.burnoutMeter, 0) / myPlayers.length)
       : 0;
+
+  const shortcutBadge = (id: AppScreen): string | null => {
+    if (id === 'TRAINING' && burnoutAlerts.length > 0) return String(burnoutAlerts.length);
+    if (id === 'ORG' && (finance?.health === 'critical' || lastBoardReview?.on_track === false))
+      return '!';
+    if (id === 'MARKET' && isOffseason && renewalsNeeded > 0) return String(renewalsNeeded);
+    return null;
+  };
 
   const getDayTypeStyles = (type: CalendarDayType) => {
     switch (type) {
@@ -246,29 +285,101 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Atalhos para áreas do jogo */}
+      {/* Alertas prioritários — só o que precisa de ação */}
+      {hubAlerts.length > 0 && (
+        <div>
+          <p className="hub-section-label">Atenção</p>
+          <div className="flex flex-col gap-1.5">
+            {hubAlerts.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setCurrentScreen(a.screen)}
+                className={`w-full text-left rounded-sm border px-3 py-2.5 flex items-start gap-3 transition-colors hover:brightness-110 ${
+                  a.level === 'critical'
+                    ? 'hub-alert-critical'
+                    : a.level === 'warning'
+                      ? 'hub-alert-warning'
+                      : 'hub-alert-info'
+                }`}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 opacity-90" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide">
+                    {a.title}
+                    {a.count != null ? (
+                      <span className="ml-1.5 font-mono opacity-80">×{a.count}</span>
+                    ) : null}
+                  </span>
+                  {a.detail && (
+                    <span className="block text-[10px] opacity-75 mt-0.5 leading-snug">
+                      {a.detail}
+                    </span>
+                  )}
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0 opacity-50" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Atalhos: gestão primeiro, referência depois */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-semibold mb-2 px-0.5">
-          Ir para
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
-          {SHORTCUTS.map((s) => {
+        <p className="hub-section-label">Gestão do plantel</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {SHORTCUTS_PRIMARY.map((s) => {
             const Icon = s.icon;
+            const badge = shortcutBadge(s.id);
             return (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => setCurrentScreen(s.id)}
-                className={`group text-left rounded-sm border bg-black/30 p-2.5 transition-all ${s.accent}`}
+                className={`group text-left rounded-sm border bg-black/30 p-3 transition-all ${s.accent}`}
               >
-                <div className="flex items-center justify-between gap-1 mb-1">
+                <div className="flex items-center justify-between gap-1 mb-1.5">
                   <Icon className="w-4 h-4 text-lol-gold/80 group-hover:text-lol-gold" />
-                  <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-lol-gold/60" />
+                  {badge ? (
+                    <span className="hub-nav-badge hub-nav-badge-warning text-[8px]">{badge}</span>
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-lol-gold/60" />
+                  )}
                 </div>
                 <div className="text-[11px] font-semibold text-white/90 uppercase tracking-wide">
                   {s.label}
                 </div>
                 <div className="text-[9px] text-white/35 mt-0.5 leading-snug">{s.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="hub-section-label mt-3">Referência</p>
+        <div className="grid grid-cols-3 gap-2">
+          {SHORTCUTS_SECONDARY.map((s) => {
+            const Icon = s.icon;
+            const badge = shortcutBadge(s.id);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setCurrentScreen(s.id)}
+                className={`group text-left rounded-sm border bg-black/20 p-2.5 transition-all ${s.accent}`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <Icon className="w-3.5 h-3.5 text-white/50 group-hover:text-lol-gold" />
+                  {badge ? (
+                    <span className="hub-nav-badge hub-nav-badge-warning text-[8px]">{badge}</span>
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-white/15" />
+                  )}
+                </div>
+                <div className="text-[10px] font-semibold text-white/80 uppercase tracking-wide">
+                  {s.label}
+                </div>
+                <div className="text-[8px] text-white/30 mt-0.5 leading-snug hidden sm:block">
+                  {s.hint}
+                </div>
               </button>
             );
           })}
@@ -438,36 +549,8 @@ export function Dashboard() {
         </div>
       )}
 
-      {lastBoardReview && !lastBoardReview.skipped && lastBoardReview.message && (
-        <div
-          className={`panel-lol border ${
-            lastBoardReview.on_track
-              ? 'border-emerald-500/30 bg-emerald-950/20'
-              : 'border-amber-500/35 bg-amber-950/25'
-          }`}
-        >
-          <div className="panel-lol-header">
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
-              Board · Review semanal
-            </span>
-            <button
-              type="button"
-              onClick={() => setCurrentScreen('ORG')}
-              className="text-[9px] uppercase text-lol-gold hover:underline"
-            >
-              Organização →
-            </button>
-          </div>
-          <div className="p-3 text-[12px] text-white/75 leading-snug">
-            {lastBoardReview.message}
-            {lastBoardReview.fired && (
-              <span className="block mt-1 text-red-400 font-semibold">Você foi demitido.</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* KPIs */}
+      {/* KPIs — resumo; detalhe na Org / Elenco / Treino */}
+      <p className="hub-section-label -mb-2">Resumo</p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           type="button"
@@ -554,47 +637,8 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* Patch teaser */}
-      <div className="panel-lol border-lol-gold/15">
-        <div className="panel-lol-header">
-          <div className="flex items-center gap-2">
-            <FileCode2 className="w-4 h-4 text-lol-gold" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
-              Patch · meta
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCurrentScreen('PATCH')}
-            className="text-[9px] uppercase tracking-wide text-lol-gold border border-lol-gold/30 px-2 py-1 rounded-sm hover:bg-lol-gold/10"
-          >
-            Notas →
-          </button>
-        </div>
-        <div className="p-3 flex flex-wrap items-center gap-3 text-[11px] font-mono">
-          <span className="text-white/70">
-            Ativo:{' '}
-            <span className="text-emerald-400 font-bold">
-              {patchStatus?.active?.version ? `v${patchStatus.active.version}` : '—'}
-            </span>
-          </span>
-          {patchStatus?.active && (
-            <>
-              <span className="text-emerald-400/80">
-                {patchStatus.active.buff_count ?? 0} buffs
-              </span>
-              <span className="text-red-400/80">{patchStatus.active.nerf_count ?? 0} nerfs</span>
-            </>
-          )}
-          {patchStatus?.upcoming && (
-            <span className="text-sky-300/80">
-              Próx. v{patchStatus.upcoming.version} em {patchStatus.upcoming.days_until}d
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Calendário */}
+      {/* Calendário — núcleo do loop diário */}
+      <p className="hub-section-label -mb-2">Calendário</p>
       <div className="panel-lol">
         <div className="panel-lol-header">
           <div className="flex items-center gap-2">
@@ -603,7 +647,18 @@ export function Dashboard() {
               Semana {currentWeek}
             </span>
           </div>
-          <span className="text-[10px] text-white/30 font-mono">Rotina do plantel</span>
+          <div className="flex items-center gap-2">
+            {patchStatus?.active?.version && (
+              <button
+                type="button"
+                onClick={() => setCurrentScreen('PATCH')}
+                className="text-[9px] font-mono text-white/40 hover:text-lol-gold"
+              >
+                patch v{patchStatus.active.version}
+              </button>
+            )}
+            <span className="text-[10px] text-white/30 font-mono">Rotina</span>
+          </div>
         </div>
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {calendar.map((day, idx) => {
@@ -648,6 +703,7 @@ export function Dashboard() {
         </div>
       </div>
 
+      <p className="hub-section-label -mb-2">Plantel & liga</p>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="panel-lol flex flex-col">
           <div className="panel-lol-header">
