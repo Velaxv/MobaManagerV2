@@ -1,12 +1,18 @@
-"""Semente CBLOL 2026 (drop + recreate)."""
+"""Semente CBLOL 2026 (drop + recreate).
+
+IN-4: por padrão NÃO apaga DB se já houver liga semeada.
+Use force=true (query) ou SEED_FORCE=1 no seed_runner para recriar.
+"""
 
 import logging
 import random
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db, engine
@@ -19,15 +25,99 @@ logger = logging.getLogger("lol_manager_api")
 router = APIRouter(tags=["seed"])
 
 
+async def _seed_status(db: AsyncSession) -> Dict[str, Any]:
+    """Estado do banco para seed seguro."""
+    try:
+        league_count = (
+            await db.execute(select(func.count()).select_from(League))
+        ).scalar_one()
+        team_count = (
+            await db.execute(select(func.count()).select_from(Team))
+        ).scalar_one()
+        player_count = (
+            await db.execute(select(func.count()).select_from(Player))
+        ).scalar_one()
+        league_q = await db.execute(select(League).limit(1))
+        league = league_q.scalar_one_or_none()
+        seeded = int(league_count or 0) > 0 and int(team_count or 0) >= 8
+        return {
+            "seeded": seeded,
+            "league_count": int(league_count or 0),
+            "team_count": int(team_count or 0),
+            "player_count": int(player_count or 0),
+            "league_id": str(league.id) if league else None,
+            "league_name": league.name if league else None,
+            "phase": league.current_phase.value if league and league.current_phase else None,
+            "week": league.current_week if league else None,
+            "day": league.current_day if league else None,
+            "destructive_seed_requires": "force=true",
+            "hint": (
+                "Banco já semeado. Use POST /db/seed?force=true para recriar "
+                "(apaga progresso e invalida saves antigos)."
+                if seeded
+                else "Banco vazio — POST /db/seed sem force é seguro."
+            ),
+        }
+    except Exception as exc:
+        # Tabelas podem não existir ainda
+        logger.debug(f"seed status: {exc}")
+        return {
+            "seeded": False,
+            "league_count": 0,
+            "team_count": 0,
+            "player_count": 0,
+            "league_id": None,
+            "error": str(exc),
+            "hint": "Schema ausente — rode seed com create_all.",
+        }
+
+
+@router.get("/db/seed/status", status_code=status.HTTP_200_OK)
+async def seed_status(db: AsyncSession = Depends(get_db)):
+    """IN-4: consulta se o CBLOL já está semeado (sem apagar nada)."""
+    return await _seed_status(db)
+
+
 @router.post("/db/seed", status_code=status.HTTP_201_CREATED)
-async def seed_database(db: AsyncSession = Depends(get_db)):
+async def seed_database(
+    db: AsyncSession = Depends(get_db),
+    force: bool = Query(
+        False,
+        description="Se true, drop_all + reseed mesmo com dados existentes (destrutivo).",
+    ),
+):
     """
     Semeia o banco com o CBLOL 2026 Split 1 oficial (8 times):
     RED, FURIA, VKS, LØS, Fluxo W7M, LOUD, paiN, Leviatán.
-    Sem times de fora (G2/T1/LEC) e sem orgs fora do circuito 2026 (KaBuM/INTZ/Liberty).
+
+    IN-4: se já houver seed e force=false, retorna 200 com skipped=true
+    sem apagar o banco (preserva saves e progresso).
     """
     try:
-        logger.info("Recriando tabelas no banco de dados para semeadura limpa...")
+        # Garante schema mesmo se vazio
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        status_info = await _seed_status(db)
+        if status_info.get("seeded") and not force:
+            logger.info(
+                "[Seed] Banco já semeado — pulando drop (use force=true para recriar)."
+            )
+            return {
+                "message": "Seed ignorado: banco já contém CBLOL 2026. "
+                "Passe force=true para recriar (destrutivo).",
+                "skipped": True,
+                "force_required": True,
+                **{k: status_info[k] for k in (
+                    "seeded", "league_id", "league_name", "team_count",
+                    "player_count", "phase", "week", "day",
+                ) if k in status_info},
+            }
+
+        logger.info(
+            "Recriando tabelas no banco de dados para semeadura limpa "
+            f"(force={force})..."
+        )
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
@@ -315,9 +405,17 @@ async def seed_database(db: AsyncSession = Depends(get_db)):
         
         return {
             "message": "Banco semeado com CBLOL 2026 Split 1 (8 times oficiais).",
+            "skipped": False,
+            "forced": force,
             "league_id": str(cblol.id),
             "teams": {t.abbreviation: str(t.id) for t in teams_list},
             "team_count": len(teams_list),
+            "warning": (
+                "Seed destrutivo: saves antigos podem ficar incompatíveis "
+                "(UUIDs novos)."
+                if force
+                else None
+            ),
         }
     except Exception as e:
         await db.rollback()

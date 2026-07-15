@@ -29,6 +29,14 @@ class MockRedis:
         if key in self._store:
             del self._store[key]
 
+    async def keys(self, pattern: str = "*") -> list:
+        """Lista chaves; pattern estilo glob simples (* e ?)."""
+        import fnmatch
+
+        if pattern in ("*", ""):
+            return list(self._store.keys())
+        return [k for k in self._store.keys() if fnmatch.fnmatch(k, pattern)]
+
     async def incrby(self, key: str, amount: int) -> int:
         current = self._store.get(key, "0")
         try:
@@ -153,6 +161,45 @@ class RedisClient:
     
     async def delete(self, key: str) -> None:
         await self.client.delete(key)
+
+    async def keys(self, pattern: str = "*") -> list:
+        """Lista chaves (MockRedis ou Redis real com KEYS/SCAN)."""
+        client = self.client
+        if hasattr(client, "keys") and callable(getattr(client, "keys")):
+            result = await client.keys(pattern)
+            if result is None:
+                return []
+            # redis.asyncio pode devolver bytes se decode_responses=False
+            return [k.decode() if isinstance(k, (bytes, bytearray)) else str(k) for k in result]
+        return []
+
+    async def export_snapshot(self, patterns: Optional[list] = None) -> Dict[str, Any]:
+        """
+        Exporta pares chave→valor JSON-deserializados para save de carreira.
+        patterns: lista de globs (ex.: career:*, patch:current:*).
+        """
+        patterns = patterns or ["*"]
+        seen: set = set()
+        out: Dict[str, Any] = {}
+        for pat in patterns:
+            for key in await self.keys(pat):
+                if key in seen:
+                    continue
+                seen.add(key)
+                out[key] = await self.get_generic(key)
+        return out
+
+    async def import_snapshot(self, blob: Optional[Dict[str, Any]]) -> int:
+        """Restaura snapshot de carreira; retorna quantas chaves gravadas."""
+        if not blob or not isinstance(blob, dict):
+            return 0
+        n = 0
+        for key, value in blob.items():
+            if not key or not isinstance(key, str):
+                continue
+            await self.set_generic(key, value)
+            n += 1
+        return n
     
     async def publish(self, channel: str, message: dict) -> None:
         await self.client.publish(channel, json.dumps(message))

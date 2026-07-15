@@ -8,10 +8,12 @@ Persiste progresso do manager sobre o seed CBLOL atual:
   - Budgets dos times
   - Estado dos jogadores (fadiga, CA, time, etc.)
   - Contratos ativos
-  - Snapshot Redis: calendário SM + bracket de playoffs
+  - Snapshot Redis: calendário, playoffs, moral, org, form, treino,
+    scouting, practice e patch cache (IN-1)
 
 Não recria o universo: exige DB semeado com os mesmos UUIDs (não rode seed
-depois do save, ou o load falha com mismatch).
+depois do save, ou o load falha com mismatch). Use force=true no seed só
+quando quiser recomeçar (IN-4).
 """
 
 from __future__ import annotations
@@ -37,9 +39,19 @@ from src.shared.enums import ContractStatus, SplitPhase
 
 logger = logging.getLogger(__name__)
 
-SAVE_VERSION = 1
+SAVE_VERSION = 2
 SEED_TAG = "cblol_2026_v1"
 SLOT_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,32}$")
+
+# Prefixos Redis de carreira (além de calendar/playoffs dedicados)
+CAREER_REDIS_PATTERNS = [
+    "career:*",
+    "training:*",
+    "scouting:*",
+    "practice:*",
+    "patch:current:*",
+    "market:ai:*",
+]
 
 
 def saves_dir() -> Path:
@@ -221,6 +233,7 @@ class CareerSaveService:
 
         calendar_state = await redis_client.get_calendar_state(str(league.id))
         playoff_state = await redis_client.get_playoff_state(str(league.id))
+        career_kv = await self._export_career_redis()
 
         meta = {
             "slot": slot,
@@ -256,6 +269,7 @@ class CareerSaveService:
             "redis": {
                 "calendar": calendar_state,
                 "playoffs": playoff_state,
+                "career": career_kv,
             },
         }
 
@@ -436,9 +450,16 @@ class CareerSaveService:
         else:
             await redis_client.delete_playoff_state(str(league.id))
 
+        career_kv = redis_blob.get("career")
+        restored_keys = 0
+        if isinstance(career_kv, dict) and career_kv:
+            # Limpa chaves de carreira atuais para evitar lixo de sessão anterior
+            await self._clear_career_redis()
+            restored_keys = await redis_client.import_snapshot(career_kv)
+
         logger.info(
             f"[Career] Load OK slot={slot} manager={meta.get('manager_name')} "
-            f"team={meta.get('team_abbr')}"
+            f"team={meta.get('team_abbr')} redis_keys={restored_keys}"
         )
         return {
             "slot": slot,
@@ -450,7 +471,69 @@ class CareerSaveService:
             "phase": league.current_phase.value if league.current_phase else None,
             "week": league.current_week,
             "day": league.current_day,
+            "redis_keys_restored": restored_keys,
         }
+
+    async def _export_career_redis(self) -> Dict[str, Any]:
+        """Snapshot de moral/org/form/treino/scouting/patch (IN-1)."""
+        try:
+            blob = await redis_client.export_snapshot(CAREER_REDIS_PATTERNS)
+            # Fallback explícito se keys() vazio (Redis real sem SCAN): monta por IDs
+            if not blob:
+                blob = await self._export_career_redis_by_ids()
+            return blob
+        except Exception as exc:
+            logger.warning(f"[Career] export redis career falhou: {exc}")
+            return await self._export_career_redis_by_ids()
+
+    async def _export_career_redis_by_ids(self) -> Dict[str, Any]:
+        """Monta chaves conhecidas a partir de teams/players no DB."""
+        out: Dict[str, Any] = {}
+        teams = list((await self.db.execute(select(Team))).scalars().all())
+        players = list((await self.db.execute(select(Player))).scalars().all())
+        team_templates = (
+            "career:morale:team:{id}",
+            "career:org:team:{id}",
+            "training:team:{id}",
+            "training:team:{id}:last",
+            "scouting:team:{id}:knowledge",
+            "scouting:team:{id}:assignment",
+            "practice:team:{id}:last_scrim",
+            "practice:team:{id}:last_vod",
+            "practice:team:{id}:opponent_intel",
+            "career:scout:history:{id}",
+        )
+        for t in teams:
+            tid = str(t.id)
+            for tpl in team_templates:
+                key = tpl.format(id=tid)
+                val = await redis_client.get_generic(key)
+                if val is not None:
+                    out[key] = val
+        for p in players:
+            key = f"career:form:player:{p.id}"
+            val = await redis_client.get_generic(key)
+            if val is not None:
+                out[key] = val
+        for key in (
+            "patch:current:meta",
+            "patch:current:version",
+            "patch:current:bias",
+            "patch:current:badges",
+            "patch:current:changes",
+        ):
+            val = await redis_client.get_generic(key)
+            if val is not None:
+                out[key] = val
+        return out
+
+    async def _clear_career_redis(self) -> None:
+        try:
+            for pat in CAREER_REDIS_PATTERNS:
+                for key in await redis_client.keys(pat):
+                    await redis_client.delete(key)
+        except Exception as exc:
+            logger.warning(f"[Career] clear career redis: {exc}")
 
     def delete_save(self, slot: str) -> bool:
         return self.delete_save_static(slot)

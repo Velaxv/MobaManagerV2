@@ -1,6 +1,6 @@
 # Handoff de sessão — SALVO 2026-07-15
 
-**Status:** Sprint E + Sprint F no working tree (commit desta sessão).  
+**Status:** Sprint G commitado (após push E+F).  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
 
@@ -12,13 +12,8 @@
 run_game.bat
 ```
 
-Ou manual:
-```bat
-set PYTHONPATH=.
-venv\Scripts\python -m uvicorn src.main:app --port 8000
-venv\Scripts\python seed_runner.py
-cd frontend && npm run dev
-```
+Seed **seguro** por padrão (não apaga DB se já semeado).  
+Reseed destrutivo: `set SEED_FORCE=1` ou `seed_runner.py --force`.
 
 ---
 
@@ -26,32 +21,25 @@ cd frontend && npm run dev
 
 | Sprint | Feature |
 |--------|---------|
-| Base–S4 | CBLOL 2026, draft, live, playoffs BO, save, finanças, treino, scouting, patches, scrim/VOD/moral, board/sponsors/facility |
-| **E** | Motor com profundidade: chemistry, torres/lanes no BE, early 5 roles, ratings 0–10, win reasons, Rift map |
-| **F** | Forma (last 5), bench discontent, staff powers jogáveis, board review semanal, champion pool penalty |
+| Base–S4 | CBLOL, draft, live, playoffs, finanças, treino, scouting, scrim/VOD, board |
+| **E** | Motor profundo, Rift, ratings, win reasons |
+| **F** | Forma, bench, staff powers, board semanal, pool penalty |
+| **G** | Save Redis completo · seed seguro · Vitest · IA mercado · patch mid-split |
 
-### Painel — o que olhar
-- **Organização** — board semanal, sponsors, upgrade sede  
-- **Moral / Scrim / VOD** — prática da semana  
-- **Elenco** — forma recente + discontent de reserva  
-- **Comissão técnica** — poderes (Head Coach comms, Strategic draft, Performance recovery)  
-- **Draft** — pool/comfort + staff meta  
-- **Live** — ratings e motivo de vitória no overlay  
-
-### Calendário regular
-`SEG/TER treino · QUA match · QUI scrim · SEX VOD · SAB match · DOM rest`
+### Sprint G — detalhes
+- **IN-1** Save v2 grava moral/org/form/treino/scouting/practice/patch no JSON  
+- **IN-4** `GET /db/seed/status` · `POST /db/seed?force=true` · runner não-destrutivo  
+- **IN-3** Vitest: `frontend/src/lib/riftMap.test.ts` (`npm test`)  
+- **MK-1** Rivais fazem até 2 moves/semana na janela (Redis idempotente)  
+- **DR-5** Transição de patch no advance (`patch_transition` + feed do board)  
 
 ---
 
-## Próximo (Sprint G — carreira estável)
+## Próximo (Sprint H — polish / conteúdo)
+- Brand kit orgs, narração rica, Desafiante, tutorial, som  
+- ME-6 coach mid/late · DR-2 counter-pick · OR-2 sponsors com metas  
 
-1. **IN-1** Save inclui snapshots Redis (moral, org, form)  
-2. **IN-3** Vitest (store + riftMap)  
-3. **IN-4** Seed não destrutivo / new career explícito  
-4. **MK-1** IA de mercado (rivais)  
-5. **DR-5** Patch mid-split  
-
-Plano detalhado: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.md)
+Plano: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.md)
 
 ---
 
@@ -59,9 +47,9 @@ Plano detalhado: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.m
 
 | Item | Detalhe |
 |------|---------|
-| Seed | `seed_runner` / `POST /db/seed` **apaga DB** e invalida saves |
-| MockRedis | Reiniciar uvicorn perde live/calendário/playoffs/form/org em memória |
-| Saves | Pasta `saves/` — mesmo seed/DB em que salvou; form/org ainda não 100% no JSON |
+| Seed force | `force=true` / `SEED_FORCE=1` **apaga DB** e invalida saves |
+| MockRedis | Restart uvicorn perde estado **não salvo** |
+| Saves | Pasta `saves/` — v2 inclui career Redis; load restaura chaves |
 | Série BO | Avance o dia entre maps da série |
 
 ---
@@ -71,6 +59,7 @@ Plano detalhado: [`docs/PLANO_MELHORIAS_SISTEMAS.md`](PLANO_MELHORIAS_SISTEMAS.m
 ```bat
 set PYTHONPATH=.
 venv\Scripts\python -m pytest tests -q
+cd frontend && npm test
 ```
 
 ---

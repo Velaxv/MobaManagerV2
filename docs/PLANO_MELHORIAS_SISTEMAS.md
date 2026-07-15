@@ -203,12 +203,13 @@ Foco: motor + feedback. Entrega: o jogador entende *por que* ganhou/perdeu.
 
 **Critério:** decisões fora do draft mudam resultado de forma mensurável em testes.
 
-### Sprint G — “Carreira estável”
-1. **IN-1** Save completo  
-2. **IN-3** Vitest  
-3. **IN-4** Seed seguro  
-4. **MK-1** IA de mercado  
-5. **DR-5** Patch mid-split  
+### Sprint G — “Carreira estável” ✅ 2026-07-15
+1. **IN-1** Save completo — ✅ Redis career snapshot (save_version 2)  
+2. **IN-3** Vitest — ✅ `riftMap.test.ts` (10 cases)  
+3. **IN-4** Seed seguro — ✅ status + force flag + seed_runner skip  
+4. **MK-1** IA de mercado — ✅ MarketAIService 1–2 moves/semana  
+5. **DR-5** Patch mid-split — ✅ `patch_transition` no advance + board feed  
+
 
 ### Sprint H — “Conteúdo / polish” (quando F+G estáveis)
 - Brand kit orgs, narração rica, Desafiante, i18n, tutorial, som.

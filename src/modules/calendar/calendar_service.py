@@ -373,12 +373,14 @@ class CalendarService:
                         exc_info=True,
                     )
 
-        # Atualiza o cache do patch ativo para a data atual do calendário
+        # Atualiza o cache do patch ativo para a data atual do calendário (DR-5)
         from src.modules.simulation.patch_service import PatchService
         current_date = date.today() + timedelta(days=day_info["total_days"])
         patch_service = PatchService(self.db)
-        # Limpa versão cacheada para reavaliar se um patch entrou em vigor neste dia
         from src.core.redis_client import redis_client as _rc
+
+        prev_patch = await _rc.get_generic("patch:current:version")
+        # Limpa versão cacheada para reavaliar se um patch entrou em vigor neste dia
         await _rc.delete("patch:current:version")
         active_patch_version = await patch_service.update_patch_cache(current_date)
         day_info["active_patch"] = active_patch_version
@@ -391,8 +393,71 @@ class CalendarService:
                 "upcoming_version": (patch_status.get("upcoming") or {}).get("version"),
                 "upcoming_days": (patch_status.get("upcoming") or {}).get("days_until"),
             }
+            # Transição mid-split: 16.1 → 16.2 etc.
+            if (
+                active_patch_version
+                and prev_patch
+                and str(prev_patch) != str(active_patch_version)
+            ):
+                changes = (patch_status.get("active") or {}).get("changes") or []
+                transition = {
+                    "from_version": str(prev_patch),
+                    "to_version": str(active_patch_version),
+                    "is_mid_split": True,
+                    "buff_count": day_info["patch_status"].get("buff_count"),
+                    "nerf_count": day_info["patch_status"].get("nerf_count"),
+                    "headline_changes": [
+                        c.get("summary") for c in changes[:6] if c.get("summary")
+                    ],
+                    "message": (
+                        f"Patch {active_patch_version} entrou em vigor "
+                        f"(substituindo {prev_patch}). Meta atualizada no draft."
+                    ),
+                }
+                day_info["patch_transition"] = transition
+                await _rc.set_generic("patch:last_transition", transition)
+                logger.info(
+                    f"[CalendarService] Patch mid-split: {prev_patch} → {active_patch_version}"
+                )
+                if managed_team_id:
+                    try:
+                        from src.modules.career.org_service import OrgService
+
+                        org = OrgService(self.db)
+                        st = await org.get_state(str(managed_team_id))
+                        org._push(
+                            st,
+                            transition["message"],
+                            "info",
+                        )
+                        await org.save_state(str(managed_team_id), st)
+                    except Exception as pe:
+                        logger.debug(f"[CalendarService] patch org push: {pe}")
         except Exception:
             day_info["patch_status"] = {"version": active_patch_version}
+
+        # IA de mercado dos rivais (MK-1) — 1× por semana quando janela aberta
+        try:
+            from src.modules.career.market_ai import MarketAIService
+
+            mai = MarketAIService(self.db)
+            market_ai = await mai.process_week_if_needed(
+                managed_team_id=managed_team_id,
+                week=day_info.get("week"),
+                phase=day_info.get("state"),
+                max_moves=2,
+            )
+            if market_ai and not market_ai.get("skipped"):
+                day_info["market_ai"] = market_ai
+                if managed_team_id and market_ai.get("moves"):
+                    day_info["market_ai_headline"] = (
+                        f"{market_ai['count']} movimento(s) de rivais na janela."
+                    )
+        except Exception as mexc:
+            logger.warning(
+                f"[CalendarService] Market AI: {mexc}",
+                exc_info=True,
+            )
 
         # Enriquecimento para o frontend montar a grade semanal
         day_info["league_id"] = str(league.id)

@@ -14,9 +14,11 @@ pytestmark = pytest.mark.asyncio
 
 
 async def _seed(client):
-    r = await client.post("/db/seed")
+    # force=true: testes precisam de seed limpo e determinístico (IN-4)
+    r = await client.post("/db/seed?force=true")
     assert r.status_code == 201, r.text
     data = r.json()
+    assert data.get("skipped") is not True
     assert data.get("team_count") == 8
     assert data.get("league_id")
     assert len(data.get("teams") or {}) == 8

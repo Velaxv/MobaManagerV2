@@ -50,8 +50,9 @@ start "Moba Manager Backend" cmd /c "set PYTHONPATH=. && .\venv\Scripts\python -
 :: Aguarda 5 segundos para o servidor subir completamente
 timeout /t 5 /nobreak >nul
 
-:: 4. Executando a Semeadura do Banco (Seed)
-echo [4/5] Alimentando o banco de dados (SQLite Seed)...
+:: 4. Seed seguro (IN-4): nao apaga DB se ja existir CBLOL
+::    Para forcar reseed: set SEED_FORCE=1 antes de rodar, ou seed_runner.py --force
+echo [4/5] Seed do banco (seguro — so recria se vazio)...
 .\venv\Scripts\python seed_runner.py
 if %errorlevel% neq 0 (
     color 0C
@@ -64,7 +65,7 @@ if %errorlevel% neq 0 (
     pause
     exit /b %errorlevel%
 )
-echo [OK] Banco de dados SQLite recriado e semeado com sucesso!
+echo [OK] Seed concluido (skip se ja semeado; SEED_FORCE=1 para recriar).
 echo.
 
 :: 5. Iniciando o Frontend Vite e Abrindo o Navegador
