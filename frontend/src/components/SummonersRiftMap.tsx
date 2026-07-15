@@ -3,14 +3,20 @@ import { Map as MapIcon, Eye } from 'lucide-react';
 import { ChampionImage } from './ChampionImage';
 import { RoleIcon } from './RoleIcon';
 import {
+  applyTowerHpFromPressure,
+  buildMiniFeed,
   countAliveTowers,
+  eventTypeGlyph,
   flashAnchor,
   locationLabel,
+  resolveObjectiveContest,
   resolveRiftUnits,
   resolveStructures,
   resolveWards,
   type MapEventHint,
   type MapPoint,
+  type MiniFeedItem,
+  type ObjectiveContest,
   type RiftStructure,
   type RiftUnit,
   type RiftWard,
@@ -42,6 +48,8 @@ interface SummonersRiftMapProps {
   isVictory?: boolean;
   blueTeam?: string;
   redTeam?: string;
+  /** Eventos recentes para mini-feed no mapa (ME-7) */
+  feedItems?: MiniFeedItem[];
   className?: string;
 }
 
@@ -119,6 +127,48 @@ function UnitMarker({ unit }: { unit: RiftUnit }) {
   );
 }
 
+function HpBar({
+  x,
+  y,
+  width,
+  hp,
+  underSiege,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  hp: number;
+  underSiege?: boolean;
+}) {
+  const h = Math.max(0, Math.min(100, hp)) / 100;
+  const barH = 0.7;
+  const fill =
+    h > 0.55 ? '#4ade80' : h > 0.28 ? '#fbbf24' : '#f87171';
+  return (
+    <g className={underSiege ? 'rift-hp-siege' : undefined}>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={barH}
+        rx={0.15}
+        fill="rgba(0,0,0,0.55)"
+        stroke="rgba(255,255,255,0.12)"
+        strokeWidth={0.12}
+      />
+      <rect
+        x={x}
+        y={y}
+        width={Math.max(0.2, width * h)}
+        height={barH}
+        rx={0.15}
+        fill={fill}
+        opacity={0.95}
+      />
+    </g>
+  );
+}
+
 function StructureLayer({ structures }: { structures: RiftStructure[] }) {
   return (
     <g className="rift-structures">
@@ -127,6 +177,7 @@ function StructureLayer({ structures }: { structures: RiftStructure[] }) {
         const aliveColor = isBlue ? '#38bdf8' : '#fb7185';
         const deadColor = 'rgba(80,80,80,0.55)';
         const fill = s.alive ? aliveColor : deadColor;
+        const showHp = s.alive && s.hp != null && (s.underSiege || (s.hp ?? 100) < 100);
 
         if (s.kind === 'NEXUS') {
           return (
@@ -159,6 +210,17 @@ function StructureLayer({ structures }: { structures: RiftStructure[] }) {
         if (s.kind === 'INHIB') {
           return (
             <g key={s.id}>
+              {s.underSiege && s.alive && (
+                <circle
+                  cx={s.x}
+                  cy={s.y}
+                  r={3.2}
+                  fill="none"
+                  stroke="rgba(251,191,36,0.55)"
+                  strokeWidth={0.35}
+                  className="rift-siege-ring"
+                />
+              )}
               <rect
                 x={s.x - 1.6}
                 y={s.y - 1.6}
@@ -172,6 +234,9 @@ function StructureLayer({ structures }: { structures: RiftStructure[] }) {
                 transform={!s.alive ? `rotate(12 ${s.x} ${s.y})` : undefined}
                 className={s.justDestroyed ? 'rift-structure-pop' : undefined}
               />
+              {showHp && (
+                <HpBar x={s.x - 2.2} y={s.y + 2.2} width={4.4} hp={s.hp ?? 100} underSiege />
+              )}
             </g>
           );
         }
@@ -180,6 +245,17 @@ function StructureLayer({ structures }: { structures: RiftStructure[] }) {
         const size = s.kind === 'T1' ? 2.0 : s.kind === 'T2' ? 2.2 : 2.4;
         return (
           <g key={s.id}>
+            {s.underSiege && s.alive && (
+              <circle
+                cx={s.x}
+                cy={s.y}
+                r={size * 1.35}
+                fill="none"
+                stroke="rgba(251,191,36,0.65)"
+                strokeWidth={0.3}
+                className="rift-siege-ring"
+              />
+            )}
             <rect
               x={s.x - size / 2}
               y={s.y - size / 2}
@@ -202,10 +278,143 @@ function StructureLayer({ structures }: { structures: RiftStructure[] }) {
                 strokeWidth="0.45"
               />
             )}
+            {showHp && (
+              <HpBar
+                x={s.x - size * 0.85}
+                y={s.y + size * 0.75}
+                width={size * 1.7}
+                hp={s.hp ?? 100}
+                underSiege={s.underSiege}
+              />
+            )}
           </g>
         );
       })}
     </g>
+  );
+}
+
+function ContestOverlay({ contest }: { contest: ObjectiveContest }) {
+  if (!contest.kind || !contest.active) return null;
+  const barW = 14;
+  const barH = 1.35;
+  const x = contest.x - barW / 2;
+  const y = contest.y - 7.2;
+  const blueW = (barW * contest.bluePct) / 100;
+  return (
+    <g className="rift-contest" style={{ pointerEvents: 'none' }}>
+      <rect
+        x={x - 0.4}
+        y={y - 2.2}
+        width={barW + 0.8}
+        height={barH + 3.4}
+        rx={0.5}
+        fill="rgba(0,0,0,0.55)"
+        stroke="rgba(251,191,36,0.35)"
+        strokeWidth={0.25}
+      />
+      <text
+        x={contest.x}
+        y={y - 0.55}
+        textAnchor="middle"
+        fontSize="2.1"
+        fill="rgba(251,191,36,0.95)"
+        fontFamily="monospace"
+      >
+        {contest.label}
+        {contest.leading ? ` · ${contest.leading === 'BLUE' ? 'B' : 'R'}` : ''}
+      </text>
+      <rect x={x} y={y + 0.5} width={barW} height={barH} rx={0.25} fill="rgba(30,30,30,0.9)" />
+      <rect
+        x={x}
+        y={y + 0.5}
+        width={blueW}
+        height={barH}
+        rx={0.25}
+        fill="rgba(56,189,248,0.9)"
+        className="rift-contest-fill"
+      />
+      <rect
+        x={x + blueW}
+        y={y + 0.5}
+        width={barW - blueW}
+        height={barH}
+        rx={0.25}
+        fill="rgba(251,113,133,0.9)"
+      />
+    </g>
+  );
+}
+
+function LanePressureArrows({
+  pressure,
+}: {
+  pressure: Record<string, number> | null | undefined;
+}) {
+  if (!pressure) return null;
+  const anchors: { key: string; x: number; y: number }[] = [
+    { key: 'TOP', x: 28, y: 28 },
+    { key: 'MID', x: 50, y: 50 },
+    { key: 'BOT', x: 72, y: 72 },
+  ];
+  return (
+    <g className="rift-pressure-arrows">
+      {anchors.map(({ key, x, y }) => {
+        const v = Number(pressure[key] ?? 0);
+        if (Math.abs(v) < 14) return null;
+        const towardRed = v > 0; // Blue empurra → seta NE
+        const len = Math.min(5.5, 1.8 + Math.abs(v) / 28);
+        const dx = towardRed ? len * 0.7 : -len * 0.7;
+        const dy = towardRed ? -len * 0.7 : len * 0.7;
+        const color = towardRed ? 'rgba(56,189,248,0.75)' : 'rgba(251,113,133,0.75)';
+        return (
+          <g key={key} opacity={0.85}>
+            <line
+              x1={x - dx * 0.2}
+              y1={y - dy * 0.2}
+              x2={x + dx}
+              y2={y + dy}
+              stroke={color}
+              strokeWidth={0.55}
+              strokeLinecap="round"
+              markerEnd="url(#riftArrow)"
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function MiniFeedOverlay({ items }: { items: MiniFeedItem[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="rift-mini-feed" aria-label="Mini feed do mapa">
+      {items.map((it, idx) => {
+        const side = String(it.side || '').toUpperCase();
+        const sideCls =
+          side === 'BLUE'
+            ? 'border-sky-500/40 bg-sky-950/70 text-sky-100'
+            : side === 'RED'
+              ? 'border-rose-500/40 bg-rose-950/70 text-rose-100'
+              : 'border-white/15 bg-black/70 text-white/80';
+        return (
+          <div
+            key={it.id}
+            className={`rift-mini-feed-item ${sideCls}`}
+            style={{ animationDelay: `${idx * 40}ms` }}
+          >
+            <span className="shrink-0 opacity-80">{eventTypeGlyph(it.eventType)}</span>
+            <span className="min-w-0 truncate">
+              {it.timestamp ? (
+                <span className="text-white/35 mr-1 tabular-nums">[{it.timestamp}]</span>
+              ) : null}
+              {it.text}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -298,6 +507,7 @@ export function SummonersRiftMap({
   isVictory,
   blueTeam = 'Blue',
   redTeam = 'Red',
+  feedItems = [],
   className = '',
 }: SummonersRiftMapProps) {
   const [tick, setTick] = useState(0);
@@ -371,37 +581,65 @@ export function SummonersRiftMap({
 
   const structures = useMemo(() => {
     const fromEvents = resolveStructures(eventHistory, latestEvent, winnerSide, isVictory);
-    if (!mapStructuresBE?.blue && !mapStructuresBE?.red) return fromEvents;
-    // Sobrescreve alive a partir do BE (torres por lane)
-    return fromEvents.map((s) => {
-      const sideKey = s.side === 'BLUE' ? 'blue' : 'red';
-      const pack = mapStructuresBE[sideKey];
-      if (!pack) return s;
-      let alive = s.alive;
-      if (s.kind === 'NEXUS') {
-        alive = (pack.nexus ?? 1) > 0;
-      } else if (s.kind === 'INHIB') {
-        const left = pack.inhibs ?? 3;
-        const destroyedInhibs = Math.max(0, 3 - left);
-        const laneOrder = ['TOP', 'MID', 'BOT'];
-        const idx = laneOrder.indexOf(s.lane as string);
-        alive = idx < 0 ? left > 0 : idx >= destroyedInhibs;
-      } else if (s.kind === 'T1' || s.kind === 'T2' || s.kind === 'T3') {
-        const lane = (s.lane as string).toLowerCase() as 'top' | 'mid' | 'bot';
-        const remaining = pack[lane] ?? 3;
-        // remaining 3 = todas vivas; 2 = T1 caiu; 1 = T1+T2; 0 = todas
-        const destroyed = Math.max(0, 3 - remaining);
-        if (s.kind === 'T1') alive = destroyed < 1;
-        else if (s.kind === 'T2') alive = destroyed < 2;
-        else alive = destroyed < 3;
-      }
-      return { ...s, alive };
-    });
-  }, [eventHistory, latestEvent, winnerSide, isVictory, mapStructuresBE]);
+    let merged = fromEvents;
+    if (mapStructuresBE?.blue || mapStructuresBE?.red) {
+      // Sobrescreve alive a partir do BE (torres por lane)
+      merged = fromEvents.map((s) => {
+        const sideKey = s.side === 'BLUE' ? 'blue' : 'red';
+        const pack = mapStructuresBE[sideKey];
+        if (!pack) return s;
+        let alive = s.alive;
+        if (s.kind === 'NEXUS') {
+          alive = (pack.nexus ?? 1) > 0;
+        } else if (s.kind === 'INHIB') {
+          const left = pack.inhibs ?? 3;
+          const destroyedInhibs = Math.max(0, 3 - left);
+          const laneOrder = ['TOP', 'MID', 'BOT'];
+          const idx = laneOrder.indexOf(s.lane as string);
+          alive = idx < 0 ? left > 0 : idx >= destroyedInhibs;
+        } else if (s.kind === 'T1' || s.kind === 'T2' || s.kind === 'T3') {
+          const lane = (s.lane as string).toLowerCase() as 'top' | 'mid' | 'bot';
+          const remaining = pack[lane] ?? 3;
+          // remaining 3 = todas vivas; 2 = T1 caiu; 1 = T1+T2; 0 = todas
+          const destroyed = Math.max(0, 3 - remaining);
+          if (s.kind === 'T1') alive = destroyed < 1;
+          else if (s.kind === 'T2') alive = destroyed < 2;
+          else alive = destroyed < 3;
+        }
+        return { ...s, alive };
+      });
+    }
+    // ME-7: HP visual sob siege a partir da pressão de lane
+    return applyTowerHpFromPressure(merged, lanePressure);
+  }, [eventHistory, latestEvent, winnerSide, isVictory, mapStructuresBE, lanePressure]);
 
   const wards = useMemo(() => resolveWards(phase, minute + tick * 0.05), [phase, minute, tick]);
 
   const towerCount = useMemo(() => countAliveTowers(structures), [structures]);
+
+  const contest = useMemo(
+    () => resolveObjectiveContest(phase, minute, latestEvent, eventHistory),
+    [phase, minute, latestEvent, eventHistory],
+  );
+
+  const miniFeed = useMemo(() => {
+    if (feedItems.length) return buildMiniFeed(feedItems, 4);
+    // fallback: deriva do histórico de mapa
+    return buildMiniFeed(
+      eventHistory.map((e, i) => ({
+        text: e.text,
+        eventType: e.eventType,
+        side: e.side as string,
+        id: `hist-${i}`,
+      })),
+      3,
+    );
+  }, [feedItems, eventHistory]);
+
+  const siegeCount = useMemo(
+    () => structures.filter((s) => s.alive && s.underSiege).length,
+    [structures],
+  );
 
   const eventCaption = useMemo(() => {
     if (!latestEvent) return null;
@@ -466,6 +704,16 @@ export function SummonersRiftMap({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <marker
+              id="riftArrow"
+              markerWidth="4"
+              markerHeight="4"
+              refX="3"
+              refY="2"
+              orient="auto"
+            >
+              <path d="M0,0 L4,2 L0,4 Z" fill="rgba(200,180,100,0.85)" />
+            </marker>
           </defs>
 
           <rect x="0" y="0" width="100" height="100" fill="url(#riftGrass)" rx="1.5" />
@@ -534,22 +782,44 @@ export function SummonersRiftMap({
           {/* Wards */}
           <WardLayer wards={wards} />
 
-          {/* Torres / inhib / nexus */}
+          {/* Torres / inhib / nexus + HP sob siege */}
           <StructureLayer structures={structures} />
+
+          {/* Pressão de lane (setas) */}
+          <LanePressureArrows pressure={lanePressure} />
 
           {/* Dragão / Baron */}
           <g transform="translate(58,66)">
-            <circle r="4.2" fill="rgba(220,80,40,0.35)" stroke="#f97316" strokeWidth="0.5" />
+            <circle
+              r="4.2"
+              fill="rgba(220,80,40,0.35)"
+              stroke="#f97316"
+              strokeWidth="0.5"
+              className={contest.kind === 'DRAGON' && contest.active ? 'rift-obj-pulse' : undefined}
+            />
             <text textAnchor="middle" dominantBaseline="central" fontSize="3.6" fill="#fdba74">
               🐉
             </text>
           </g>
           <g transform="translate(42,34)">
-            <circle r="4.2" fill="rgba(120,60,180,0.4)" stroke="#c084fc" strokeWidth="0.5" />
+            <circle
+              r="4.2"
+              fill="rgba(120,60,180,0.4)"
+              stroke="#c084fc"
+              strokeWidth="0.5"
+              className={
+                (contest.kind === 'BARON' || contest.kind === 'HERALD') && contest.active
+                  ? 'rift-obj-pulse'
+                  : undefined
+              }
+            />
             <text textAnchor="middle" dominantBaseline="central" fontSize="3.6" fill="#e9d5ff">
               👑
             </text>
           </g>
+
+          {/* Contest bar do objetivo neutro */}
+          <ContestOverlay contest={contest} />
 
           <text x="12" y="32" fontSize="3" fill="rgba(255,255,255,0.28)" fontFamily="monospace">
             TOP
@@ -579,6 +849,9 @@ export function SummonersRiftMap({
             <UnitMarker key={u.id} unit={u} />
           ))}
         </div>
+
+        {/* Mini-feed no canto do mapa */}
+        {!isVictory && <MiniFeedOverlay items={miniFeed} />}
       </div>
 
       <div className="px-3 py-2 border-t border-white/10 bg-black/45 space-y-1.5">
@@ -593,6 +866,11 @@ export function SummonersRiftMap({
             <span className="flex items-center gap-1 text-white/35 normal-case tracking-normal">
               <Eye className="w-3 h-3" /> {wards.length}
             </span>
+            {siegeCount > 0 && (
+              <span className="text-amber-400/90 normal-case tracking-normal font-mono">
+                ⚔ {siegeCount} siege
+              </span>
+            )}
           </div>
           {eventCaption ? (
             <div className="text-[10px] font-mono text-lol-gold-soft/90 truncate max-w-[55%] text-right animate-fade-in">
@@ -608,9 +886,14 @@ export function SummonersRiftMap({
             🏰 <span className="text-sky-400">{towerCount.blue}</span>
             <span className="text-white/25"> · </span>
             <span className="text-rose-400">{towerCount.red}</span> torres
+            {contest.active && contest.kind ? (
+              <span className="ml-2 text-amber-300/80">
+                · {contest.label} {contest.bluePct}/{contest.redPct}
+              </span>
+            ) : null}
           </span>
           {lanePressure && (
-            <span className="text-white/35 truncate max-w-[55%] text-right" title="Pressão de lane (Blue +)">
+            <span className="text-white/35 truncate max-w-[48%] text-right" title="Pressão de lane (Blue +)">
               press{' '}
               {(['TOP', 'MID', 'BOT'] as const).map((k) => {
                 const v = lanePressure[k] ?? 0;

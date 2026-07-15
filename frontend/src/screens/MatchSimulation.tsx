@@ -668,6 +668,19 @@ export function MatchSimulation() {
               isVictory={isVictory}
               blueTeam={activeMatch.blueTeam}
               redTeam={activeMatch.redTeam}
+              feedItems={activeMatch.logs.slice(-8).map((log, i) => ({
+                id: `feed-${log.timestamp}-${i}-${log.eventType || ''}`,
+                text: log.text,
+                eventType: log.eventType || log.phase,
+                timestamp: log.timestamp,
+                side:
+                  log.map?.side ||
+                  (/\[BLUE\]|\bblue\b/i.test(log.text)
+                    ? 'BLUE'
+                    : /\[RED\]|\bred\b/i.test(log.text)
+                      ? 'RED'
+                      : undefined),
+              }))}
             />
           </div>
 

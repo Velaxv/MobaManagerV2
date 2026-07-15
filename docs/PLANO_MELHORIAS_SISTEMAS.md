@@ -126,7 +126,7 @@ Impacto: **A** alto · **B** médio · **C** baixo/polish
 | **ME-4** | **Player ratings pós-partida** (0–10) por kills/objetivos/burnout | M | A | ✅ 2026-07-14 — `player_ratings` + UI victory |
 | **ME-5** | **Chemistry/duo no motor** — bot_synergy e jg_mid_synergy como mult | P | A | ✅ 2026-07-14 — MoraleService → duel bonus |
 | **ME-6** | **Coach comms mid/late** limitados (timeout call / engage) | M | B | Expande só-early |
-| **ME-7** | Rift: objetivo contest bar, torre HP, mini-feed no mapa | P | B | UI sobre estado ME-1 |
+| **ME-7** | Rift: objetivo contest bar, torre HP, mini-feed no mapa | P | B | ✅ 2026-07-15 — HP siege, contest, mini-feed, setas pressão |
 | **ME-8** | Narração com templates (pickoff, 2v2 river, siege) | M | B | P4-3 do backlog antigo |
 
 ### B. Draft e meta

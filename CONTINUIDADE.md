@@ -1,9 +1,10 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-15 — Sprint H (polish seletivo)  
+**Última atualização:** 2026-07-15 — ME-7 Rift UI refinada  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Estado:** E+F+G+H · brand · narração · counters · sponsors metas  
+**Estado:** E+F+G+H + ME-7 (HP torre, contest, mini-feed)  
+
 
 ### Retomar
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  

@@ -25,12 +25,20 @@ Seed seguro por padrão. Reseed: `SEED_FORCE=1` ou `seed_runner.py --force`.
 | **F** | Forma, bench, staff powers, board semanal, pool |
 | **G** | Save Redis, seed seguro, Vitest, IA mercado, patch mid-split |
 | **H** | Brand kit orgs · narração · counter-pick early · sponsors com metas |
+| **ME-7** | Rift UI refinada — HP de torre, contest bar, mini-feed, pressão |
 
 ### Sprint H — o que entrou
 - **Brand kit** — cores/crest por org no hub, tabela e wizard  
 - **Narração** — templates PT-BR por tipo de evento (live feed)  
 - **DR-2** — counter lane → mult de duelo early + relatório no start da live  
 - **OR-2** — sponsors com meta de ranking + vitórias; payout sobe/desce  
+
+### ME-7 — Rift UI refinada
+- Barras de HP em torres/inhib sob siege (via `lane_pressure`)  
+- Contest bar Dragão/Baron/Arauto no poço  
+- Mini-feed no canto do minimapa  
+- Setas de pressão de lane  
+
 
 ### Explicitamente **fora** deste sprint (pedido)
 - Coach mid/late (não faz sentido em LoL real)  

@@ -48,6 +48,36 @@ export interface RiftStructure {
   alive: boolean;
   /** Acabou de cair (flash visual) */
   justDestroyed: boolean;
+  /** HP 0–100 da torre/inhib sob siege (undefined = cheia ou morta) */
+  hp?: number;
+  /** Torre mais externa da lane sob pressão */
+  underSiege?: boolean;
+}
+
+export type ObjectiveKind = 'DRAGON' | 'BARON' | 'HERALD' | null;
+
+export interface ObjectiveContest {
+  kind: ObjectiveKind;
+  /** 0–100 controle Blue no poço */
+  bluePct: number;
+  /** 0–100 controle Red no poço */
+  redPct: number;
+  /** Contestado no momento */
+  active: boolean;
+  /** Lado com vantagem no contest */
+  leading?: MapSide | null;
+  label: string;
+  /** Âncora no mapa */
+  x: number;
+  y: number;
+}
+
+export interface MiniFeedItem {
+  id: string;
+  text: string;
+  eventType?: string;
+  side?: MapSide | string;
+  timestamp?: string;
 }
 
 export interface RiftWard {
@@ -696,4 +726,243 @@ export function flashAnchor(flashLoc: string | null | undefined): MapPoint {
   if (u.includes('RED')) return RIFT_ANCHORS.redNexus;
   if (u.includes('BLUE')) return RIFT_ANCHORS.blueNexus;
   return RIFT_ANCHORS.midCenter;
+}
+
+/**
+ * Pressão positiva = Blue empurra (torres Red sob siege).
+ * Aplica HP visual na torre mais externa viva de cada lane.
+ */
+export function applyTowerHpFromPressure(
+  structures: RiftStructure[],
+  lanePressure?: Record<string, number> | null,
+): RiftStructure[] {
+  if (!lanePressure) {
+    return structures.map((s) => ({
+      ...s,
+      hp: s.alive ? 100 : 0,
+      underSiege: false,
+    }));
+  }
+
+  const outerAlive = (side: MapSide, lane: LaneKey): RiftStructure | undefined => {
+    for (const kind of TOWER_ORDER) {
+      const id = `${side}_${lane}_${kind}`;
+      const s = structures.find((x) => x.id === id);
+      if (s?.alive) return s;
+    }
+    return undefined;
+  };
+
+  const siegeById = new Map<string, { hp: number; underSiege: boolean }>();
+
+  for (const lane of ['TOP', 'MID', 'BOT'] as LaneKey[]) {
+    const press = Number(lanePressure[lane] ?? 0);
+    // Blue empurra → Red sofre
+    if (press > 12) {
+      const target = outerAlive('RED', lane);
+      if (target) {
+        const dmg = Math.min(85, (press - 12) * 1.15);
+        siegeById.set(target.id, {
+          hp: Math.round(Math.max(12, 100 - dmg)),
+          underSiege: true,
+        });
+      }
+    } else if (press < -12) {
+      const target = outerAlive('BLUE', lane);
+      if (target) {
+        const dmg = Math.min(85, (Math.abs(press) - 12) * 1.15);
+        siegeById.set(target.id, {
+          hp: Math.round(Math.max(12, 100 - dmg)),
+          underSiege: true,
+        });
+      }
+    }
+  }
+
+  return structures.map((s) => {
+    if (!s.alive) return { ...s, hp: 0, underSiege: false };
+    const siege = siegeById.get(s.id);
+    if (siege) return { ...s, hp: siege.hp, underSiege: true };
+    // Inhibs: leve HP se todas as torres da lane caíram e há pressão
+    if (s.kind === 'INHIB') {
+      const lane = s.lane as LaneKey;
+      if (lane === 'TOP' || lane === 'MID' || lane === 'BOT') {
+        const towersAlive = structures.filter(
+          (t) =>
+            t.side === s.side &&
+            t.lane === lane &&
+            (t.kind === 'T1' || t.kind === 'T2' || t.kind === 'T3') &&
+            t.alive,
+        ).length;
+        const press = Number(lanePressure[lane] ?? 0);
+        const pushed =
+          (s.side === 'RED' && press > 20) || (s.side === 'BLUE' && press < -20);
+        if (towersAlive === 0 && pushed) {
+          const dmg = Math.min(70, Math.abs(press) * 0.8);
+          return {
+            ...s,
+            hp: Math.round(Math.max(20, 100 - dmg)),
+            underSiege: true,
+          };
+        }
+      }
+    }
+    return { ...s, hp: 100, underSiege: false };
+  });
+}
+
+/**
+ * Contest bar de Dragão / Baron a partir de fase, minuto e último evento.
+ * Determinístico (sem RNG) para testes e UI estável.
+ */
+export function resolveObjectiveContest(
+  phase: string,
+  minute: number,
+  latestEvent?: MapEventHint | null,
+  eventHistory: MapEventHint[] = [],
+): ObjectiveContest {
+  const p = (phase || '').toUpperCase();
+  const late = p.includes('LATE') || p === 'COMPLETE' || p === 'FINISHED';
+  const mid = p.includes('MID');
+  const early = p.includes('EARLY') || p.includes('SETUP') || (!mid && !late);
+
+  // Objetivo relevante por fase
+  let kind: ObjectiveKind = early ? (minute >= 8 ? 'HERALD' : null) : mid ? 'DRAGON' : 'BARON';
+  if (minute >= 20) kind = late ? 'BARON' : 'DRAGON';
+  if (minute >= 25) kind = 'BARON';
+
+  const pit =
+    kind === 'BARON' || kind === 'HERALD'
+      ? { x: RIFT_ANCHORS.baron.x, y: RIFT_ANCHORS.baron.y }
+      : { x: RIFT_ANCHORS.dragon.x, y: RIFT_ANCHORS.dragon.y };
+
+  const labels: Record<string, string> = {
+    DRAGON: 'Dragão',
+    BARON: 'Baron',
+    HERALD: 'Arauto',
+  };
+
+  // Evento recente de secure → barra quase cheia do vencedor
+  const lastObj = [...eventHistory, latestEvent]
+    .filter(Boolean)
+    .reverse()
+    .find((ev) => {
+      const t = (ev!.eventType || '').toUpperCase();
+      return (
+        t.includes('DRAGON') ||
+        t.includes('BARON') ||
+        t.includes('HERALD') ||
+        (ev!.text || '').toLowerCase().includes('dragão') ||
+        (ev!.text || '').toLowerCase().includes('baron')
+      );
+    }) as MapEventHint | undefined;
+
+  if (lastObj) {
+    const t = (lastObj.eventType || '').toUpperCase();
+    let k: ObjectiveKind = kind;
+    if (t.includes('BARON')) k = 'BARON';
+    else if (t.includes('HERALD')) k = 'HERALD';
+    else if (t.includes('DRAGON')) k = 'DRAGON';
+    const side = String(lastObj.side || '').toUpperCase();
+    const blueWin = side === 'BLUE';
+    const redWin = side === 'RED';
+    const secured = /SECURED|secure|assegura|pega|fecha/i.test(
+      `${lastObj.eventType || ''} ${lastObj.text || ''}`,
+    );
+    if (blueWin || redWin) {
+      return {
+        kind: k,
+        bluePct: blueWin ? (secured ? 100 : 72) : secured ? 8 : 28,
+        redPct: redWin ? (secured ? 100 : 72) : secured ? 8 : 28,
+        active: !secured,
+        leading: blueWin ? 'BLUE' : 'RED',
+        label: labels[k || 'DRAGON'] || 'Objetivo',
+        x: k === 'DRAGON' ? RIFT_ANCHORS.dragon.x : RIFT_ANCHORS.baron.x,
+        y: k === 'DRAGON' ? RIFT_ANCHORS.dragon.y : RIFT_ANCHORS.baron.y,
+      };
+    }
+  }
+
+  if (!kind) {
+    return {
+      kind: null,
+      bluePct: 0,
+      redPct: 0,
+      active: false,
+      leading: null,
+      label: '',
+      x: 50,
+      y: 50,
+    };
+  }
+
+  // Contestado “vivo”: oscila com minuto (determinístico)
+  const wave = Math.sin(minute * 0.55) * 18 + Math.cos(minute * 0.31) * 10;
+  let blue = 50 + wave;
+  let red = 50 - wave;
+  // Mid/late: favor leve do ouro implícito pelo minuto par/ímpar
+  if (minute % 2 === 0) blue += 6;
+  else red += 6;
+  blue = clamp(blue, 18, 82);
+  red = clamp(red, 18, 82);
+  // Normaliza para somar ~100
+  const sum = blue + red;
+  blue = Math.round((blue / sum) * 100);
+  red = 100 - blue;
+
+  const leading: MapSide | null =
+    blue > red + 6 ? 'BLUE' : red > blue + 6 ? 'RED' : null;
+
+  // Ativo em janelas de spawn (a cada ~5 min a partir de 5)
+  const windowOpen = minute >= 5 && minute % 5 <= 2;
+  const active = windowOpen || mid || late;
+
+  return {
+    kind,
+    bluePct: blue,
+    redPct: red,
+    active: !!active && minute >= 5,
+    leading,
+    label: labels[kind],
+    x: pit.x,
+    y: pit.y,
+  };
+}
+
+/** Mini-feed: últimos N eventos legíveis para overlay no mapa. */
+export function buildMiniFeed(
+  items: { text?: string; eventType?: string; side?: string; timestamp?: string; id?: string }[],
+  limit = 4,
+): MiniFeedItem[] {
+  const out: MiniFeedItem[] = [];
+  for (let i = items.length - 1; i >= 0 && out.length < limit; i--) {
+    const it = items[i];
+    const text = (it.text || '').trim();
+    if (!text || text.length < 4) continue;
+    // Encurta para o mapa
+    const short =
+      text.length > 72 ? `${text.slice(0, 69).trimEnd()}…` : text;
+    out.push({
+      id: it.id || `${it.timestamp || i}-${out.length}`,
+      text: short,
+      eventType: it.eventType,
+      side: it.side,
+      timestamp: it.timestamp,
+    });
+  }
+  return out; // mais recente primeiro
+}
+
+/** Ícone curto por tipo de evento (mini-feed). */
+export function eventTypeGlyph(eventType?: string): string {
+  const t = (eventType || '').toUpperCase();
+  if (t.includes('DRAGON')) return '🐉';
+  if (t.includes('BARON')) return '👑';
+  if (t.includes('HERALD')) return '👁';
+  if (t.includes('TURRET') || t.includes('TOWER')) return '🏰';
+  if (t.includes('KILL') || t.includes('COUNTER') || t.includes('PICKOFF')) return '⚔';
+  if (t.includes('ACE') || t.includes('TEAMFIGHT')) return '💥';
+  if (t.includes('WARD') || t.includes('VISION')) return '👁';
+  if (t.includes('VICTORY')) return '✓';
+  return '•';
 }
