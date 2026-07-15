@@ -304,6 +304,21 @@ async def start_live_match(req: StartLiveMatchRequest, db: AsyncSession = Depend
         if req.starter_ids:
             blue_team = build_lineup_proxy(blue_team, req.starter_ids)
 
+    # Staff powers: Head Coach define o teto real de coach comms
+    try:
+        from src.modules.career.staff_service import StaffService
+
+        ss = StaffService(db)
+        bp = await ss.get_team_power(str(blue_team.id))
+        rp = await ss.get_team_power(str(red_team.id))
+        staff_blue_max = int(bp.get("coach_comms_max") or 2)
+        staff_red_max = int(rp.get("coach_comms_max") or 2)
+        # Staff eleva o teto; táticas do manager não ultrapassam o staff
+        blue_comms = clamp_coach_comms(max(blue_comms, staff_blue_max))
+        red_comms = clamp_coach_comms(max(red_comms, staff_red_max))
+    except Exception:
+        pass
+
     live_state = await match_engine_service.start_live_simulation(
         match_id=match_id,
         league_id=str(league.id),

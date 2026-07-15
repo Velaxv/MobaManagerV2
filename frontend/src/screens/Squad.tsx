@@ -226,6 +226,26 @@ export function Squad() {
                       <div className="text-lol-gold-soft text-sm">{p.mechanics}</div>
                     </div>
                   </div>
+                  {/* Forma recente (TR-1) */}
+                  <div className="flex items-center justify-between text-[9px] font-mono border border-white/5 rounded-sm px-1.5 py-1 bg-black/30">
+                    <span className="text-white/40">Forma</span>
+                    <span
+                      className={
+                        (p.formAvg ?? 0) >= 7.5
+                          ? 'text-emerald-400 font-bold'
+                          : (p.formAvg ?? 0) >= 6
+                            ? 'text-white/80'
+                            : (p.formDiscontent ?? 0) >= 40
+                              ? 'text-amber-400'
+                              : 'text-white/45'
+                      }
+                      title={p.formLabel || ''}
+                    >
+                      {p.formAvg != null ? p.formAvg.toFixed(1) : '—'}
+                      {p.formTrend === 'UP' ? ' ↑' : p.formTrend === 'DOWN' ? ' ↓' : ''}
+                      {(p.formDiscontent ?? 0) >= 40 ? ' · ⚠' : ''}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-1 text-[9px] font-mono">
                     <div>
                       <span className="text-white/35">Consist. </span>

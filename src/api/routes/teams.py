@@ -65,12 +65,21 @@ async def get_team_players(team_id: str, db: AsyncSession = Depends(get_db)):
     )
     players = query.scalars().all()
     knowledge = await ScoutingService(db).get_knowledge(team_id)
+    # Forma recente (TR-1)
+    forms: dict = {}
+    try:
+        from src.modules.career.form_service import FormService
+
+        forms = await FormService(db).get_forms_bulk([str(p.id) for p in players])
+    except Exception:
+        forms = {}
     return [
         serialize_player(
             p,
             scouting_knowledge=knowledge.get(str(p.id)),
             is_own_roster=True,
             apply_scouting_mask=True,
+            form=forms.get(str(p.id)),
         )
         for p in players
     ]

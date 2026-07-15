@@ -284,6 +284,34 @@ class CalendarService:
                     exc_info=True,
                 )
 
+            # Board review semanal (domingo / mudança de semana ou dia 0 da semana)
+            try:
+                from src.modules.career.org_service import OrgService
+
+                # Dispara no 1º dia da semana (SEG = day_of_week 0) ou a cada 7 dias
+                dow = int(day_info.get("day_of_week") if day_info.get("day_of_week") is not None else -1)
+                total_days = int(day_info.get("total_days") or 0)
+                week = int(day_info.get("week") or 0)
+                is_week_boundary = dow == 0 or (total_days > 0 and total_days % 7 == 0)
+                if is_week_boundary and managed_team_id:
+                    org = OrgService(self.db)
+                    review = await org.weekly_board_review(
+                        str(managed_team_id),
+                        league_id=str(league.id),
+                        week=week,
+                    )
+                    day_info["board_weekly_review"] = review
+                    if review and not review.get("skipped"):
+                        day_info["managed_board"] = review.get("public")
+                        day_info.setdefault("manager_notes", []).append(
+                            review.get("message") or "Board enviou review semanal."
+                        )
+            except Exception as exc:
+                logger.error(
+                    f"[CalendarService] Erro no board semanal da liga '{league.name}': {exc}",
+                    exc_info=True,
+                )
+
             # Finanças: tick mensal (a cada 28 dias de calendário)
             try:
                 from src.modules.career.finance_service import FinanceService

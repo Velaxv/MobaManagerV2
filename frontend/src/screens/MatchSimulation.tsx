@@ -15,8 +15,10 @@ import {
 } from 'lucide-react';
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
+import { SummonersRiftMap } from '../components/SummonersRiftMap';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
 import { PlayerRole } from '../types/game';
+import type { MapEventHint } from '../lib/riftMap';
 
 const PHASES = [
   { key: 'EARLY_GAME', label: 'Early' },
@@ -161,6 +163,49 @@ export function MatchSimulation() {
     const mid = leadingPicks.find((p) => p.role === PlayerRole.MID);
     return mid?.champion || draft.bluePicks[0]?.champion || draft.redPicks[0]?.champion || 'Aatrox';
   }, [draft.bluePicks, draft.redPicks, goldLeadLive]);
+
+  // Histórico de eventos (map meta) para torres/inibidores + evento em foco
+  const mapEventHistory = useMemo((): MapEventHint[] => {
+    const logs = activeMatch?.logs;
+    if (!logs?.length) return [];
+    return logs.map((log) => ({
+      eventType: log.eventType,
+      location: log.map?.location,
+      role: log.map?.role,
+      side: log.map?.side,
+      intensity: log.map?.intensity,
+      text: log.text,
+    }));
+  }, [activeMatch?.logs]);
+
+  const latestMapEvent = useMemo((): MapEventHint | null => {
+    if (!mapEventHistory.length) return null;
+    const priority = [
+      'VICTORY',
+      'SNOWBALL',
+      'BARON_SECURED',
+      'TEAMFIGHT',
+      'DRAGON_SECURED',
+      'SOLO_KILL',
+      'TURRET_DESTROYED',
+      'COACH_COMM',
+      'FARM',
+    ];
+    const window = mapEventHistory.slice(-4);
+    let best: MapEventHint | null = null;
+    let bestRank = 999;
+    for (let i = window.length - 1; i >= 0; i--) {
+      const log = window[i];
+      const et = (log.eventType || '').toUpperCase();
+      const rank = priority.indexOf(et);
+      const r = rank === -1 ? 50 : rank;
+      if (r < bestRank) {
+        bestRank = r;
+        best = log;
+      }
+    }
+    return best || mapEventHistory[mapEventHistory.length - 1];
+  }, [mapEventHistory]);
 
   // Empty state
   if (!activeMatch) {
@@ -329,14 +374,70 @@ export function MatchSimulation() {
             <p className="font-display text-lg sm:text-xl text-lol-gold-soft mb-1">
               {winnerName || 'Fim de jogo'}
             </p>
-            <p className="text-xs text-white/45 font-mono mb-4">
+            <p className="text-xs text-white/45 font-mono mb-2">
               {activeMatch.blueKills} – {activeMatch.redKills} kills · {formatMinute(minute)}
             </p>
+            {activeMatch.winReason?.summary && (
+              <p className="text-[11px] text-lol-gold/90 leading-snug mb-2 max-w-md mx-auto">
+                {activeMatch.winReason.summary}
+              </p>
+            )}
+            {activeMatch.winReason?.factors && activeMatch.winReason.factors.length > 0 && (
+              <p className="text-[10px] font-mono text-white/40 mb-3">
+                {activeMatch.winReason.factors.join(' · ')}
+              </p>
+            )}
             <div className="flex gap-1.5 justify-center flex-wrap mb-4">
               {winnerPicks.map((p) => (
                 <ChampionImage key={p.champion} name={p.champion} variant="pick" locked />
               ))}
             </div>
+            {activeMatch.playerRatings && activeMatch.playerRatings.length > 0 && (
+              <div className="mb-4 text-left border border-white/15 bg-black/50 rounded-sm p-3 max-h-[200px] overflow-y-auto">
+                <div className="text-[10px] uppercase tracking-wider text-lol-gold font-semibold mb-2">
+                  Ratings da partida
+                </div>
+                <div className="space-y-1">
+                  {[...activeMatch.playerRatings]
+                    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+                    .slice(0, 10)
+                    .map((r) => (
+                      <div
+                        key={`${r.side}-${r.role}-${r.name}`}
+                        className="flex items-center gap-2 text-[11px]"
+                      >
+                        <span
+                          className={`font-mono font-bold w-8 text-right tabular-nums ${
+                            (r.rating ?? 0) >= 8
+                              ? 'text-lol-gold'
+                              : (r.rating ?? 0) >= 6
+                                ? 'text-white/80'
+                                : 'text-white/45'
+                          }`}
+                        >
+                          {(r.rating ?? 0).toFixed(1)}
+                        </span>
+                        <span
+                          className={
+                            r.side === 'BLUE' ? 'text-sky-400' : 'text-rose-400'
+                          }
+                        >
+                          {r.role}
+                        </span>
+                        <span className="text-white/80 truncate flex-1">
+                          {r.name}
+                          {r.mvp ? (
+                            <span className="text-lol-gold ml-1 text-[9px]">MVP</span>
+                          ) : null}
+                        </span>
+                        <span className="text-white/35 truncate max-w-[90px] text-[10px]">
+                          {r.note}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             {activeMatch.seriesMapResult && (
               <div className="mb-4 text-left border border-lol-gold/30 bg-black/50 rounded-sm p-3 space-y-1">
                 <div className="text-[10px] uppercase tracking-wider text-lol-gold font-semibold">
@@ -550,10 +651,28 @@ export function MatchSimulation() {
           </div>
         </div>
 
-        {/* Body: feed + sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-t border-white/10">
+        {/* Body: mapa + feed + sidebar */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-0 border-t border-white/10">
+          {/* Minimapa Summoner's Rift */}
+          <div className="xl:col-span-4 border-b xl:border-b-0 xl:border-r border-white/10 bg-black/30 p-2 sm:p-3">
+            <SummonersRiftMap
+              phase={activeMatch.currentPhase}
+              minute={minute}
+              bluePicks={draft.bluePicks}
+              redPicks={draft.redPicks}
+              latestEvent={latestMapEvent}
+              eventHistory={mapEventHistory}
+              mapStructures={activeMatch.mapStructures}
+              lanePressure={activeMatch.lanePressure}
+              winnerSide={activeMatch.winnerSide}
+              isVictory={isVictory}
+              blueTeam={activeMatch.blueTeam}
+              redTeam={activeMatch.redTeam}
+            />
+          </div>
+
           {/* Event feed */}
-          <div className="lg:col-span-2 flex flex-col min-h-[300px] border-b lg:border-b-0 lg:border-r border-white/10 bg-black/35 backdrop-blur-sm">
+          <div className="xl:col-span-5 flex flex-col min-h-[280px] border-b xl:border-b-0 xl:border-r border-white/10 bg-black/35 backdrop-blur-sm">
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-white/5">
               <div className="flex items-center gap-2">
                 <Swords className="w-4 h-4 text-lol-gold" />
@@ -567,7 +686,7 @@ export function MatchSimulation() {
             </div>
             <div
               ref={feedRef}
-              className="flex-1 overflow-y-auto max-h-[380px] p-2 sm:p-3 space-y-1 font-mono text-[11px]"
+              className="flex-1 overflow-y-auto max-h-[420px] p-2 sm:p-3 space-y-1 font-mono text-[11px]"
             >
               {activeMatch.logs.map((log, idx) => {
                 const isLatest = idx === activeMatch.logs.length - 1;
@@ -602,7 +721,7 @@ export function MatchSimulation() {
           </div>
 
           {/* Sidebar coach + lineup */}
-          <div className="flex flex-col bg-black/40 backdrop-blur-sm">
+          <div className="xl:col-span-3 flex flex-col bg-black/40 backdrop-blur-sm">
             {/* Coach */}
             <div className="border-b border-white/10">
               <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/5">

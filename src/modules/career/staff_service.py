@@ -127,6 +127,13 @@ class StaffService:
         }
 
     def _power_from_list(self, staffs: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Poderes jogáveis por cargo:
+          HEAD_COACH → coach_comms_max, comm success bias
+          STRATEGIC_COACH → scout_mult, draft_confidence, draft tips
+          ASSISTANT_COACH → scouting de elenco leve
+          PERFORMANCE_COACH → burnout recovery, form stability
+        """
         if not staffs:
             return {
                 "avg_meta_reading": 8.0,
@@ -134,26 +141,89 @@ class StaffService:
                 "scout_mult": 0.75,
                 "draft_confidence": 0.4,
                 "burnout_recovery_bonus": 0.0,
+                "coach_comms_max": 2,
+                "coach_comm_success_bonus": 0.0,
+                "draft_pool_strictness": 0.0,
+                "has_head_coach": False,
+                "has_strategic_coach": False,
+                "has_performance_coach": False,
+                "has_assistant": False,
+                "powers": [],
             }
         avg_m = sum(s["meta_reading"] for s in staffs) / len(staffs)
         avg_c = sum(s["communication"] for s in staffs) / len(staffs)
         has_perf = any(s["role"] == "PERFORMANCE_COACH" for s in staffs)
         has_strat = any(s["role"] == "STRATEGIC_COACH" for s in staffs)
+        has_head = any(s["role"] == "HEAD_COACH" for s in staffs)
+        has_asst = any(s["role"] == "ASSISTANT_COACH" for s in staffs)
+
+        head = next((s for s in staffs if s["role"] == "HEAD_COACH"), None)
+        strat = next((s for s in staffs if s["role"] == "STRATEGIC_COACH"), None)
+        perf = next((s for s in staffs if s["role"] == "PERFORMANCE_COACH"), None)
+
         scout_mult = clamp(0.55 + (avg_m / 20.0), 0.7, 1.55)
         if has_strat:
-            scout_mult = min(1.6, scout_mult * 1.08)
+            scout_mult = min(1.65, scout_mult * 1.10)
+            if strat:
+                scout_mult = min(1.7, scout_mult + (float(strat["meta_reading"]) - 10) * 0.015)
+        if has_asst:
+            scout_mult = min(1.75, scout_mult * 1.03)
+
         draft_conf = clamp(0.35 + avg_m / 20.0 * 0.55, 0.35, 0.95)
+        if has_strat and strat:
+            draft_conf = clamp(draft_conf + float(strat["meta_reading"]) / 20.0 * 0.12, 0.35, 0.98)
+
         burn_bonus = 0.12 if has_perf else 0.0
         burn_bonus += max(0, (avg_c - 12) * 0.01)
+        if perf:
+            burn_bonus += max(0, (float(perf["meta_reading"]) - 12) * 0.008)
+
+        # Head coach: 2–5 coach comms conforme communication
+        coach_comms_max = 2
+        coach_success = 0.0
+        if has_head and head:
+            comm = float(head["communication"])
+            coach_comms_max = int(clamp(2 + (comm - 8) / 4, 2, 5))
+            coach_success = clamp((comm - 10) / 20.0, -0.1, 0.25)
+        elif has_asst:
+            coach_comms_max = 3
+            coach_success = 0.05
+
+        # Strategic coach: menos punição por off-pool no draft (player comfort)
+        pool_strict = 0.0
+        if has_strat and strat:
+            pool_strict = clamp((float(strat["meta_reading"]) - 10) / 20.0, 0.0, 0.35)
+
+        powers: List[str] = []
+        if has_head:
+            powers.append(f"Head Coach: até {coach_comms_max} coach comms")
+        if has_strat:
+            powers.append("Strategic: draft scout + meta")
+        if has_perf:
+            powers.append("Performance: recuperação de burnout")
+        if has_asst:
+            powers.append("Assistant: scouting auxiliar")
+
         return {
             "avg_meta_reading": round(avg_m, 1),
             "avg_communication": round(avg_c, 1),
             "scout_mult": round(scout_mult, 2),
             "draft_confidence": round(draft_conf, 2),
             "burnout_recovery_bonus": round(burn_bonus, 3),
+            "coach_comms_max": coach_comms_max,
+            "coach_comm_success_bonus": round(coach_success, 3),
+            "draft_pool_strictness": round(pool_strict, 3),
+            "has_head_coach": has_head,
             "has_strategic_coach": has_strat,
             "has_performance_coach": has_perf,
+            "has_assistant": has_asst,
+            "powers": powers,
         }
+
+    async def get_team_power(self, team_id: str) -> Dict[str, Any]:
+        """Atalho para o motor / draft sem listar payload completo."""
+        data = await self.list_team_staff(team_id)
+        return data.get("power") or self._power_from_list([])
 
     async def list_candidates(self, team_id: str, limit: int = 12) -> Dict[str, Any]:
         """Gera pool de free agents de staff (determinístico por seed do time + re-roll)."""

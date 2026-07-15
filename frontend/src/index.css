@@ -155,6 +155,55 @@
   .victory-overlay {
     @apply absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in;
   }
+
+  /* Summoner's Rift minimap */
+  .rift-map-shell {
+    @apply flex flex-col bg-black/40 border border-white/10 rounded-sm overflow-hidden;
+    background-image:
+      radial-gradient(ellipse 70% 60% at 20% 80%, rgba(14, 165, 233, 0.08), transparent 55%),
+      radial-gradient(ellipse 70% 60% at 80% 20%, rgba(244, 63, 94, 0.08), transparent 55%);
+  }
+
+  .rift-unit-pulse {
+    animation: rift-unit-pulse 0.9s ease-out;
+  }
+}
+
+@keyframes rift-unit-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(200, 155, 60, 0.55); }
+  50% { transform: scale(1.18); box-shadow: 0 0 14px 4px rgba(200, 155, 60, 0.35); }
+  100% { transform: scale(1.1); box-shadow: 0 0 0 0 rgba(200, 155, 60, 0); }
+}
+
+@keyframes rift-event-ring {
+  0% { opacity: 1; stroke-width: 1.2; }
+  100% { opacity: 0; stroke-width: 0.2; }
+}
+
+.rift-event-ring {
+  animation: rift-event-ring 1.1s ease-out forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes rift-structure-pop {
+  0% { opacity: 1; filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0)); }
+  40% { opacity: 1; filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.9)); }
+  100% { opacity: 0.4; filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0)); }
+}
+
+.rift-structure-pop {
+  animation: rift-structure-pop 0.85s ease-out;
+}
+
+@keyframes rift-ward-ping {
+  0% { opacity: 0.55; }
+  50% { opacity: 0.15; }
+  100% { opacity: 0.55; }
+}
+
+.rift-ward-ping {
+  animation: rift-ward-ping 2.4s ease-in-out infinite;
 }
 
 @keyframes kill-pop {

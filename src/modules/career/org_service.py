@@ -396,6 +396,99 @@ class OrgService:
         await self.save_state(team_id, state)
         return state
 
+    async def weekly_board_review(
+        self,
+        team_id: str,
+        *,
+        league_id: Optional[str] = None,
+        week: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Review semanal do board (OR-1): compara ranking vs meta e gera evento no hub.
+        Idempotente por semana (Redis flag last_weekly_review_week).
+        """
+        state = await self.get_state(team_id)
+        if state.get("fired"):
+            return {"skipped": True, "reason": "fired", "public": await self.get_public(team_id)}
+
+        w = int(week or 0)
+        if w and int(state.get("last_weekly_review_week") or -1) == w:
+            return {
+                "skipped": True,
+                "reason": "already_reviewed",
+                "public": await self.get_public(team_id),
+            }
+
+        rank = await self._team_rank(team_id, league_id)
+        goal = state.get("board_goal") or "PLAYOFFS"
+        conf_before = float(state.get("board_confidence") or 62)
+
+        if rank is None:
+            self._push(state, "Board: sem tabela ainda — observação neutra.", "info")
+            if w:
+                state["last_weekly_review_week"] = w
+            await self.save_state(team_id, state)
+            return {
+                "skipped": False,
+                "rank": None,
+                "delta": 0,
+                "message": "Sem ranking",
+                "public": await self.get_public(team_id),
+            }
+
+        ok = self._goal_satisfied(goal, rank)
+        if ok:
+            delta = 3.0 if goal in ("TOP4", "TITLE") else 2.0
+            if rank == 1:
+                delta += 1.5
+            state["months_under_goal"] = max(0, int(state.get("months_under_goal") or 0) - 1)
+            msg = (
+                f"Board (semanal): {GOAL_LABELS.get(goal, goal)} no caminho "
+                f"(#{rank}). Confiança +{delta:.0f}"
+            )
+            kind = "good"
+        else:
+            delta = -3.5 if goal == "TITLE" else -2.5
+            if rank >= 7:
+                delta -= 1.5
+            state["months_under_goal"] = int(state.get("months_under_goal") or 0) + 1
+            msg = (
+                f"Board (semanal): meta {GOAL_LABELS.get(goal, goal)} em risco "
+                f"(#{rank}). Confiança {delta:.0f}"
+            )
+            kind = "bad"
+
+        state["board_confidence"] = clamp(conf_before + delta, 0, 100)
+        self._push(state, msg, kind)
+        if w:
+            state["last_weekly_review_week"] = w
+        await self._check_firing(state, team_id)
+        await self.save_state(team_id, state)
+        pub = await self.get_public(team_id)
+        return {
+            "skipped": False,
+            "rank": rank,
+            "goal": goal,
+            "on_track": ok,
+            "delta": delta,
+            "message": msg,
+            "board_confidence": pub.get("board_confidence"),
+            "fired": pub.get("fired"),
+            "public": pub,
+        }
+
+    @staticmethod
+    def _goal_satisfied(goal: str, rank: int) -> bool:
+        if goal == "MID_TABLE":
+            return rank <= 6
+        if goal == "PLAYOFFS":
+            return rank <= 6
+        if goal == "TOP4":
+            return rank <= 4
+        if goal == "TITLE":
+            return rank == 1
+        return rank <= 6
+
     async def evaluate_standings_pressure(
         self, team_id: str, league_id: Optional[str] = None
     ) -> Dict[str, Any]:

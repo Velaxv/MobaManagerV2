@@ -52,6 +52,13 @@ function mapApiPlayer(p: ApiPlayer): Player {
     scoutingProgress: p.scoutingProgress ?? 0,
     scoutingFullyScouted: !!p.scoutingFullyScouted,
     scoutingDaysInvested: p.scoutingDaysInvested ?? 0,
+    formAvg: p.formAvg ?? null,
+    formTrend: p.formTrend ?? null,
+    formLabel: p.formLabel ?? null,
+    formLast: p.formLast ?? null,
+    formGames: p.formGames ?? 0,
+    formDiscontent: p.formDiscontent ?? 0,
+    formRatings: p.formRatings ?? [],
   };
 }
 
@@ -135,6 +142,14 @@ export interface Player {
   scoutingProgress?: number;
   scoutingFullyScouted?: boolean;
   scoutingDaysInvested?: number;
+  /** Forma recente (últimas notas 0–10) */
+  formAvg?: number | null;
+  formTrend?: 'UP' | 'FLAT' | 'DOWN' | string | null;
+  formLabel?: string | null;
+  formLast?: number | null;
+  formGames?: number;
+  formDiscontent?: number;
+  formRatings?: Array<{ rating?: number; note?: string }>;
 }
 
 // Evento do calendário
@@ -160,6 +175,15 @@ export interface SimLog {
   text: string;
   timestamp: string;
   type: 'info' | 'success' | 'warning' | 'alert';
+  /** Tipo de evento do motor (SOLO_KILL, DRAGON_SECURED, …) */
+  eventType?: string;
+  /** Metadados do minimapa Summoner's Rift */
+  map?: {
+    location?: string;
+    role?: string;
+    side?: string;
+    intensity?: number;
+  };
 }
 
 interface GameState {
@@ -213,6 +237,16 @@ interface GameState {
     insolvent?: boolean;
     released?: string[];
   } | null;
+  /** Board review semanal (OR-1) */
+  lastBoardReview: {
+    message?: string;
+    rank?: number | null;
+    on_track?: boolean;
+    delta?: number;
+    fired?: boolean;
+    skipped?: boolean;
+  } | null;
+  orgSnapshot: Record<string, unknown> | null;
   training: {
     focus: string;
     intensity: string;
@@ -345,6 +379,32 @@ interface GameState {
       partials?: number;
       scout_name?: string;
     } | null;
+    /** Ratings 0–10 pós-partida (motor) */
+    playerRatings?: Array<{
+      player_id?: string;
+      name?: string;
+      role?: string;
+      side?: string;
+      team_name?: string;
+      champion?: string;
+      rating?: number;
+      note?: string;
+      mvp?: boolean;
+    }> | null;
+    winReason?: {
+      code?: string;
+      summary?: string;
+      factors?: string[];
+      winner_side?: string;
+      minute?: number;
+    } | null;
+    lanePressure?: Record<string, number> | null;
+    mapStructures?: {
+      blue?: { top?: number; mid?: number; bot?: number; inhibs?: number; nexus?: number; towers_total?: number };
+      red?: { top?: number; mid?: number; bot?: number; inhibs?: number; nexus?: number; towers_total?: number };
+    } | null;
+    blueChemistry?: number;
+    redChemistry?: number;
   } | null;
 
   // Sessão do draft scout (histórico de dicas da partida)
@@ -593,6 +653,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   myBudget: 0,
   finance: null,
   lastFinanceEvent: null,
+  lastBoardReview: null,
+  orgSnapshot: null,
   training: null,
   lastTrainingEvent: null,
   practice: null,
@@ -732,6 +794,13 @@ export const useGameStore = create<GameState>((set, get) => ({
                 prev.morale ||
                 null,
             },
+          });
+        }
+        // Board review semanal (OR-1)
+        if (dayInfo.board_weekly_review && !dayInfo.board_weekly_review.skipped) {
+          set({
+            lastBoardReview: dayInfo.board_weekly_review,
+            orgSnapshot: dayInfo.managed_board || dayInfo.board_weekly_review.public || get().orgSnapshot,
           });
         }
         const roundResults =
@@ -1619,11 +1688,20 @@ export const useGameStore = create<GameState>((set, get) => ({
         description?: string;
         timestamp?: string;
         severity?: string;
+        event_type?: string;
+        map?: {
+          location?: string;
+          role?: string;
+          side?: string;
+          intensity?: number;
+        };
       }) => ({
         phase: (log.phase || state.phase || 'EARLY') as SimLog['phase'],
         text: log.message || log.description || '',
         timestamp: log.timestamp || `${state.current_minute}:00`,
         type: (log.severity === 'high' ? 'alert' : log.severity === 'medium' ? 'warning' : 'info') as SimLog['type'],
+        eventType: log.event_type,
+        map: log.map,
       }));
 
       let phase = state.phase as typeof activeMatch.currentPhase;
@@ -1655,6 +1733,12 @@ export const useGameStore = create<GameState>((set, get) => ({
           seriesScore: state.series_score || seriesMapResult?.score || activeMatch.seriesScore,
           seriesScoreDisplay:
             seriesMapResult?.score_display || activeMatch.seriesScoreDisplay,
+          playerRatings: state.player_ratings ?? activeMatch.playerRatings ?? null,
+          winReason: state.win_reason ?? activeMatch.winReason ?? null,
+          lanePressure: state.lane_pressure ?? activeMatch.lanePressure ?? null,
+          mapStructures: state.map_structures ?? activeMatch.mapStructures ?? null,
+          blueChemistry: state.blue_chemistry ?? activeMatch.blueChemistry,
+          redChemistry: state.red_chemistry ?? activeMatch.redChemistry,
         },
         ...(scoutEval
           ? {

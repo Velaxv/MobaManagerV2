@@ -742,10 +742,21 @@ export function TacticsDraft() {
                                       : 'text-lol-red-side'
                                 }`}
                               >
-                                · {comfort}
+                                ·{' '}
+                                {comfort === ChampionPoolTier.MAIN
+                                  ? 'MAIN (+12% live)'
+                                  : comfort === ChampionPoolTier.SECONDARY
+                                    ? 'SEC (−12% live)'
+                                    : 'OFF POOL (−48% live)'}
                               </span>
                             )}
                           </div>
+                          {currentStep.action === DraftAction.PICK &&
+                            comfort === ChampionPoolTier.OFF_POOL && (
+                              <p className="text-[9px] text-lol-red-side/90 mt-0.5 max-w-xs">
+                                Fora da pool do laner — performance reduzida no motor.
+                              </p>
+                            )}
                         </div>
                       </div>
                     </div>

@@ -13,6 +13,7 @@ def serialize_player(
     scouting_knowledge: Optional[Dict[str, Any]] = None,
     is_own_roster: bool = False,
     apply_scouting_mask: bool = False,
+    form: Optional[Dict[str, Any]] = None,
 ) -> dict:
     """
     Serializa jogador + contrato ativo para o frontend.
@@ -78,6 +79,13 @@ def serialize_player(
             bool(active_contract.rookie_extension_triggered) if active_contract else False
         ),
         "rookieClauseThreshold": 0.25,
+        "formAvg": form.get("avg") if form else None,
+        "formTrend": form.get("trend") if form else None,
+        "formLabel": form.get("form_label") if form else None,
+        "formLast": form.get("last_rating") if form else None,
+        "formGames": form.get("games") if form else 0,
+        "formDiscontent": form.get("discontent") if form else 0,
+        "formRatings": form.get("ratings") if form else [],
         "contractExpirySeasons": (
             active_contract.remaining_seasons if active_contract else 0
         ),

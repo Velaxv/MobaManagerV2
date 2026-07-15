@@ -1,18 +1,19 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-14 — **SESSÃO SALVA**  
-**Branch:** `main` (= `origin/main`)  
+**Última atualização:** 2026-07-15 — Sprint E+F commitados  
+**Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Último commit:** `651f1f9`  
-**Estado:** limpo · push OK · pronto para playtest  
+**Estado:** limpo após commit E+F · 140 testes · próximo = Sprint G  
+
 
 ### Retomar
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  
-2. `run_game.bat`  
+2. [`docs/PLANO_MELHORIAS_SISTEMAS.md`](docs/PLANO_MELHORIAS_SISTEMAS.md)  
+3. `run_game.bat`  
 
 ### Entregue nesta jornada
-S1 mercado/staff · S2 playoffs BO · S3 scrim/VOD/moral · S4 board/sponsors/facility  
-+ draft scout · CI · 127 testes  
+S1–S4 + Rift + Sprint E  
++ **Sprint F:** TR-1 forma · TR-5 bench · MK-3 staff powers · OR-1 board semanal · DR-1 pool penalty  
 
 ### Como rodar
 ```bat

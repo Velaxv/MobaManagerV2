@@ -80,7 +80,12 @@ export function Dashboard() {
   const [staffPower, setStaffPower] = useState<{
     avg_meta_reading?: number;
     scout_mult?: number;
+    coach_comms_max?: number;
+    powers?: string[];
+    burnout_recovery_bonus?: number;
+    draft_confidence?: number;
   } | null>(null);
+  const lastBoardReview = useGameStore((s) => s.lastBoardReview);
   const [faCount, setFaCount] = useState<number | null>(null);
   const [org, setOrg] = useState<Record<string, unknown> | null>(null);
   const [orgBusy, setOrgBusy] = useState<string | null>(null);
@@ -439,6 +444,23 @@ export function Dashboard() {
                 ))
               )}
             </ul>
+            {staffPower && (staffPower.powers?.length || staffPower.coach_comms_max) && (
+              <div className="text-[10px] font-mono text-violet-200/70 space-y-0.5 px-1 pb-1">
+                <div>
+                  Poderes · comms máx {staffPower.coach_comms_max ?? '—'} · scout ×
+                  {staffPower.scout_mult ?? '—'} · draft conf{' '}
+                  {staffPower.draft_confidence != null
+                    ? Math.round(staffPower.draft_confidence * 100)
+                    : '—'}
+                  %
+                </div>
+                {(staffPower.powers || []).map((p) => (
+                  <div key={p} className="text-white/40">
+                    · {p}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="border-t border-white/5 pt-2 space-y-1.5">
               <div className="text-[10px] uppercase tracking-wider text-white/40 flex items-center gap-1">
                 <UserPlus className="w-3 h-3" /> Candidatos no mercado
@@ -504,6 +526,32 @@ export function Dashboard() {
           >
             [Dev] Forçar offseason
           </button>
+        </div>
+      )}
+
+      {/* Board review semanal */}
+      {lastBoardReview && !lastBoardReview.skipped && lastBoardReview.message && (
+        <div
+          className={`panel-lol border ${
+            lastBoardReview.on_track
+              ? 'border-emerald-500/30 bg-emerald-950/20'
+              : 'border-amber-500/35 bg-amber-950/25'
+          }`}
+        >
+          <div className="panel-lol-header">
+            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              Board · Review semanal
+            </span>
+            {lastBoardReview.rank != null && (
+              <span className="text-[10px] font-mono text-white/45">#{lastBoardReview.rank}</span>
+            )}
+          </div>
+          <div className="p-3 text-[12px] text-white/75 leading-snug">
+            {lastBoardReview.message}
+            {lastBoardReview.fired && (
+              <span className="block mt-1 text-red-400 font-semibold">Você foi demitido.</span>
+            )}
+          </div>
         </div>
       )}
 

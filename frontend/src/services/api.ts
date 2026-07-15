@@ -81,6 +81,13 @@ export interface ApiPlayer {
   scoutingFullyScouted?: boolean;
   scoutingDaysInvested?: number;
   isFreeAgent?: boolean;
+  formAvg?: number | null;
+  formTrend?: string | null;
+  formLabel?: string | null;
+  formLast?: number | null;
+  formGames?: number;
+  formDiscontent?: number;
+  formRatings?: Array<{ rating?: number; note?: string }>;
 }
 
 export interface MarketWindowStatus {

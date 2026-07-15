@@ -1,9 +1,61 @@
 import pytest
 import uuid
 from unittest.mock import AsyncMock, MagicMock
-from src.modules.simulation.match_engine_service import MatchEngineService, LiveMatchState
+from src.modules.simulation.match_engine_service import (
+    MatchEngineService,
+    LiveMatchState,
+    _map_meta,
+    _normalize_event_log,
+)
 from src.shared.enums import PlayerRole
 from src.core.redis_client import redis_client
+
+
+def test_live_match_state_has_depth_fields():
+    """Estado live expõe chemistry, estruturas e ratings."""
+    state = LiveMatchState(
+        match_id=str(uuid.uuid4()),
+        league_id=str(uuid.uuid4()),
+        split_week=1,
+        is_playoff=False,
+        blue_team_id=str(uuid.uuid4()),
+        red_team_id=str(uuid.uuid4()),
+        blue_team_name="A",
+        red_team_name="B",
+    )
+    assert state.blue_chemistry == 55.0
+    assert state.map_structures == {} or state.map_structures is not None
+    assert state.player_ratings is None
+    assert state.win_reason is None
+
+
+def test_map_meta_on_event_logs():
+    """Eventos da live carregam metadados de minimapa (Summoner's Rift)."""
+    kill = _normalize_event_log({
+        "event_type": "SOLO_KILL",
+        "description": "[TOP] solo kill",
+        "map": _map_meta("TOP_LANE", role="TOP", side="BLUE", intensity=0.9),
+    })
+    assert kill["map"]["location"] == "TOP_LANE"
+    assert kill["map"]["role"] == "TOP"
+    assert kill["map"]["side"] == "BLUE"
+    assert kill["severity"] == "high"
+
+    # Fallback automático quando map não é enviado
+    dragon = _normalize_event_log({
+        "event_type": "DRAGON_SECURED",
+        "description": "Dragon",
+    })
+    assert dragon["map"]["location"] == "DRAGON"
+
+    turret = _normalize_event_log({
+        "event_type": "TURRET_DESTROYED",
+        "description": "Torre Mid",
+        "map": _map_meta("MID_LANE", side="BLUE", intensity=0.8),
+    })
+    assert turret["map"]["location"] == "MID_LANE"
+    assert turret["map"]["side"] == "BLUE"
+    assert turret["severity"] == "medium"
 
 class MockStaff:
     def __init__(self, name, role, comm):
