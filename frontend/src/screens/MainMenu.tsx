@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import { Trophy, Activity, Users, Swords, Loader2, FolderOpen } from 'lucide-react';
-import { championSplashUrl } from '../lib/champions';
+
+/** Key art HQ — ver docs/STYLE_BIBLE.md (arte sem texto; UI em React). */
+const MENU_HQ_BG = '/art/menu-hq-bg.jpg';
 
 type SaveMeta = {
   slot: string;
@@ -55,24 +57,45 @@ export function MainMenu() {
 
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center p-6 overflow-hidden bg-lol-void">
+      {/* Layer 1: production key art (no text — STYLE_BIBLE) */}
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-20 scale-105"
-        style={{ backgroundImage: `url(${championSplashUrl('Aatrox')})`, filter: 'saturate(0.6) brightness(0.7)' }}
+        className="absolute inset-0 bg-cover bg-center scale-105"
+        style={{
+          backgroundImage: `url(${MENU_HQ_BG})`,
+          backgroundPosition: '55% 40%',
+        }}
+        aria-hidden
       />
-      {/* War room ambient: cyan + orange neon */}
-      <div className="absolute inset-0 bg-hq-ambient" />
+      {/* Layer 2: readability vignette — left-center for menu column */}
       <div
-        className="absolute inset-0 opacity-40 pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse 70% 80% at 45% 50%, rgba(1,10,19,0.55) 0%, rgba(1,10,19,0.72) 55%, rgba(1,10,19,0.88) 100%)',
+        }}
+        aria-hidden
+      />
+      <div className="absolute inset-0 bg-hq-ambient opacity-60 pointer-events-none" aria-hidden />
+      <div
+        className="absolute inset-0 opacity-25 pointer-events-none"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(34,211,238,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.04) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
+            'linear-gradient(rgba(34,211,238,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.035) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
         }}
+        aria-hidden
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-lol-void/70 via-lol-void/85 to-lol-void" />
+      <div
+        className="absolute inset-0 bg-gradient-to-b from-lol-void/40 via-transparent to-lol-void/90 pointer-events-none"
+        aria-hidden
+      />
+      <div
+        className="absolute inset-y-0 left-0 w-full max-w-3xl bg-gradient-to-r from-lol-void/75 via-lol-void/35 to-transparent pointer-events-none"
+        aria-hidden
+      />
 
       <div className="z-10 w-full max-w-xl flex flex-col gap-8 animate-fade-in">
-        <div className="hq-frame border border-lol-hq-cyan/30 bg-gradient-to-b from-[#0a1e32]/92 to-black/90 p-8 sm:p-10 shadow-hq-glass rounded-sm relative overflow-hidden backdrop-blur-md">
+        <div className="hq-frame border border-lol-hq-cyan/30 bg-gradient-to-b from-[#0a1e32]/88 to-black/85 p-8 sm:p-10 shadow-hq-glass rounded-sm relative overflow-hidden backdrop-blur-md">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-lol-hq-cyan to-lol-hq-orange/50" />
           <div className="flex items-center gap-2 mb-4">
             <div className="team-crest !w-8 !h-8 text-[10px]">LM</div>
@@ -80,27 +103,27 @@ export function MainMenu() {
               CBLOL 2026 · War Room
             </p>
           </div>
-          <h1 className="font-display text-4xl sm:text-5xl font-bold text-white tracking-wide leading-tight">
+          <h1 className="font-display text-4xl sm:text-5xl font-bold text-white tracking-wide leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)]">
             Moba Manager
             <span className="block text-lol-hq-cyan mt-1 text-2xl sm:text-3xl font-semibold tracking-[0.12em] uppercase">
               League Ops
             </span>
           </h1>
-          <p className="mt-4 text-sm text-white/50 leading-relaxed border-t border-lol-hq-cyan/15 pt-4">
+          <p className="mt-4 text-sm text-white/55 leading-relaxed border-t border-lol-hq-cyan/15 pt-4">
             Mesa de guerra digital — draft tático, live Rift e gestão de elenco com analytics de
             performance. Tech-noir, data-rich, sem gacha.
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-mono text-white/40">
-            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/30">
+            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/40">
               <Swords className="w-3 h-3 text-lol-hq-cyan" /> Draft flex
             </span>
-            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/30">
+            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/40">
               <Trophy className="w-3 h-3 text-lol-hq-orange" /> Live match
             </span>
-            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/30">
+            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/40">
               <Users className="w-3 h-3 text-lol-hq-cyan" /> Roster analytics
             </span>
-            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/30">
+            <span className="flex items-center gap-1 border border-lol-hq-cyan/20 px-2 py-0.5 rounded-sm bg-black/40">
               <FolderOpen className="w-3 h-3 text-lol-hq-cyan" /> Save / Load
             </span>
           </div>
@@ -110,13 +133,13 @@ export function MainMenu() {
           <button
             disabled={!isDataLoaded}
             onClick={() => setGameState('NEW_GAME_SETUP')}
-            className="group flex items-center justify-between p-5 border border-lol-hq-cyan/45 bg-gradient-to-r from-lol-hq-cyan/15 to-transparent hover:from-lol-hq-cyan/25 hover:shadow-hq-cyan-sm transition-all disabled:opacity-40 rounded-sm"
+            className="group flex items-center justify-between p-5 border border-lol-hq-cyan/45 bg-gradient-to-r from-lol-hq-cyan/20 to-black/50 hover:from-lol-hq-cyan/30 hover:shadow-hq-cyan-sm transition-all disabled:opacity-40 rounded-sm backdrop-blur-sm"
           >
             <div className="text-left">
               <div className="font-display font-bold text-lol-hq-cyan-bright uppercase tracking-wide">
                 Nova carreira
               </div>
-              <div className="text-[11px] text-white/40 mt-0.5">Assuma um time do CBLOL 2026</div>
+              <div className="text-[11px] text-white/45 mt-0.5">Assuma um time do CBLOL 2026</div>
             </div>
             <Trophy className="w-7 h-7 text-lol-hq-cyan group-hover:scale-110 transition-transform" />
           </button>
@@ -124,13 +147,13 @@ export function MainMenu() {
           <button
             disabled={!isDataLoaded || loadingSaves}
             onClick={() => setShowLoad((v) => !v)}
-            className="group flex items-center justify-between p-5 border border-white/12 bg-white/[0.03] hover:border-lol-hq-cyan/35 hover:bg-lol-hq-cyan/5 transition-all disabled:opacity-40 rounded-sm"
+            className="group flex items-center justify-between p-5 border border-white/12 bg-black/45 hover:border-lol-hq-cyan/35 hover:bg-lol-hq-cyan/10 transition-all disabled:opacity-40 rounded-sm backdrop-blur-sm"
           >
             <div className="text-left">
               <div className="font-display font-bold uppercase tracking-wide text-white/90">
                 Carregar jogo
               </div>
-              <div className="text-[11px] mt-0.5 text-white/40">
+              <div className="text-[11px] mt-0.5 text-white/45">
                 {loadingSaves
                   ? 'Buscando saves…'
                   : validSaves.length
@@ -146,7 +169,7 @@ export function MainMenu() {
           </button>
 
           {showLoad && (
-            <div className="border border-lol-hq-cyan/15 bg-black/55 rounded-sm p-3 space-y-2 backdrop-blur-sm">
+            <div className="border border-lol-hq-cyan/15 bg-black/70 rounded-sm p-3 space-y-2 backdrop-blur-md">
               {validSaves.length === 0 ? (
                 <p className="text-xs text-white/40 font-mono p-2">
                   Pasta <code className="text-lol-hq-cyan/80">saves/</code> vazia. Durante a carreira,
@@ -159,7 +182,7 @@ export function MainMenu() {
                     type="button"
                     disabled={!!loadingSlot}
                     onClick={() => void handleLoad(s.slot)}
-                    className="w-full text-left p-3 border border-white/10 hover:border-lol-hq-cyan/35 bg-black/30 rounded-sm flex items-center justify-between gap-2 transition-colors"
+                    className="w-full text-left p-3 border border-white/10 hover:border-lol-hq-cyan/35 bg-black/40 rounded-sm flex items-center justify-between gap-2 transition-colors"
                   >
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-white truncate">
@@ -195,7 +218,7 @@ export function MainMenu() {
 
           <button
             disabled
-            className="flex items-center justify-between p-5 border border-white/10 bg-white/[0.02] text-white/30 cursor-not-allowed rounded-sm"
+            className="flex items-center justify-between p-5 border border-white/10 bg-black/40 text-white/30 cursor-not-allowed rounded-sm backdrop-blur-sm"
           >
             <div className="text-left">
               <div className="font-display font-bold uppercase tracking-wide">Multijogador</div>

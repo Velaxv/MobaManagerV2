@@ -1,20 +1,30 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-15 — Checkpoint salvo (commit + push)  
-**Branch:** `main` (sync com origin)  
+**Última atualização:** 2026-07-15 (noite) — checkpoint arte menu + style bible  
+**Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Commit:** `06e0439` — feat: fatigue recovery, flex draft, new career, and War Room UI  
 
-### Retomar
+### Retomar amanhã
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  
-2. `run_game.bat`  
+2. [`docs/STYLE_BIBLE.md`](docs/STYLE_BIBLE.md) — bible visual + workflow de arte  
+3. `run_game.bat` → conferir tela de **menu principal** com HQ art  
 
-### Entregue e no remote
-- S1–S4 + E + F + G + H + ME-7  
-- **FADIGA** — recovery diário com nuance; banco recupera em match day  
-- **DRAFT-FLEX** — pick = campeão + qualquer role livre (IA + jogador)  
-- **Nova carreira** — `POST /career/new` reseed + limpa Redis  
-- **War Room UI** (3 passadas) — glass tech-noir, sede, draft blueprint, radar, pós-jogo, heatmap real  
+### Entregue nesta sessão (arte)
+- Style bible em `docs/STYLE_BIBLE.md` (cyan/orange/navy, sem texto na IA, base→edit)  
+- Pack menu em `frontend/public/art/`:
+  - `menu-hq-bg.jpg` — fundo ativo do Main Menu  
+  - `menu-hq-base.jpg` — referência para `image_edit` (mesma HQ)  
+  - `menu-hq-alt.jpg` — variação cyberpunk (backup)  
+- `MainMenu.tsx` — key art + vinheta/legibilidade; UI em React  
+
+### Já no histórico (sessão anterior)
+- FADIGA · DRAFT-FLEX · Nova carreira · War Room UI  
+- Commit base: `06e0439`  
+
+### Próximo passo sugerido (arte)
+1. **Draft room** — variação da HQ a partir de `menu-hq-base.jpg`  
+2. **Mapa blueprint** live (fantasy/wireframe, não Rift oficial)  
+3. Loading / splash 16:9  
 
 ### Não feito (de propósito)
 - Coach mid/late · Tutorial · Som / i18n · Desafiante  

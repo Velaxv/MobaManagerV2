@@ -1,9 +1,8 @@
-# Handoff de sessão — SALVO 2026-07-15
+# Handoff de sessão — 2026-07-15 (arte menu)
 
-**Status:** Tudo commitado e no GitHub. Working tree limpa.  
-**Branch:** `main` (up to date com origin)  
+**Status:** Checkpoint local — arte do menu + style bible. Continuar amanhã daqui.  
+**Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Commit:** `06e0439` — `feat: fatigue recovery, flex draft, new career, and War Room UI`
 
 ---
 
@@ -13,44 +12,57 @@
 run_game.bat
 ```
 
-Seed seguro por padrão. Reseed: `SEED_FORCE=1` ou `seed_runner.py --force`.
+Abrir menu principal: deve aparecer war room HQ (mesa holográfica cyan) atrás do card React.
 
 ---
 
-## O que está no remote
+## O que foi feito nesta sessão
 
-| Área | Conteúdo |
-|------|----------|
-| Base–S4 + E–H + ME-7 | CBLOL, draft, live, playoffs, finanças, treino, scouting, brand kit, Rift UI |
-| **FADIGA** | `fatigue_recovery.py` + BurnoutService nuance; REST limpa alertas; banco recupera |
-| **DRAFT-FLEX** | IA e jogador escolhem (champ, role) livre; FE slots flex |
-| **Nova carreira** | `POST /career/new` + wizard `startNewCareer` |
-| **War Room UI** | Design system HQ (cyan/orange/glass), facility blur, blueprint draft, radar, PostMatch + heatmap real |
+| Item | Detalhe |
+|------|---------|
+| **Style bible** | `docs/STYLE_BIBLE.md` — paleta, regras IA vs React, seed de prompt |
+| **Key art menu** | 2 gerações + polish `image_edit`; escolhida HQ circular hologram |
+| **Assets** | `frontend/public/art/menu-hq-bg.jpg` (ativo), `menu-hq-base.jpg` (ref), `menu-hq-alt.jpg` |
+| **MainMenu** | Remove splash Aatrox; layers: art → vignette → ambient → grid → fade esquerdo |
+| **Diretrizes** | Arte sem texto/logos; botões/labels só em React; base→edit para consistência |
 
-### Explicitamente fora (pedido)
-- Coach mid/late · Tutorial · Desafiante / i18n / som  
+### Já consolidado (commits anteriores)
+FADIGA · DRAFT-FLEX · Nova carreira · War Room UI (`06e0439` e anteriores)
 
 ---
 
-## Backlog livre
+## Continuar amanhã (ordem sugerida)
+
+1. Ler `docs/STYLE_BIBLE.md`  
+2. Gerar **draft room** ou **mapa blueprint** a partir de `menu-hq-base.jpg` (image_edit)  
+3. Integrar no `TacticsDraft` / `MatchSimulation` / `SummonersRiftMap` sem inventar labels na arte  
+4. (Opcional) Push deste commit se ainda não estiver no origin  
+
+### Prompt seed (copiar)
+```
+Style bible Moba Manager:
+- esports HQ / FM-like manager aesthetic
+- tech-noir glass, deep navy/black, cyan accent, orange highlight
+- rim light ciano, glow sutil, ambient low-key
+- AAA game key art, sharp, clean, cinematic
+- no readable text, no fake UI buttons, no logos
+- no copyrighted maps or brand marks
+```
+
+---
+
+## Backlog livre (não arte)
 - MK-2 cláusulas ricas  
 - OR-3 facility tree granular  
 - Som sutil (mute default)  
 - Desafiante tier-2  
-- Playtest UAT fadiga (2 match + REST) e draft flex visual  
+- Playtest UAT fadiga + draft flex  
 
 ---
 
-## Testes (última corrida da sessão UI)
-
-```bat
-set PYTHONPATH=.
-venv\Scripts\python -m pytest tests -q
-cd frontend && npm test && npm run build
-```
-
-Frontend: **28** testes OK + build production.
+## Explicitamente fora
+- Coach mid/late · Tutorial · Desafiante / i18n / som  
 
 ---
 
-*Retomar: este arquivo + `CONTINUIDADE.md` + `run_game.bat`.*
+*Retomar: este arquivo + `CONTINUIDADE.md` + `STYLE_BIBLE.md` + `run_game.bat`.*
