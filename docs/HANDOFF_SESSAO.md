@@ -45,7 +45,15 @@ Sidebar em 4 grupos: **Rotina · Time · Clube · Competição**
 - **Treino** = plano CA→PA, moral, scrim, VOD, scouting  
 - **Staff** = comissão técnica  
 - **Organização** = board, sponsors, facility, finanças  
-- Elenco / Mercado / Tabela / Patch / Draft / Live como antes
+- Elenco / Mercado / Tabela / Patch / Draft / Live como antes  
+
+### Playtest → próximo sprint (planejado, não implementado)
+Ver **[`PLANO_FADIGA_E_DRAFT_FLEX.md`](PLANO_FADIGA_E_DRAFT_FLEX.md)**:
+
+1. **Fadiga / restauração** — recovery diário com nuances (form, moral, board, banco vs titular); alerta não “gruda”  
+2. **Draft flex** — pick escolhe campeão + qualquer role livre (IA e jogador), não fila fixa TOP→JG→MID→BOT→SUP  
+
+Ordem sugerida: FADIGA primeiro, depois DRAFT-FLEX.
 
 
 ### Explicitamente **fora** deste sprint (pedido)

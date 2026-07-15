@@ -10,7 +10,8 @@
 ### Retomar
 1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  
 2. [`docs/PLANO_MELHORIAS_SISTEMAS.md`](docs/PLANO_MELHORIAS_SISTEMAS.md)  
-3. `run_game.bat`  
+3. **Próximo sprint playtest:** [`docs/PLANO_FADIGA_E_DRAFT_FLEX.md`](docs/PLANO_FADIGA_E_DRAFT_FLEX.md)  
+4. `run_game.bat`  
 
 ### Entregue
 S1–S4 + E + F + G  
