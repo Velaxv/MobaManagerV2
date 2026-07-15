@@ -2,7 +2,7 @@
 
 **Data:** 2026-07-15  
 **Origem:** playtest (alerta de fadiga “grudado” após 2 jogos; picks/bans sempre TOP→JG→MID→BOT)  
-**Status:** planejado — **não implementar nesta sessão** (executar em sprint dedicado)  
+**Status:** **implementado** (2026-07-15) — Feature A + B no código e testes  
 **Branch alvo:** `main`
 
 ---

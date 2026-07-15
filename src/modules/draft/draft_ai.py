@@ -201,106 +201,203 @@ class DraftAI:
         unavailable: Set[str]
     ) -> Tuple[str, PlayerRole]:
         """
-        Decide a escolha do pick.
-        Lógica sofisticada:
-            1. Determina quais roles ainda precisam de pick no time.
-            2. Identifica se o oponente já revelou o pick dele para a mesma role.
-            3. Se sim, tenta aplicar um COUNTER-PICK se o campeão de counter estiver no pool (MAIN/SECONDARY) do jogador daquela lane.
-            4. Se não, escolhe o campeão de maior proficiência (preferencialmente MAIN) disponível do jogador.
+        Decide o pick com **flex**: escolhe o melhor par (campeão, role aberta),
+        não a próxima role da fila TOP→JG→MID→BOT→SUP.
         """
         starters = team_obj.get_starters()
-        
-        # Identifica quais roles já foram escolhidas pelo time
         my_picks = draft_state.blue_picks if team_side == DraftTeam.BLUE else draft_state.red_picks
         opp_picks = draft_state.red_picks if team_side == DraftTeam.BLUE else draft_state.blue_picks
-        
-        my_picked_roles = {p["role_hint"] for p in my_picks}
-        
-        # Determina quais posições titulares ainda estão abertas
-        remaining_roles = [r for r in [PlayerRole.TOP, PlayerRole.JUNGLE, PlayerRole.MID, PlayerRole.BOT, PlayerRole.SUPPORT] 
-                           if r.value not in my_picked_roles]
 
+        my_picked_roles = {p.get("role_hint") for p in my_picks}
+        remaining_roles = [
+            r
+            for r in [
+                PlayerRole.TOP,
+                PlayerRole.JUNGLE,
+                PlayerRole.MID,
+                PlayerRole.BOT,
+                PlayerRole.SUPPORT,
+            ]
+            if r.value not in my_picked_roles
+        ]
         if not remaining_roles:
-            # Caso raro de erro
             remaining_roles = [PlayerRole.TOP]
 
-        # Prioriza escolher para a role que já tem pick adversário revelado (para maximizar chance de counter) ou simplesmente pega a primeira role
-        chosen_role = remaining_roles[0]
-        opp_champ_for_lane = None
+        pick_index = len(my_picks)  # 0 = first pick of this team
+        options = score_flex_options(
+            remaining_roles=remaining_roles,
+            starters=starters,
+            unavailable=unavailable,
+            opp_picks=opp_picks,
+            patch_bias=self.patch_bias,
+            pick_index=pick_index,
+        )
 
-        for role in remaining_roles:
-            # Verifica se o oponente já escolheu campeão para essa role
-            opp_lane_pick = next((p for p in opp_picks if p["role_hint"] == role.value), None)
-            if opp_lane_pick:
-                chosen_role = role
-                opp_champ_for_lane = opp_lane_pick["champion"]
-                break
+        if not options:
+            # Fallback extremo
+            role = remaining_roles[0]
+            all_possible = []
+            for role_champs in CHAMPIONS_BY_ROLE.values():
+                all_possible.extend(role_champs)
+            fallback = next((c for c in all_possible if c.lower() not in unavailable), "Azir")
+            return fallback, role
 
-        # Encontra o jogador titular correspondente à role escolhida
-        player = next((p for p in starters if p.role == chosen_role), None)
+        # Softmax leve: top opções com noise para variedade, sem ignorar o melhor
+        top = options[: min(5, len(options))]
+        weights = [max(0.05, o[0] + 0.01) for o in top]
+        chosen = random.choices(top, weights=weights, k=1)[0]
+        score, champ, role = chosen
+        logger.info(
+            f"[DraftAI] FLEX pick #{pick_index + 1}: {champ} → {role.value} "
+            f"(score={score:.2f}, open={len(remaining_roles)})"
+        )
+        return champ, role
+
+
+def score_flex_options(
+    *,
+    remaining_roles: List[PlayerRole],
+    starters,
+    unavailable: Set[str],
+    opp_picks: List[dict],
+    patch_bias: Optional[Dict[str, float]] = None,
+    pick_index: int = 0,
+) -> List[Tuple[float, str, PlayerRole]]:
+    """
+    Scoreia todos os pares (champion, role aberta) e retorna lista ordenada
+    por score desc: [(score, champion, role), ...].
+
+    Critérios:
+      - tier MAIN > SECONDARY > meta fallback > off
+      - counter vs lane inimiga já revelada
+      - patch bias
+      - flex value (champ em mais de um role aberto)
+      - blind risk: early picks preferem safe/flex
+    """
+    patch_bias = patch_bias or {}
+    unavailable_l = {u.lower() for u in unavailable}
+    open_roles = list(remaining_roles)
+    if not open_roles:
+        return []
+
+    # Mapa role → player titular
+    by_role = {}
+    for p in starters or []:
+        role = getattr(p, "role", None)
+        if role is not None:
+            by_role[role] = p
+
+    # Contagem de roles em que cada champ aparece no pool do time (flex)
+    champ_role_coverage: Dict[str, Set[str]] = {}
+    for role in open_roles:
+        player = by_role.get(role)
         if not player:
-            # Se não achar o jogador da role, pega qualquer titular que sobrou
-            player = starters[0]
-            chosen_role = player.role
+            continue
+        pool = player.champion_pool if isinstance(player.champion_pool, list) else []
+        for item in pool:
+            if not isinstance(item, dict):
+                continue
+            c = item.get("champion")
+            if not c:
+                continue
+            champ_role_coverage.setdefault(c.lower(), set()).add(role.value)
 
-        # Coleta a champion_pool do jogador
-        player_pool = player.champion_pool if isinstance(player.champion_pool, list) else []
-        main_pool = [item.get("champion") for item in player_pool if isinstance(item, dict) and item.get("tier") == ChampionPoolTier.MAIN.value]
-        sec_pool = [item.get("champion") for item in player_pool if isinstance(item, dict) and item.get("tier") == ChampionPoolTier.SECONDARY.value]
+    options: List[Tuple[float, str, PlayerRole]] = []
 
-        # Tenta Counter-Pick se o oponente já escolheu para a mesma lane
-        if opp_champ_for_lane:
-            # Quais campeões counteram opp_champ_for_lane?
-            counters = []
+    for role in open_roles:
+        player = by_role.get(role)
+        main_pool: List[str] = []
+        sec_pool: List[str] = []
+        if player:
+            pool = player.champion_pool if isinstance(player.champion_pool, list) else []
+            for item in pool:
+                if not isinstance(item, dict):
+                    continue
+                champ = item.get("champion")
+                if not champ:
+                    continue
+                tier = item.get("tier")
+                if tier == ChampionPoolTier.MAIN.value:
+                    main_pool.append(champ)
+                elif tier == ChampionPoolTier.SECONDARY.value:
+                    sec_pool.append(champ)
+
+        # Candidatos: MAIN → SEC → meta da role
+        candidates: List[Tuple[str, str]] = []  # (champ, tier_tag)
+        seen: Set[str] = set()
+        for c in main_pool:
+            key = c.lower()
+            if key not in unavailable_l and key not in seen:
+                candidates.append((c, "MAIN"))
+                seen.add(key)
+        for c in sec_pool:
+            key = c.lower()
+            if key not in unavailable_l and key not in seen:
+                candidates.append((c, "SEC"))
+                seen.add(key)
+        for c in CHAMPIONS_BY_ROLE.get(role, []):
+            key = c.lower()
+            if key not in unavailable_l and key not in seen:
+                candidates.append((c, "META"))
+                seen.add(key)
+
+        opp_lane = next(
+            (p for p in opp_picks if p.get("role_hint") == role.value),
+            None,
+        )
+        opp_champ = opp_lane.get("champion") if opp_lane else None
+
+        # Quem countera o oponente nesta lane?
+        counters_for_opp: Set[str] = set()
+        if opp_champ:
             for key, val in COUNTER_MAP.items():
-                if any(c.lower() == opp_champ_for_lane.lower() for c in val):
-                    counters.append(key)
+                if any(c.lower() == opp_champ.lower() for c in val):
+                    counters_for_opp.add(key.lower())
 
-            # Verifica se algum desses counters está na pool do jogador e disponível
-            available_counters = [c for c in counters if c.lower() not in unavailable]
-            
-            # Prioridade de counter: se estiver no MAIN pool, depois no SECONDARY pool
-            main_counters = [c for c in available_counters if any(c.lower() == mp.lower() for mp in main_pool)]
-            if main_counters:
-                chosen_champ = main_counters[0]
-                logger.info(f"[DraftAI] COUNTER-PICK PERFEITO! {player.name} picka {chosen_champ} contra {opp_champ_for_lane} (MAIN pool)")
-                return chosen_champ, chosen_role
-            
-            sec_counters = [c for c in available_counters if any(c.lower() == sp.lower() for sp in sec_pool)]
-            if sec_counters:
-                chosen_champ = sec_counters[0]
-                logger.info(f"[DraftAI] COUNTER-PICK SECUNDÁRIO! {player.name} picka {chosen_champ} contra {opp_champ_for_lane} (SECONDARY pool)")
-                return chosen_champ, chosen_role
+        for champ, tier_tag in candidates:
+            score = 0.0
 
-        # Sem counter-pick viável. Escolhe o melhor campeão da pool do jogador disponível.
-        # Preferência leve por buffs do patch atual.
-        available_main = [c for c in main_pool if c and c.lower() not in unavailable]
-        if available_main:
-            chosen_champ = self._weighted_choice(available_main)
-            logger.info(f"[DraftAI] Escolhendo MAIN champion da pool de {player.name}: {chosen_champ}")
-            return chosen_champ, chosen_role
+            # Pool tier
+            if tier_tag == "MAIN":
+                score += 10.0
+            elif tier_tag == "SEC":
+                score += 6.5
+            else:
+                score += 3.0  # meta fallback / off
 
-        available_sec = [c for c in sec_pool if c and c.lower() not in unavailable]
-        if available_sec:
-            chosen_champ = self._weighted_choice(available_sec)
-            logger.info(f"[DraftAI] Escolhendo SECONDARY champion da pool de {player.name}: {chosen_champ}")
-            return chosen_champ, chosen_role
+            # Counter
+            if opp_champ and champ.lower() in counters_for_opp:
+                score += 5.5 if tier_tag in ("MAIN", "SEC") else 3.0
+            elif opp_champ:
+                # Já revelado sem counter: leve desvantagem
+                score -= 0.4
 
-        # Fallback definitivo: escolhe qualquer campeão válido da posição
-        pos_champs = CHAMPIONS_BY_ROLE.get(chosen_role, [])
-        valid_pos_champs = [c for c in pos_champs if c.lower() not in unavailable]
-        
-        if valid_pos_champs:
-            chosen_champ = self._weighted_choice(valid_pos_champs)
-            logger.warning(f"[DraftAI] Jogador {player.name} FORÇADO a jogar fora da pool com {chosen_champ}")
-            return chosen_champ, chosen_role
+            # Patch bias
+            pb = float(patch_bias.get(champ.lower(), 0.0) or 0.0)
+            score += pb * 8.0
 
-        # Fallback extremo caso tudo esteja indisponível
-        all_possible = []
-        for role_champs in CHAMPIONS_BY_ROLE.values():
-            all_possible.extend(role_champs)
-        fallback_champ = next((c for c in all_possible if c.lower() not in unavailable), "Azir")
-        return fallback_champ, chosen_role
+            # Flex value: jogável em 2+ roles abertos → bônus em picks early
+            coverage = len(champ_role_coverage.get(champ.lower(), set()))
+            if coverage >= 2:
+                score += 1.8 if pick_index <= 1 else 0.8
+
+            # Blind risk: 1ª/2ª pick — prioriza MAIN e flex, evita META off
+            if pick_index <= 1:
+                if tier_tag == "MAIN":
+                    score += 1.5
+                elif tier_tag == "META":
+                    score -= 1.2
+                if coverage >= 2:
+                    score += 1.0
+
+            # Bônus se role tem counter opportunity (oponente revelado)
+            if opp_champ:
+                score += 0.6
+
+            options.append((score, champ, role))
+
+    options.sort(key=lambda x: x[0], reverse=True)
+    return options
 
 
 def calculate_draft_penalties(

@@ -680,6 +680,37 @@ export const api = {
     return parseJsonOrThrow(response, 'Failed to start new split');
   },
 
+  /** Nova carreira do zero: force reseed + limpa Redis. */
+  startNewCareer: async (payload: {
+    manager_name: string;
+    team_abbreviation: string;
+    force_reseed?: boolean;
+  }): Promise<{
+    message: string;
+    manager_name: string;
+    team_id: string;
+    team_name: string;
+    team_abbreviation: string;
+    league_id?: string;
+    phase?: string;
+    week?: number;
+    day?: number;
+    redis_keys_cleared?: number;
+    seed?: { skipped?: boolean; forced?: boolean; team_count?: number };
+    teams?: Record<string, string>;
+  }> => {
+    const response = await fetch(`${API_BASE}/career/new`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manager_name: payload.manager_name,
+        team_abbreviation: payload.team_abbreviation,
+        force_reseed: payload.force_reseed !== false,
+      }),
+    });
+    return parseJsonOrThrow(response, 'Failed to start new career');
+  },
+
   listCareerSaves: async (): Promise<{
     saves: {
       slot: string;

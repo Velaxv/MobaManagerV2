@@ -36,6 +36,7 @@ export function Training() {
     <div className="flex flex-col gap-4">
       <HubPageHeader
         icon={Dumbbell}
+        eyebrow="Preparation"
         title="Treino & preparação"
         subtitle="Entre match days: plano CA→PA, moral/chemistry, scrim, VOD e scouting. Forma física e desenvolvimento ficam aqui — não no Painel."
         actions={
@@ -43,7 +44,7 @@ export function Training() {
             <button
               type="button"
               onClick={() => void refreshPractice?.()}
-              className="text-[10px] uppercase tracking-wide text-white/50 border border-white/10 px-3 py-1.5 rounded-sm hover:border-lol-gold/30 hover:text-lol-gold"
+              className="text-[10px] uppercase tracking-wide text-white/50 border border-white/10 px-3 py-1.5 rounded-sm hover:border-lol-hq-cyan/30 hover:text-lol-hq-cyan"
             >
               Atualizar prática
             </button>
@@ -56,7 +57,7 @@ export function Training() {
         <div className="panel-lol-header">
           <div className="flex items-center gap-2">
             <Dumbbell className="w-4 h-4 text-sky-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Plano de treino · CA → PA
             </span>
           </div>
@@ -348,7 +349,7 @@ export function Training() {
         <div className="panel-lol-header">
           <div className="flex items-center gap-2">
             <Binoculars className="w-4 h-4 text-violet-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Scouting · atributos ocultos
             </span>
           </div>
@@ -362,7 +363,7 @@ export function Training() {
             Consistência, BMA e PA começam ocultos. Atribua o scout no{' '}
             <button
               type="button"
-              className="text-lol-gold underline-offset-2 hover:underline"
+              className="text-lol-hq-cyan underline-offset-2 hover:underline"
               onClick={() => setCurrentScreen('SQUAD')}
             >
               Elenco
@@ -370,7 +371,7 @@ export function Training() {
             ou{' '}
             <button
               type="button"
-              className="text-lol-gold underline-offset-2 hover:underline"
+              className="text-lol-hq-cyan underline-offset-2 hover:underline"
               onClick={() => setCurrentScreen('MARKET')}
             >
               Mercado

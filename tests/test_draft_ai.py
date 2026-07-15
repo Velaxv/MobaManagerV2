@@ -6,7 +6,7 @@ import pytest
 from typing import List
 from src.shared.enums import DraftTeam, DraftAction, PlayerRole, ChampionPoolTier
 from src.modules.draft.snake_draft import SnakeDraft, DraftState
-from src.modules.draft.draft_ai import DraftAI, calculate_draft_penalties
+from src.modules.draft.draft_ai import DraftAI, calculate_draft_penalties, score_flex_options
 
 class MockPlayer:
     def __init__(self, name: str, role: PlayerRole, champion_pool: List[dict]):
@@ -68,6 +68,124 @@ def mock_teams():
         MockTeam("blue-id", "Blue Team", blue_players),
         MockTeam("red-id", "Red Team", red_players),
     )
+
+def test_score_flex_options_can_prefer_non_top():
+    """
+    Se SUPPORT tem MAIN forte e TOP só tem meta fraca, o melhor score
+    não precisa ser TOP — flex real.
+    """
+    top = MockPlayer(
+        "TopWeak",
+        PlayerRole.TOP,
+        [{"champion": "Ornn", "tier": ChampionPoolTier.SECONDARY.value}],
+    )
+    jg = MockPlayer("Jg", PlayerRole.JUNGLE, [])
+    mid = MockPlayer("Mid", PlayerRole.MID, [])
+    bot = MockPlayer("Bot", PlayerRole.BOT, [])
+    # Thresh MAIN + counters Nautilus (se revelado) — score alto em SUP
+    sup = MockPlayer(
+        "SupStar",
+        PlayerRole.SUPPORT,
+        [
+            {"champion": "Thresh", "tier": ChampionPoolTier.MAIN.value},
+            {"champion": "Morgana", "tier": ChampionPoolTier.MAIN.value},
+        ],
+    )
+    starters = [top, jg, mid, bot, sup]
+    remaining = [
+        PlayerRole.TOP,
+        PlayerRole.JUNGLE,
+        PlayerRole.MID,
+        PlayerRole.BOT,
+        PlayerRole.SUPPORT,
+    ]
+    # Oponente já revelou Nautilus SUP → Thresh countera forte
+    opp_picks = [{"champion": "Nautilus", "role_hint": "SUPPORT"}]
+
+    options = score_flex_options(
+        remaining_roles=remaining,
+        starters=starters,
+        unavailable=set(),
+        opp_picks=opp_picks,
+        pick_index=0,
+    )
+    assert options
+    best_score, best_champ, best_role = options[0]
+    # O melhor par deve ser SUPPORT (Thresh/Morgana MAIN + counter), não TOP
+    assert best_role == PlayerRole.SUPPORT
+    assert best_champ in ("Thresh", "Morgana")
+    assert best_score > 0
+
+
+def test_flex_pick_not_always_top_first(mock_teams):
+    """Em drafts completos, a 1ª pick nem sempre é TOP (flex)."""
+    blue_team, red_team = mock_teams
+    # Dá MAIN fortíssimo de SUPPORT ao blue e MAIN fraco de TOP
+    blue_team.players[0].champion_pool = [
+        {"champion": "Sion", "tier": ChampionPoolTier.SECONDARY.value}
+    ]
+    blue_team.players[4].champion_pool = [
+        {"champion": "Thresh", "tier": ChampionPoolTier.MAIN.value},
+        {"champion": "Lulu", "tier": ChampionPoolTier.MAIN.value},
+    ]
+
+    first_roles = []
+    for seed in range(20):
+        import random
+
+        random.seed(seed)
+        state = DraftState(
+            match_id=f"flex-{seed}",
+            blue_bans=["Yone", "Sylas", "Ryze"],
+            red_bans=["Viktor", "Azir", "Ahri"],
+            blue_picks=[],
+            red_picks=[],
+            current_turn=6,  # Blue 1st pick (após 6 bans)
+        )
+        champ, role = DraftAI().make_decision(
+            draft_state=state,
+            team_side=DraftTeam.BLUE,
+            team_obj=blue_team,
+            opponent_team_obj=red_team,
+        )
+        assert role is not None
+        first_roles.append(role)
+
+    non_top = sum(1 for r in first_roles if r != PlayerRole.TOP)
+    # Com pool SUP dominante, maioria dos 1ºs picks não deve ser TOP
+    assert non_top >= 8, f"expected flex variety, got roles={[r.value for r in first_roles]}"
+
+
+def test_flex_final_comp_five_distinct_roles(mock_teams):
+    blue_team, red_team = mock_teams
+    draft = SnakeDraft(match_id="flex-full")
+    draft.initialize()
+    draft_ai = DraftAI()
+
+    while not draft.get_current_state().is_complete:
+        expected = draft.get_expected_action()
+        current_side = DraftTeam(expected["team"])
+        active = blue_team if current_side == DraftTeam.BLUE else red_team
+        opp = red_team if current_side == DraftTeam.BLUE else blue_team
+        champ, role = draft_ai.make_decision(
+            draft_state=draft.get_current_state(),
+            team_side=current_side,
+            team_obj=active,
+            opponent_team_obj=opp,
+        )
+        draft.process_action(
+            team=current_side,
+            action=DraftAction(expected["action"]),
+            champion=champ,
+            role_hint=role.value if role else None,
+        )
+
+    state = draft.get_current_state()
+    for picks in (state.blue_picks, state.red_picks):
+        roles = [p["role_hint"] for p in picks]
+        assert len(roles) == 5
+        assert len(set(roles)) == 5
+
 
 def test_draft_ai_from_partial_state(mock_teams):
     """Simula reconstrução do estado FE e uma decisão de ban RED no turno 1."""

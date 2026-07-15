@@ -162,6 +162,46 @@ class RedisClient:
     async def delete(self, key: str) -> None:
         await self.client.delete(key)
 
+    async def delete_by_patterns(self, patterns: list) -> int:
+        """
+        Apaga chaves que batem com globs (ex.: career:*, live_match:*).
+        Retorna quantas chaves foram removidas.
+        """
+        if not patterns:
+            return 0
+        seen: set = set()
+        removed = 0
+        for pat in patterns:
+            for key in await self.keys(pat):
+                if key in seen:
+                    continue
+                seen.add(key)
+                await self.delete(key)
+                removed += 1
+        return removed
+
+    async def flush_game_state(self) -> int:
+        """
+        Limpa estado de sessão de jogo (carreira, calendário, partidas live, draft).
+        Usado em Nova Carreira — NÃO apaga arquivos de save em disco.
+        """
+        patterns = [
+            "career:*",
+            "training:*",
+            "scouting:*",
+            "practice:*",
+            "market:ai:*",
+            "patch:current:*",
+            "patch:last_transition",
+            "calendar:*",
+            "playoffs:*",
+            "draft:*",
+            "match:*",
+            "live_match:*",
+            "burnout:*",
+        ]
+        return await self.delete_by_patterns(patterns)
+
     async def keys(self, pattern: str = "*") -> list:
         """Lista chaves (MockRedis ou Redis real com KEYS/SCAN)."""
         client = self.client

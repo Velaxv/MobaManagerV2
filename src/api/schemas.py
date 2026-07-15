@@ -116,6 +116,16 @@ class CareerSaveRequest(BaseModel):
     label: Optional[str] = None
 
 
+class NewCareerRequest(BaseModel):
+    """Nova carreira do zero: reseed + limpa Redis."""
+
+    manager_name: str
+    # Preferir abreviação (PNG, FUR…) — IDs mudam no reseed
+    team_abbreviation: str
+    # Opcional: se True (default), recria DB CBLOL do zero
+    force_reseed: bool = True
+
+
 class StartLiveMatchRequest(BaseModel):
     blue_team_id: str
     red_team_id: str

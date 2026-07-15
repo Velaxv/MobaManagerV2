@@ -2,6 +2,7 @@ import { useGameStore } from '../store/useGameStore';
 import { TableProperties, Medal, TrendingUp, Trophy, Swords } from 'lucide-react';
 import { SplitPhase } from '../types/game';
 import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
+import { HubPageHeader } from '../components/HubPageHeader';
 
 function seriesSideLabel(side?: {
   team_id?: string | null;
@@ -33,67 +34,54 @@ export function Standings() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
-      <div className="panel-lol relative overflow-hidden">
-        <div className="absolute inset-0 bg-lol-header pointer-events-none" />
-        <div className="relative panel-lol-header !bg-transparent border-b border-lol-gold/15">
-          <div className="flex items-center gap-3 py-1">
-            <div className="team-crest">
-              <TableProperties className="w-5 h-5" />
+      <HubPageHeader
+        icon={TableProperties}
+        eyebrow="Competition"
+        title="Classificação CBLOL 2026"
+        subtitle={`Semana ${currentWeek} · ${splitPhase?.replace('_', ' ') || '—'} · top 6 = playoffs`}
+      />
+
+      {myRow && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="hub-stat-card !p-2.5">
+            <div className="text-[9px] uppercase tracking-hud text-white/35 flex items-center gap-1 font-mono">
+              <Medal className="w-3 h-3 text-lol-hq-cyan" /> Rank
             </div>
-            <div>
-              <h2 className="font-display font-bold text-base text-lol-gold-soft uppercase tracking-wide">
-                Classificação CBLOL 2026
-              </h2>
-              <p className="text-[10px] text-white/40 font-mono">
-                Semana {currentWeek} · {splitPhase?.replace('_', ' ')} · top 6 = playoffs
-              </p>
+            <div className="font-mono text-xl font-bold text-lol-hq-cyan">
+              {myRow.final_placement ? `#${myRow.final_placement}` : `#${myRank}`}
             </div>
+          </div>
+          <div className="hub-stat-card !p-2.5">
+            <div className="text-[9px] uppercase tracking-hud text-white/35 font-mono">Pontos</div>
+            <div className="font-mono text-xl font-bold text-white">{myRow.points}</div>
+          </div>
+          <div className="hub-stat-card !p-2.5">
+            <div className="text-[9px] uppercase tracking-hud text-white/35 font-mono">Campanha</div>
+            <div className="font-mono text-lg font-bold">
+              <span className="text-emerald-400">{myRow.wins}V</span>
+              <span className="text-white/20 mx-1">-</span>
+              <span className="text-lol-red-side">{myRow.losses}D</span>
+            </div>
+          </div>
+          <div className="hub-stat-card !p-2.5">
+            <div className="text-[9px] uppercase tracking-hud text-white/35 font-mono">Winrate</div>
+            <div className="font-mono text-lg font-bold text-sky-300">{myRow.win_rate}</div>
           </div>
         </div>
-
-        {myRow && (
-          <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 border-b border-white/5 bg-black/20">
-            <div className="hub-stat-card !p-2.5">
-              <div className="text-[9px] uppercase text-white/35 flex items-center gap-1">
-                <Medal className="w-3 h-3 text-lol-gold" /> Sua posição
-              </div>
-              <div className="font-mono text-xl font-bold text-lol-gold">
-                {myRow.final_placement ? `#${myRow.final_placement}` : `#${myRank}`}
-              </div>
-            </div>
-            <div className="hub-stat-card !p-2.5">
-              <div className="text-[9px] uppercase text-white/35">Pontos</div>
-              <div className="font-mono text-xl font-bold text-white">{myRow.points}</div>
-            </div>
-            <div className="hub-stat-card !p-2.5">
-              <div className="text-[9px] uppercase text-white/35">Campanha</div>
-              <div className="font-mono text-lg font-bold">
-                <span className="text-emerald-400">{myRow.wins}V</span>
-                <span className="text-white/20 mx-1">-</span>
-                <span className="text-lol-red-side">{myRow.losses}D</span>
-              </div>
-            </div>
-            <div className="hub-stat-card !p-2.5">
-              <div className="text-[9px] uppercase text-white/35">Winrate</div>
-              <div className="font-mono text-lg font-bold text-sky-300">{myRow.win_rate}</div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Playoffs bracket */}
       {(inPlayoffs || playoffBracket) && (
         <div className="panel-lol">
           <div className="panel-lol-header">
             <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-lol-gold" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              <Trophy className="w-4 h-4 text-lol-hq-cyan" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-white">
                 Playoffs · Top 6
               </span>
             </div>
             {champion ? (
-              <span className="text-[10px] font-mono text-lol-gold">
+              <span className="text-[10px] font-mono text-lol-hq-cyan">
                 Campeão: {champion}
               </span>
             ) : (
@@ -127,7 +115,7 @@ export function Standings() {
                               key={s.id}
                               className={`rounded-sm border px-3 py-2 ${
                                 done
-                                  ? 'border-lol-gold/30 bg-lol-gold/5'
+                                  ? 'border-lol-hq-cyan/30 bg-lol-hq-cyan/5'
                                   : s.status === 'ready'
                                     ? 'border-emerald-700/40 bg-emerald-950/20'
                                     : 'border-white/10 bg-black/20'
@@ -147,12 +135,12 @@ export function Standings() {
                               <div className="flex items-center justify-between gap-2 text-sm">
                                 <span
                                   className={`font-semibold ${
-                                    homeWon ? 'text-lol-gold' : 'text-white/85'
+                                    homeWon ? 'text-lol-hq-cyan' : 'text-white/85'
                                   }`}
                                 >
                                   {seriesSideLabel(s.home)}
                                   {s.score != null && (
-                                    <span className="ml-1 font-mono text-lol-gold-soft">
+                                    <span className="ml-1 font-mono text-white">
                                       {s.score.home ?? 0}
                                     </span>
                                   )}
@@ -160,11 +148,11 @@ export function Standings() {
                                 <Swords className="w-3.5 h-3.5 text-white/25 shrink-0" />
                                 <span
                                   className={`font-semibold text-right ${
-                                    awayWon ? 'text-lol-gold' : 'text-white/85'
+                                    awayWon ? 'text-lol-hq-cyan' : 'text-white/85'
                                   }`}
                                 >
                                   {s.score != null && (
-                                    <span className="mr-1 font-mono text-lol-gold-soft">
+                                    <span className="mr-1 font-mono text-white">
                                       {s.score.away ?? 0}
                                     </span>
                                   )}
@@ -211,7 +199,7 @@ export function Standings() {
                 <button
                   type="button"
                   onClick={() => void startPlayoffsDev().catch(() => undefined)}
-                  className="text-[10px] uppercase tracking-wide text-white/40 hover:text-lol-gold border border-white/10 hover:border-lol-gold/30 px-3 py-1.5 rounded-sm transition-colors"
+                  className="text-[10px] uppercase tracking-wide text-white/40 hover:text-lol-hq-cyan border border-white/10 hover:border-lol-hq-cyan/30 px-3 py-1.5 rounded-sm transition-colors"
                 >
                   Playtest: iniciar playoffs (forçado)
                 </button>
@@ -229,7 +217,7 @@ export function Standings() {
           <button
             type="button"
             onClick={() => void startPlayoffsDev().catch(() => undefined)}
-            className="text-[10px] uppercase tracking-wide text-lol-gold/80 border border-lol-gold/25 px-3 py-1.5 rounded-sm hover:bg-lol-gold/10"
+            className="text-[10px] uppercase tracking-wide text-lol-hq-cyan/80 border border-lol-hq-cyan/25 px-3 py-1.5 rounded-sm hover:bg-lol-hq-cyan/10"
           >
             Forçar playoffs
           </button>
@@ -240,8 +228,8 @@ export function Standings() {
       <div className="panel-lol">
         <div className="panel-lol-header">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-lol-gold" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <TrendingUp className="w-4 h-4 text-lol-hq-cyan" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Tabela da liga
             </span>
           </div>
@@ -258,7 +246,7 @@ export function Standings() {
             <>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-white/40 text-[10px] uppercase font-mono border-b border-lol-gold/20">
+                  <tr className="text-white/40 text-[10px] uppercase font-mono border-b border-lol-hq-cyan/20">
                     <th className="py-3 px-3 text-left">Pos</th>
                     <th className="text-left px-3">Organização</th>
                     <th className="px-3 text-center">V</th>
@@ -298,7 +286,7 @@ export function Standings() {
                           <span className="inline-flex items-center gap-1.5">
                             {place ?? idx + 1}
                             {(place === 1 || (!place && idx === 0)) && (
-                              <span className="text-lol-gold text-[9px]">★</span>
+                              <span className="text-lol-hq-cyan text-[9px]">★</span>
                             )}
                           </span>
                         </td>
@@ -319,7 +307,7 @@ export function Standings() {
                             </span>
                           )}
                           {isMine && (
-                            <span className="ml-2 text-[9px] text-lol-gold uppercase tracking-wide border border-lol-gold/30 px-1 rounded-sm">
+                            <span className="ml-2 text-[9px] text-lol-hq-cyan uppercase tracking-wide border border-lol-hq-cyan/30 px-1 rounded-sm">
                               Você
                             </span>
                           )}
@@ -332,7 +320,7 @@ export function Standings() {
                         <td className="px-3 text-center font-mono text-white/45">{row.win_rate}</td>
                         <td className="px-3 text-center hidden sm:table-cell">
                           {place === 1 ? (
-                            <span className="text-[9px] uppercase tracking-wide text-lol-gold border border-lol-gold/40 bg-lol-gold/10 px-1.5 py-0.5 rounded-sm">
+                            <span className="text-[9px] uppercase tracking-wide text-lol-hq-cyan border border-lol-hq-cyan/40 bg-lol-hq-cyan/10 px-1.5 py-0.5 rounded-sm">
                               Campeão
                             </span>
                           ) : playoff ? (
@@ -355,7 +343,7 @@ export function Standings() {
                   <span className="w-2 h-2 rounded-sm bg-emerald-600/60" /> Top 6 — Playoffs
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-sm bg-lol-gold/50" /> Seu time
+                  <span className="w-2 h-2 rounded-sm bg-lol-hq-cyan/50" /> Seu time
                 </span>
                 <span>3 pts por vitória na regular · playoffs eliminatórios</span>
               </div>

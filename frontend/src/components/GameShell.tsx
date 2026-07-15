@@ -238,7 +238,7 @@ export function GameShell({ children }: GameShellProps) {
           className={`hub-nav-item group ${active ? 'hub-nav-item-active' : 'hub-nav-item-idle'}`}
         >
           <Icon
-            className={`w-4 h-4 shrink-0 ${active ? 'text-lol-gold' : 'text-white/35 group-hover:text-lol-gold-soft'}`}
+            className={`w-4 h-4 shrink-0 ${active ? 'text-lol-hq-cyan' : 'text-white/35 group-hover:text-lol-hq-cyan/80'}`}
           />
           <span className="flex-1 min-w-0">
             <span className="block text-xs font-semibold uppercase tracking-wide">{item.label}</span>
@@ -251,7 +251,7 @@ export function GameShell({ children }: GameShellProps) {
               {badge.count != null && badge.count > 0 ? badge.count : '!'}
             </span>
           )}
-          {active && <ChevronRight className="w-3.5 h-3.5 text-lol-gold/70 shrink-0" />}
+          {active && <ChevronRight className="w-3.5 h-3.5 text-lol-hq-cyan/70 shrink-0" />}
         </button>
       );
     });
@@ -259,22 +259,25 @@ export function GameShell({ children }: GameShellProps) {
   return (
     <div className="hub-shell">
       <aside className="hub-sidebar">
-        <div className="px-4 py-4 border-b border-lol-gold/15">
+        <div className="px-4 py-4 border-b border-lol-hq-cyan/15 relative">
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-lol-hq-cyan/50 via-transparent to-lol-hq-orange/30" />
           <div className="flex items-center gap-3">
-            <div className="team-crest text-xs shadow-lol-gold" style={crestStyle}>
+            <div className="team-crest text-xs" style={crestStyle}>
               {crestTag.slice(0, 3)}
             </div>
             <div>
-              <div className="font-display font-bold text-sm tracking-wide text-lol-gold-soft uppercase leading-tight">
-                LoL Manager
+              <div className="font-display font-bold text-sm tracking-[0.14em] text-white uppercase leading-tight">
+                War Room
               </div>
-              <div className="text-[10px] text-white/35 uppercase tracking-widest">CBLOL 2026</div>
+              <div className="text-[10px] text-lol-hq-cyan/70 uppercase tracking-[0.22em] font-mono">
+                CBLOL 2026
+              </div>
             </div>
           </div>
         </div>
 
         <div
-          className="px-3 py-3 border-b border-white/5 bg-black/20"
+          className="px-3 py-3 border-b border-white/5 bg-black/30 backdrop-blur-sm"
           style={{ boxShadow: `inset 3px 0 0 ${brand.primary}` }}
         >
           <div className="flex items-center gap-2.5">
@@ -282,11 +285,11 @@ export function GameShell({ children }: GameShellProps) {
               {crestTag.slice(0, 3)}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-white truncate">{myTeamName}</div>
+              <div className="text-xs font-bold text-white truncate tracking-wide">{myTeamName}</div>
               {manager && (
-                <div className="text-[10px] text-white/40 truncate">Coach {manager.name}</div>
+                <div className="text-[10px] text-white/40 truncate font-mono">COACH · {manager.name}</div>
               )}
-              <div className="text-[10px] font-mono text-lol-gold/80 mt-0.5">
+              <div className="text-[10px] font-mono text-lol-hq-cyan/90 mt-0.5">
                 {myStanding
                   ? `#${myRank} · ${myStanding.wins}V-${myStanding.losses}D`
                   : 'Sem standings'}
@@ -310,24 +313,32 @@ export function GameShell({ children }: GameShellProps) {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-lol-gold/10 space-y-2 bg-black/25">
+        <div className="p-3 border-t border-lol-hq-cyan/12 space-y-2 bg-black/35">
           <div className="flex justify-between text-[10px] font-mono">
-            <span className="text-white/35">Orçamento</span>
+            <span className="text-white/35 uppercase tracking-wider">Budget</span>
             <span className="text-emerald-400 font-bold">€{(myBudget / 1_000_000).toFixed(2)}M</span>
           </div>
           <div className="flex justify-between text-[10px] font-mono">
-            <span className="text-white/35">Elenco</span>
+            <span className="text-white/35 uppercase tracking-wider">Roster</span>
             <span className="text-white/70">{myPlayers.length} atletas</span>
           </div>
           {burnoutCount > 0 && (
-            <div className="text-[10px] text-lol-red-side font-mono">
-              ⚠ {burnoutCount} alerta(s) de forma
+            <div className="text-[10px] text-lol-hq-orange font-mono flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-lol-hq-orange animate-neon-breathe" />
+              {burnoutCount} alerta(s) fadiga
             </div>
           )}
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="hub-main">
+        {/* Sede HQ borrada — profundidade atrás do glass */}
+        <div className="hub-facility" aria-hidden>
+          <div className="hub-facility-scene" />
+          <div className="hub-facility-scanlines" />
+          <div className="hub-facility-vignette" />
+        </div>
+
         <header className="hub-topbar">
           <div className="px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
@@ -339,17 +350,17 @@ export function GameShell({ children }: GameShellProps) {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-display font-bold text-sm sm:text-base text-lol-gold-soft truncate">
+                  <span className="font-display font-bold text-sm sm:text-base text-white tracking-wide truncate">
                     {myTeamName}
                   </span>
                   {manager && (
-                    <span className="text-[10px] sm:text-xs text-white/40 uppercase tracking-wider truncate hidden sm:inline">
+                    <span className="text-[10px] sm:text-xs text-lol-hq-cyan/70 uppercase tracking-wider truncate hidden sm:inline font-mono">
                       · {manager.name}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-white/45 font-mono uppercase tracking-wider">
-                  <span className="text-lol-gold/90">Sem {currentWeek}</span>
+                  <span className="text-lol-hq-cyan">Sem {currentWeek}</span>
                   <span className="text-white/15">·</span>
                   <span>{dayLabel}</span>
                   {dayType && (
@@ -370,9 +381,10 @@ export function GameShell({ children }: GameShellProps) {
               {matchLive && (
                 <button
                   onClick={() => setCurrentScreen('SIMULATION' as never)}
-                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border border-emerald-500/40 bg-emerald-950/40 text-emerald-400 text-[10px] font-bold uppercase tracking-wide"
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border border-emerald-500/40 bg-emerald-950/40 text-emerald-400 text-[10px] font-bold uppercase tracking-wide shadow-[0_0_12px_rgba(52,211,153,0.2)]"
                 >
-                  <Radio className="w-3 h-3 animate-pulse" />
+                  <span className="hq-live-dot" />
+                  <Radio className="w-3 h-3" />
                   Ao vivo
                 </button>
               )}
@@ -393,7 +405,7 @@ export function GameShell({ children }: GameShellProps) {
                     setSaving(false);
                   }
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border border-lol-gold/35 bg-lol-gold/10 text-lol-gold text-[10px] font-bold uppercase tracking-wide hover:bg-lol-gold/20 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border border-lol-hq-cyan/35 bg-lol-hq-cyan/10 text-lol-hq-cyan text-[10px] font-bold uppercase tracking-wide hover:bg-lol-hq-cyan/20 hover:shadow-hq-cyan-sm disabled:opacity-40 transition-all"
               >
                 {saving ? (
                   <Loader2 className="w-3 h-3 animate-spin" />
@@ -402,16 +414,16 @@ export function GameShell({ children }: GameShellProps) {
                 )}
                 {saveMsg || 'Salvar'}
               </button>
-              <div className="px-2.5 py-1 rounded-sm bg-black/40 border border-emerald-800/35">
-                <span className="text-[9px] uppercase text-white/35 block">Orçamento</span>
+              <div className="px-2.5 py-1 rounded-sm bg-black/45 border border-emerald-500/25 backdrop-blur-sm">
+                <span className="text-[9px] uppercase tracking-hud text-white/35 block">Budget</span>
                 <span className="text-xs sm:text-sm font-bold text-emerald-400 font-mono">
                   €{(myBudget / 1_000_000).toFixed(2)}M
                 </span>
               </div>
               {myStanding && (
-                <div className="hidden lg:block px-2.5 py-1 rounded-sm bg-black/40 border border-lol-gold/25">
-                  <span className="text-[9px] uppercase text-white/35 block">Posição</span>
-                  <span className="text-xs font-bold text-lol-gold font-mono">
+                <div className="hidden lg:block px-2.5 py-1 rounded-sm bg-black/45 border border-lol-hq-cyan/25 backdrop-blur-sm">
+                  <span className="text-[9px] uppercase tracking-hud text-white/35 block">Rank</span>
+                  <span className="text-xs font-bold text-lol-hq-cyan font-mono">
                     #{myRank} · {myStanding.points} pts
                   </span>
                 </div>
@@ -419,7 +431,7 @@ export function GameShell({ children }: GameShellProps) {
               {matchPending && (
                 <button
                   onClick={() => setCurrentScreen('DRAFT' as never)}
-                  className="px-3 py-1.5 rounded-sm bg-gradient-to-r from-lol-gold to-lol-gold-dim text-lol-void text-[10px] sm:text-xs font-bold uppercase tracking-wide shadow-lol-gold animate-pulse"
+                  className="px-3 py-1.5 rounded-sm bg-gradient-to-r from-lol-hq-cyan to-lol-hq-cyan-dim text-lol-void text-[10px] sm:text-xs font-bold uppercase tracking-wide shadow-hq-cyan animate-pulse"
                 >
                   Match Day →
                 </button>
@@ -438,7 +450,7 @@ export function GameShell({ children }: GameShellProps) {
                   key={item.id}
                   onClick={() => setCurrentScreen(item.id as never)}
                   className={`relative flex flex-col items-center gap-0.5 px-2.5 py-2 min-w-[3.6rem] rounded-sm text-[8px] uppercase tracking-wide ${
-                    active ? 'text-lol-gold bg-lol-hextech/40' : 'text-white/45'
+                    active ? 'text-lol-hq-cyan bg-lol-hq-cyan/15' : 'text-white/45'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -460,8 +472,8 @@ export function GameShell({ children }: GameShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-3 sm:p-5 overflow-x-hidden">
-          <div className="max-w-[1400px] mx-auto animate-fade-in">{children}</div>
+        <main className="hub-main-content">
+          <div className="relative max-w-[1400px] mx-auto animate-fade-in">{children}</div>
         </main>
       </div>
     </div>

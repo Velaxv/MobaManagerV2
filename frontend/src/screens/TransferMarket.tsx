@@ -16,6 +16,7 @@ import { RoleIcon } from '../components/RoleIcon';
 import { PlayerPortrait } from '../components/PlayerPortrait';
 import { ROLE_LABELS } from '../lib/champions';
 import { api, type MarketWindowStatus } from '../services/api';
+import { HubPageHeader } from '../components/HubPageHeader';
 
 type Valuation = {
   asking_fee: number;
@@ -405,48 +406,43 @@ export function TransferMarket() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="panel-lol relative overflow-hidden">
-        <div className="absolute inset-0 bg-lol-header pointer-events-none" />
-        <div className="relative panel-lol-header !bg-transparent">
-          <div className="flex items-center gap-3 py-1">
-            <div className="team-crest">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-base text-lol-gold-soft uppercase tracking-wide">
-                Mercado de transferências
-              </h2>
-              <p className="text-[10px] text-white/40 font-mono mt-0.5">
-                CBLOL 2026 · {myTeamName} · orçamento{' '}
-                <span className="text-emerald-400">€{(myBudget / 1_000_000).toFixed(2)}M</span>
-                {' · '}negociação de taxa + salário + duração
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {windowStatus && (
-          <div
-            className={`relative px-3 py-2 border-t flex flex-wrap items-center gap-2 text-[11px] ${
-              windowStatus.mode === 'OPEN_FULL'
-                ? 'border-emerald-700/40 bg-emerald-950/25 text-emerald-200/90'
-                : windowStatus.mode === 'OPEN_FA_ONLY'
-                  ? 'border-amber-700/40 bg-amber-950/25 text-amber-100/90'
-                  : 'border-red-800/40 bg-red-950/30 text-red-200/90'
-            }`}
-          >
-            {windowStatus.mode === 'CLOSED' ? (
-              <Lock className="w-3.5 h-3.5 shrink-0" />
-            ) : (
-              <Unlock className="w-3.5 h-3.5 shrink-0" />
-            )}
-            <span className="font-semibold uppercase tracking-wide text-[10px]">
-              {windowStatus.label}
+      <HubPageHeader
+        icon={ShoppingBag}
+        eyebrow="Transfers"
+        title="Mercado de transferências"
+        subtitle={
+          <>
+            CBLOL 2026 · {myTeamName} · orçamento{' '}
+            <span className="text-emerald-400 font-mono">
+              €{(myBudget / 1_000_000).toFixed(2)}M
             </span>
-            <span className="text-white/40 font-mono">
-              fase {windowStatus.phase}
-              {windowStatus.can_buy_from_clubs
-                ? ' · clubes + FA'
+            {' · '}negociação de taxa + salário + duração
+          </>
+        }
+      />
+
+      {windowStatus && (
+        <div
+          className={`panel-lol px-3 py-2 flex flex-wrap items-center gap-2 text-[11px] ${
+            windowStatus.mode === 'OPEN_FULL'
+              ? 'border-emerald-700/40 bg-emerald-950/25 text-emerald-200/90'
+              : windowStatus.mode === 'OPEN_FA_ONLY'
+                ? 'border-amber-700/40 bg-amber-950/25 text-amber-100/90'
+                : 'border-red-800/40 bg-red-950/30 text-red-200/90'
+          }`}
+        >
+          {windowStatus.mode === 'CLOSED' ? (
+            <Lock className="w-3.5 h-3.5 shrink-0" />
+          ) : (
+            <Unlock className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span className="font-semibold uppercase tracking-wide text-[10px]">
+            {windowStatus.label}
+          </span>
+          <span className="text-white/40 font-mono">
+            fase {windowStatus.phase}
+            {windowStatus.can_buy_from_clubs
+              ? ' · clubes + FA'
                 : windowStatus.can_sign_free_agents
                   ? ' · só free agents'
                   : ' · sem contratações'}
@@ -454,81 +450,80 @@ export function TransferMarket() {
           </div>
         )}
 
-        <div className="relative p-3 flex flex-col md:flex-row gap-3 items-start md:items-center border-t border-white/5 bg-black/20">
-          <div className="flex items-center gap-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider shrink-0">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-lol-gold" />
-            Filtros
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(
-              [
-                { id: 'ALL' as const, label: 'Todos' },
-                { id: 'FA' as const, label: 'Free agents' },
-                { id: 'CLUB' as const, label: 'De clubes' },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setPoolFilter(opt.id)}
-                className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-sm ${
-                  poolFilter === opt.id
-                    ? 'border-cyan-400/50 bg-cyan-950/40 text-cyan-200'
-                    : 'border-white/10 text-white/45 hover:border-white/25'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {['ALL', 'TOP', 'JUNGLE', 'MID', 'BOT', 'SUPPORT'].map((role) => (
-              <button
-                key={role}
-                onClick={() => setSelectedRole(role)}
-                className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-sm transition-all flex items-center gap-1 ${
-                  selectedRole === role
-                    ? 'border-lol-gold bg-lol-gold/20 text-lol-gold'
-                    : 'border-white/10 text-white/45 hover:border-white/25'
-                }`}
-              >
-                {role !== 'ALL' && <RoleIcon role={role} size={11} active={selectedRole === role} />}
-                {role === 'ALL' ? 'Todos' : ROLE_LABELS[role] || role}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-white/50">
-            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
-              <input
-                type="checkbox"
-                checked={ageLimitFilter}
-                onChange={(e) => setAgeLimitFilter(e.target.checked)}
-                className="accent-lol-gold"
-              />
-              Titular ≥18
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
-              <input
-                type="checkbox"
-                checked={rookieClauseFilter}
-                onChange={(e) => setRookieClauseFilter(e.target.checked)}
-                className="accent-lol-gold"
-              />
-              Rookie clause
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
-              <input
-                type="checkbox"
-                checked={contractExpiryFilter}
-                onChange={(e) => setContractExpiryFilter(e.target.checked)}
-                className="accent-lol-gold"
-              />
-              Contrato ≤1 split
-            </label>
-          </div>
-          <div className="md:ml-auto text-[10px] font-mono text-white/30">
-            {filteredPlayers.length} jogador(es)
-          </div>
+      <div className="panel-lol p-3 flex flex-col md:flex-row gap-3 items-start md:items-center">
+        <div className="flex items-center gap-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider shrink-0">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-lol-hq-cyan" />
+          Filtros
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { id: 'ALL' as const, label: 'Todos' },
+              { id: 'FA' as const, label: 'Free agents' },
+              { id: 'CLUB' as const, label: 'De clubes' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setPoolFilter(opt.id)}
+              className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-sm ${
+                poolFilter === opt.id
+                  ? 'border-cyan-400/50 bg-cyan-950/40 text-cyan-200'
+                  : 'border-white/10 text-white/45 hover:border-white/25'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {['ALL', 'TOP', 'JUNGLE', 'MID', 'BOT', 'SUPPORT'].map((role) => (
+            <button
+              key={role}
+              onClick={() => setSelectedRole(role)}
+              className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide border rounded-sm transition-all flex items-center gap-1 ${
+                selectedRole === role
+                  ? 'border-lol-hq-cyan bg-lol-hq-cyan/20 text-lol-hq-cyan'
+                  : 'border-white/10 text-white/45 hover:border-white/25'
+              }`}
+            >
+              {role !== 'ALL' && <RoleIcon role={role} size={11} active={selectedRole === role} />}
+              {role === 'ALL' ? 'Todos' : ROLE_LABELS[role] || role}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-white/50">
+          <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+            <input
+              type="checkbox"
+              checked={ageLimitFilter}
+              onChange={(e) => setAgeLimitFilter(e.target.checked)}
+              className="accent-lol-hq-cyan"
+            />
+            Titular ≥18
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+            <input
+              type="checkbox"
+              checked={rookieClauseFilter}
+              onChange={(e) => setRookieClauseFilter(e.target.checked)}
+              className="accent-lol-hq-cyan"
+            />
+            Rookie clause
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer hover:text-white">
+            <input
+              type="checkbox"
+              checked={contractExpiryFilter}
+              onChange={(e) => setContractExpiryFilter(e.target.checked)}
+              className="accent-lol-hq-cyan"
+            />
+            Contrato ≤1 split
+          </label>
+        </div>
+        <div className="md:ml-auto text-[10px] font-mono text-white/30">
+          {filteredPlayers.length} jogador(es)
         </div>
       </div>
 
@@ -547,7 +542,7 @@ export function TransferMarket() {
       {/* Modal de oferta */}
       {offerPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md panel-lol border-lol-gold/30 shadow-lol-gold max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-md panel-lol border-lol-hq-cyan/30 shadow-hq-cyan max-h-[90vh] overflow-y-auto">
             <div className="panel-lol-header">
               <div className="flex items-center gap-2 min-w-0">
                 <PlayerPortrait name={offerPlayer.name} size="sm" />
@@ -585,7 +580,7 @@ export function TransferMarket() {
                           : `Clube: ${valuation.seller?.team_abbr || valuation.seller?.team_name || '—'}`}
                       </div>
                       <div>
-                        Pedido: <span className="text-lol-gold">{fmtMoney(valuation.asking_fee)}</span>
+                        Pedido: <span className="text-lol-hq-cyan">{fmtMoney(valuation.asking_fee)}</span>
                         {' · '}sal. {fmtMoney(valuation.desired_salary)}/m
                         {' · '}
                         {valuation.preferred_seasons} splits
@@ -612,7 +607,7 @@ export function TransferMarket() {
                           transfer_fee: Number(e.target.value) || 0,
                         }))
                       }
-                      className="w-full bg-black/50 border border-white/15 rounded-sm px-3 py-2 text-sm font-mono text-white focus:border-lol-gold outline-none"
+                      className="w-full bg-black/50 border border-white/15 rounded-sm px-3 py-2 text-sm font-mono text-white focus:border-lol-hq-cyan outline-none"
                     />
                   </label>
 
@@ -631,7 +626,7 @@ export function TransferMarket() {
                           monthly_salary: Number(e.target.value) || 0,
                         }))
                       }
-                      className="w-full bg-black/50 border border-white/15 rounded-sm px-3 py-2 text-sm font-mono text-white focus:border-lol-gold outline-none"
+                      className="w-full bg-black/50 border border-white/15 rounded-sm px-3 py-2 text-sm font-mono text-white focus:border-lol-hq-cyan outline-none"
                     />
                   </label>
 
@@ -647,7 +642,7 @@ export function TransferMarket() {
                           onClick={() => setTerms((t) => ({ ...t, seasons: s }))}
                           className={`flex-1 py-2 text-xs font-bold border rounded-sm ${
                             terms.seasons === s
-                              ? 'border-lol-gold bg-lol-gold/15 text-lol-gold'
+                              ? 'border-lol-hq-cyan bg-lol-hq-cyan/15 text-lol-hq-cyan'
                               : 'border-white/10 text-white/50 hover:border-white/25'
                           }`}
                         >

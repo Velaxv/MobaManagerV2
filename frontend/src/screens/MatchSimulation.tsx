@@ -16,6 +16,11 @@ import {
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
 import { SummonersRiftMap } from '../components/SummonersRiftMap';
+import {
+  PostMatchAnalysis,
+  type GoldSample,
+  type TimelineEvent,
+} from '../components/PostMatchAnalysis';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
 import { PlayerRole } from '../types/game';
 import type { MapEventHint } from '../lib/riftMap';
@@ -100,7 +105,10 @@ export function MatchSimulation() {
   const [commPulse, setCommPulse] = useState(false);
   const [starting, setStarting] = useState(false);
   const [preferredSpeed, setPreferredSpeed] = useState<'1x' | '2x' | '4x' | 'instant'>('2x');
+  const [showPostMatch, setShowPostMatch] = useState(false);
+  const [goldSeries, setGoldSeries] = useState<GoldSample[]>([]);
   const prevKills = useRef({ blue: 0, red: 0 });
+  const lastGoldSample = useRef<string>('');
   const feedRef = useRef<HTMLDivElement>(null);
 
   // Polling live
@@ -134,6 +142,41 @@ export function MatchSimulation() {
     }
     prevKills.current = { blue: b, red: r };
   }, [activeMatch?.blueKills, activeMatch?.redKills]);
+
+  // Gold differential series for post-match chart
+  useEffect(() => {
+    if (!activeMatch) return;
+    const minute = activeMatch.currentMinute ?? 0;
+    const diff = (activeMatch.blueGold ?? 0) - (activeMatch.redGold ?? 0);
+    const key = `${activeMatch.matchId}-${minute}-${diff}`;
+    if (key === lastGoldSample.current) return;
+    lastGoldSample.current = key;
+    setGoldSeries((prev) => {
+      const next = [...prev.filter((s) => s.minute !== minute), { minute, diff }];
+      return next.sort((a, b) => a.minute - b.minute).slice(-60);
+    });
+  }, [
+    activeMatch?.matchId,
+    activeMatch?.currentMinute,
+    activeMatch?.blueGold,
+    activeMatch?.redGold,
+  ]);
+
+  // Reset series on new match; open analysis on victory
+  useEffect(() => {
+    if (!activeMatch?.matchId) {
+      setGoldSeries([]);
+      setShowPostMatch(false);
+      lastGoldSample.current = '';
+      return;
+    }
+    if (
+      activeMatch.currentPhase === 'COMPLETE' ||
+      activeMatch.currentPhase === 'FINISHED'
+    ) {
+      setShowPostMatch(true);
+    }
+  }, [activeMatch?.matchId, activeMatch?.currentPhase]);
 
   // Auto-scroll feed
   useEffect(() => {
@@ -210,15 +253,15 @@ export function MatchSimulation() {
   // Empty state
   if (!activeMatch) {
     return (
-      <div className="match-stage min-h-[420px] flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="match-stage hq-frame min-h-[420px] flex flex-col items-center justify-center py-16 px-6 text-center">
         <div
           className="match-splash-bg opacity-40"
           style={{ backgroundImage: `url(${championSplashUrl('Aatrox')})` }}
         />
         <div className="match-splash-veil" />
         <div className="relative z-10 flex flex-col items-center animate-fade-in">
-          <Calendar className="w-14 h-14 text-lol-gold mb-4 opacity-90" />
-          <h3 className="font-display text-xl text-lol-gold-soft uppercase tracking-wide">
+          <Calendar className="w-14 h-14 text-lol-hq-cyan mb-4 opacity-90" />
+          <h3 className="font-display text-xl text-white uppercase tracking-wide">
             Nenhuma partida ao vivo
           </h3>
           <p className="text-xs text-white/50 mt-2 max-w-md leading-relaxed">
@@ -236,7 +279,7 @@ export function MatchSimulation() {
   // Draft pending
   if (activeMatch.currentPhase === 'DRAFT') {
     return (
-      <div className="match-stage min-h-[420px] flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="match-stage hq-frame min-h-[420px] flex flex-col items-center justify-center py-16 px-6 text-center">
         <div
           className="match-splash-bg"
           style={{ backgroundImage: `url(${championSplashUrl('Azir')})` }}
@@ -244,7 +287,7 @@ export function MatchSimulation() {
         <div className="match-splash-veil" />
         <div className="relative z-10 animate-fade-in">
           <Activity className="w-14 h-14 text-lol-blue mx-auto mb-4 animate-pulse" />
-          <h3 className="font-display text-xl text-lol-gold-soft uppercase">Draft em andamento</h3>
+          <h3 className="font-display text-xl text-white uppercase">Draft em andamento</h3>
           <p className="text-xs text-white/50 mt-2 max-w-sm mx-auto">
             <span className="text-lol-blue-side">{activeMatch.blueTeam}</span>
             <span className="text-white/30 mx-2">vs</span>
@@ -261,7 +304,7 @@ export function MatchSimulation() {
   // Draft complete — pre-game
   if (activeMatch.currentPhase === 'DRAFT_COMPLETE') {
     return (
-      <div className="match-stage min-h-[480px] flex flex-col items-center justify-center py-12 px-6 text-center">
+      <div className="match-stage hq-frame min-h-[480px] flex flex-col items-center justify-center py-12 px-6 text-center">
         <div
           className="match-splash-bg"
           style={{
@@ -270,8 +313,8 @@ export function MatchSimulation() {
         />
         <div className="match-splash-veil" />
         <div className="relative z-10 flex flex-col items-center gap-5 animate-fade-in">
-          <Swords className="w-12 h-12 text-lol-gold" />
-          <h3 className="font-display text-xl text-lol-gold-soft uppercase tracking-wide">
+          <Swords className="w-12 h-12 text-lol-hq-cyan" />
+          <h3 className="font-display text-xl text-white uppercase tracking-wide">
             Táticas definidas
           </h3>
           <div className="flex items-center gap-3 sm:gap-6 flex-wrap justify-center">
@@ -306,7 +349,7 @@ export function MatchSimulation() {
                 onClick={() => setPreferredSpeed(s)}
                 className={`px-2.5 py-1 text-[10px] font-bold uppercase border rounded-sm ${
                   preferredSpeed === s
-                    ? 'border-lol-gold bg-lol-gold/20 text-lol-gold'
+                    ? 'border-lol-hq-cyan bg-lol-hq-cyan/20 text-lol-hq-cyan'
                     : 'border-white/15 text-white/45 hover:border-white/30'
                 }`}
               >
@@ -355,8 +398,29 @@ export function MatchSimulation() {
 
   const scoutReport = activeMatch.scoutEvaluation || lastScoutReport;
 
+  const postTimeline: TimelineEvent[] = useMemo(() => {
+    const logs = activeMatch.logs || [];
+    return logs.map((log) => {
+      const t = (log.eventType || log.text || '').toUpperCase();
+      let kind: TimelineEvent['kind'] = 'OTHER';
+      if (t.includes('KILL') || t.includes('SLAIN')) kind = 'KILL';
+      else if (t.includes('DRAGON') || t.includes('BARON') || t.includes('HERALD'))
+        kind = 'OBJECTIVE';
+      else if (t.includes('TOWER') || t.includes('INHIB') || t.includes('NEXUS') || t.includes('TURRET'))
+        kind = 'STRUCTURE';
+      const minMatch = String(log.timestamp || '').match(/(\d+)/);
+      const minute = minMatch ? parseInt(minMatch[1], 10) : 0;
+      return {
+        minute: Number.isFinite(minute) ? minute : 0,
+        kind,
+        side: log.map?.side,
+        text: log.text || log.eventType || 'Evento',
+      };
+    });
+  }, [activeMatch.logs]);
+
   return (
-    <div className="match-stage">
+    <div className="match-stage hq-frame">
       {/* Splash dinâmico */}
       <div
         key={splashChamp}
@@ -365,20 +429,68 @@ export function MatchSimulation() {
       />
       <div className="match-splash-veil" />
 
-      {/* Victory overlay */}
-      {isVictory && (
+      {/* Victory + post-match analysis (PDF item 5) */}
+      {isVictory && showPostMatch && (
+        <div className="victory-overlay !items-start sm:!items-center overflow-y-auto py-4">
+          <div className="w-full max-w-5xl px-2 sm:px-4 space-y-3">
+            <div className="lock-in-card text-center">
+              <Trophy className="w-10 h-10 text-lol-hq-cyan mx-auto mb-1 animate-lock-shine" />
+              <div className="lock-in-label text-lol-hq-cyan !text-xl sm:!text-2xl mb-1">
+                VICTORY
+              </div>
+              <p className="font-display text-base sm:text-lg text-white mb-0.5">
+                {winnerName || 'Fim de jogo'}
+              </p>
+              <p className="text-[11px] text-white/45 font-mono mb-2">
+                {activeMatch.blueKills} – {activeMatch.redKills} kills · {formatMinute(minute)}
+              </p>
+              {activeMatch.winReason?.summary && (
+                <p className="text-[11px] text-lol-hq-cyan/90 leading-snug mb-2 max-w-md mx-auto">
+                  {activeMatch.winReason.summary}
+                </p>
+              )}
+              <div className="flex gap-1.5 justify-center flex-wrap mb-2">
+                {winnerPicks.map((p) => (
+                  <ChampionImage key={p.champion} name={p.champion} variant="pick" locked />
+                ))}
+              </div>
+            </div>
+
+            <PostMatchAnalysis
+              goldSeries={goldSeries}
+              timeline={postTimeline}
+              mapEvents={mapEventHistory}
+              ratings={activeMatch.playerRatings}
+              blueTeam={activeMatch.blueTeam}
+              redTeam={activeMatch.redTeam}
+              winnerSide={activeMatch.winnerSide}
+              blueKills={activeMatch.blueKills}
+              redKills={activeMatch.redKills}
+              finalMinute={minute}
+              onClose={() => {
+                setShowPostMatch(false);
+                clearActiveMatch();
+                setCurrentScreen('DASHBOARD');
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Fallback compact victory (if analysis dismissed) */}
+      {isVictory && !showPostMatch && (
         <div className="victory-overlay">
           <div className="lock-in-card text-center max-w-lg px-4">
-            <Trophy className="w-14 h-14 text-lol-gold mx-auto mb-2 animate-lock-shine" />
-            <div className="lock-in-label text-lol-gold mb-2">VICTORY</div>
-            <p className="font-display text-lg sm:text-xl text-lol-gold-soft mb-1">
+            <Trophy className="w-14 h-14 text-lol-hq-cyan mx-auto mb-2 animate-lock-shine" />
+            <div className="lock-in-label text-lol-hq-cyan mb-2">VICTORY</div>
+            <p className="font-display text-lg sm:text-xl text-white mb-1">
               {winnerName || 'Fim de jogo'}
             </p>
             <p className="text-xs text-white/45 font-mono mb-2">
               {activeMatch.blueKills} – {activeMatch.redKills} kills · {formatMinute(minute)}
             </p>
             {activeMatch.winReason?.summary && (
-              <p className="text-[11px] text-lol-gold/90 leading-snug mb-2 max-w-md mx-auto">
+              <p className="text-[11px] text-lol-hq-cyan/90 leading-snug mb-2 max-w-md mx-auto">
                 {activeMatch.winReason.summary}
               </p>
             )}
@@ -392,55 +504,16 @@ export function MatchSimulation() {
                 <ChampionImage key={p.champion} name={p.champion} variant="pick" locked />
               ))}
             </div>
-            {activeMatch.playerRatings && activeMatch.playerRatings.length > 0 && (
-              <div className="mb-4 text-left border border-white/15 bg-black/50 rounded-sm p-3 max-h-[200px] overflow-y-auto">
-                <div className="text-[10px] uppercase tracking-wider text-lol-gold font-semibold mb-2">
-                  Ratings da partida
-                </div>
-                <div className="space-y-1">
-                  {[...activeMatch.playerRatings]
-                    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-                    .slice(0, 10)
-                    .map((r) => (
-                      <div
-                        key={`${r.side}-${r.role}-${r.name}`}
-                        className="flex items-center gap-2 text-[11px]"
-                      >
-                        <span
-                          className={`font-mono font-bold w-8 text-right tabular-nums ${
-                            (r.rating ?? 0) >= 8
-                              ? 'text-lol-gold'
-                              : (r.rating ?? 0) >= 6
-                                ? 'text-white/80'
-                                : 'text-white/45'
-                          }`}
-                        >
-                          {(r.rating ?? 0).toFixed(1)}
-                        </span>
-                        <span
-                          className={
-                            r.side === 'BLUE' ? 'text-sky-400' : 'text-rose-400'
-                          }
-                        >
-                          {r.role}
-                        </span>
-                        <span className="text-white/80 truncate flex-1">
-                          {r.name}
-                          {r.mvp ? (
-                            <span className="text-lol-gold ml-1 text-[9px]">MVP</span>
-                          ) : null}
-                        </span>
-                        <span className="text-white/35 truncate max-w-[90px] text-[10px]">
-                          {r.note}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              className="btn-lol mb-3"
+              onClick={() => setShowPostMatch(true)}
+            >
+              Ver análise completa
+            </button>
             {activeMatch.seriesMapResult && (
-              <div className="mb-4 text-left border border-lol-gold/30 bg-black/50 rounded-sm p-3 space-y-1">
-                <div className="text-[10px] uppercase tracking-wider text-lol-gold font-semibold">
+              <div className="mb-4 text-left border border-lol-hq-cyan/30 bg-black/50 rounded-sm p-3 space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-lol-hq-cyan font-semibold">
                   Série de playoffs
                 </div>
                 <p className="text-[12px] text-white/80 font-mono">
@@ -461,7 +534,7 @@ export function MatchSimulation() {
                     <Radar className="w-3.5 h-3.5" /> Relatório do Scout
                   </span>
                   {scoutReport.grade && (
-                    <span className="text-xs font-mono text-lol-gold">
+                    <span className="text-xs font-mono text-lol-hq-cyan">
                       Grade {scoutReport.grade}
                       {scoutReport.accuracy != null
                         ? ` · ${Math.round(scoutReport.accuracy * 100)}%`
@@ -488,7 +561,7 @@ export function MatchSimulation() {
         {/* Top bar: timer + live + phases */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b border-white/10 bg-black/50 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="font-display text-lg sm:text-xl font-bold text-lol-gold-soft tabular-nums tracking-wider">
+            <div className="font-display text-lg sm:text-xl font-bold text-white tabular-nums tracking-wider">
               {formatMinute(minute)}
             </div>
             {isLive ? (
@@ -511,7 +584,7 @@ export function MatchSimulation() {
                   onClick={() => setLiveSpeed(s)}
                   className={`px-2 py-0.5 text-[9px] font-bold uppercase border rounded-sm transition-all ${
                     (activeMatch.speed || '2x') === s
-                      ? 'border-lol-gold bg-lol-gold/25 text-lol-gold'
+                      ? 'border-lol-hq-cyan bg-lol-hq-cyan/25 text-lol-hq-cyan'
                       : 'border-white/15 text-white/40 hover:border-white/30'
                   }`}
                 >
@@ -544,7 +617,7 @@ export function MatchSimulation() {
         {/* Phase progress */}
         <div className="h-1 bg-black/60">
           <div
-            className="h-full bg-gradient-to-r from-lol-blue-side via-lol-gold to-lol-red-side transition-all duration-700"
+            className="h-full bg-gradient-to-r from-lol-blue-side via-lol-hq-cyan to-lol-red-side transition-all duration-700"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -564,7 +637,7 @@ export function MatchSimulation() {
                 <TeamChampRow picks={draft.bluePicks} side="blue" />
               </div>
               <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-mono text-white/55">
-                <span className="text-lol-gold-soft">
+                <span className="text-white">
                   {(activeMatch.blueGold / 1000).toFixed(1)}k
                 </span>
                 <span className="text-white/25">·</span>
@@ -643,7 +716,7 @@ export function MatchSimulation() {
                 <span title="Dragões">🐉 {activeMatch.redDragons ?? 0}</span>
                 <span title="Barons">👑 {activeMatch.redBarons ?? 0}</span>
                 <span className="text-white/25">·</span>
-                <span className="text-lol-gold-soft">
+                <span className="text-white">
                   {(activeMatch.redGold / 1000).toFixed(1)}k
                 </span>
               </div>
@@ -688,8 +761,8 @@ export function MatchSimulation() {
           <div className="xl:col-span-5 flex flex-col min-h-[280px] border-b xl:border-b-0 xl:border-r border-white/10 bg-black/35 backdrop-blur-sm">
             <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-white/5">
               <div className="flex items-center gap-2">
-                <Swords className="w-4 h-4 text-lol-gold" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+                <Swords className="w-4 h-4 text-lol-hq-cyan" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-white">
                   Feed da partida
                 </span>
               </div>
@@ -708,7 +781,7 @@ export function MatchSimulation() {
                     key={`${log.timestamp}-${idx}`}
                     className={`p-2 rounded-sm border flex gap-2 transition-colors ${
                       log.type === 'alert'
-                        ? 'border-lol-gold/35 bg-lol-gold/10 text-lol-gold-soft'
+                        ? 'border-lol-hq-cyan/35 bg-lol-hq-cyan/10 text-white'
                         : log.type === 'warning'
                           ? 'border-lol-red-side/30 bg-red-950/25 text-red-200'
                           : 'border-white/5 bg-black/25 text-white/70'
@@ -738,7 +811,7 @@ export function MatchSimulation() {
             {/* Coach */}
             <div className="border-b border-white/10">
               <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/5">
-                <MessageSquare className="w-4 h-4 text-lol-gold" />
+                <MessageSquare className="w-4 h-4 text-lol-hq-cyan" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
                   Centro de comando
                 </span>
@@ -764,7 +837,7 @@ export function MatchSimulation() {
                           key={i}
                           className={`w-8 h-1.5 rounded-full ${
                             i < activeMatch.coachCommsUsed
-                              ? 'bg-lol-gold shadow-lol-gold'
+                              ? 'bg-lol-hq-cyan shadow-hq-cyan'
                               : 'bg-white/10'
                           }`}
                         />
@@ -791,7 +864,7 @@ export function MatchSimulation() {
                   <p
                     className={`text-[10px] p-2.5 border rounded-sm leading-relaxed ${
                       commPulse
-                        ? 'border-lol-gold/40 bg-lol-gold/10 text-lol-gold-soft'
+                        ? 'border-lol-hq-cyan/40 bg-lol-hq-cyan/10 text-white'
                         : 'border-white/10 bg-black/40 text-white/60'
                     }`}
                   >
@@ -836,14 +909,14 @@ export function MatchSimulation() {
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1 text-[10px] text-white/40">
-                          <RoleIcon role={role} size={10} className="text-lol-gold/70" />
+                          <RoleIcon role={role} size={10} className="text-lol-hq-cyan/70" />
                           {ROLE_LABELS[role]}
                         </div>
                         <div className="text-xs font-semibold text-white truncate">
                           {player?.name || '—'}
                         </div>
                         {mySidePick && (
-                          <div className="text-[10px] text-lol-gold-soft/80 truncate">
+                          <div className="text-[10px] text-white/80 truncate">
                             {mySidePick.champion}
                           </div>
                         )}

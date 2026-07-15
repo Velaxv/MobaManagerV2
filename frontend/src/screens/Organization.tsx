@@ -42,6 +42,7 @@ export function Organization() {
     <div className="flex flex-col gap-4">
       <HubPageHeader
         icon={Landmark}
+        eyebrow="Club HQ"
         title="Organização"
         subtitle="Dinheiro e política: board, sponsors, sede e finanças. O Rift é no Draft/Live; a pressão de carreira fica aqui."
         actions={
@@ -73,7 +74,7 @@ export function Organization() {
           <div className="panel-lol-header">
             <div className="flex items-center gap-2">
               <Wallet className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white">
                 Finanças · prioridade
               </span>
             </div>
@@ -134,7 +135,7 @@ export function Organization() {
           }`}
         >
           <div className="panel-lol-header">
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Board · Review semanal
             </span>
             {lastBoardReview.rank != null && (
@@ -397,7 +398,7 @@ export function Organization() {
           <div className="panel-lol-header">
             <div className="flex items-center gap-2">
               <Wallet className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white">
                 Folha e histórico
               </span>
             </div>

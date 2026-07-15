@@ -138,52 +138,70 @@ async def test_live_match_initialization():
 async def test_live_coach_comm_success():
     await redis_client.connect()
     service = MatchEngineService()
-    
+    # Chance tática é clampada a 0.92 — força RNG determinístico (sempre sucesso, sem confusão)
+    class _DetRng:
+        def random(self):
+            return 0.0
+
+        def uniform(self, a, b):
+            return float(a)
+
+    service.rng = _DetRng()
+
     match_id = str(uuid.uuid4())
     key = f"live_match:{match_id}"
-    
+    blue_id = str(uuid.uuid4())
+
     # Salva um estado inicial no Redis
     state = LiveMatchState(
         match_id=match_id,
         league_id=str(uuid.uuid4()),
         split_week=1,
         is_playoff=False,
-        blue_team_id=str(uuid.uuid4()),
+        blue_team_id=blue_id,
         red_team_id=str(uuid.uuid4()),
         blue_team_name="paiN Gaming",
         red_team_name="LOUD",
-        phase="EARLY_GAME"
+        phase="EARLY_GAME",
+        blue_gold=15000,
     )
     await redis_client.set_generic(key, state.model_dump())
-    
+
     # Mock do banco de dados e consulta do time
-    mock_coach = MockStaff("Sarkis", "HEAD_COACH", 20.0) # alta comunicação
-    mock_mid = MockPlayer("dyru", PlayerRole.MID, 20.0, 20.0) # alta coachability/foco
+    mock_coach = MockStaff("Sarkis", "HEAD_COACH", 20.0)  # alta comunicação
+    mock_mid = MockPlayer("dyru", PlayerRole.MID, 20.0, 20.0)  # alta coachability/foco
     mock_team = MockTeam("paiN Gaming", [mock_coach], [mock_mid])
-    
+
     # Mock do get do Session
     db_mock = AsyncMock()
     db_mock.get.return_value = mock_team
-    
-    # Interceptamos a sessão com um mock
+
+    # Staff power: evita await em AsyncMock do DB (warning)
+    async def _fake_power(_team_id):
+        return {"coach_comm_success_bonus": 0.0}
+
     import src.modules.simulation.match_engine_service as mes
+    import src.modules.career.staff_service as staff_mod
+
     orig_session = mes.AsyncSessionLocal
-    
+    orig_get_power = staff_mod.StaffService.get_team_power
+
     session_mock = MagicMock()
     session_mock.return_value.__aenter__.return_value = db_mock
     mes.AsyncSessionLocal = session_mock
-    
+    staff_mod.StaffService.get_team_power = _fake_power
+
     try:
-        # Executa coach comm
         res = await service.apply_coach_comm(match_id, "BLUE")
         assert res["success"] is True
         assert "Sarkis" in res["log"]
-        
-        # Valida alteração de saldo/logs no Redis
+        assert "Sucesso" in res["log"]
+
         updated = await service.get_live_state(match_id)
         assert updated["blue_coach_comms_used"] == 1
-        assert updated["blue_gold"] > 15000 # ganhou bônus
+        assert updated["blue_gold"] == 15150  # +150 no sucesso tático
         assert len(updated["event_logs"]) == 1
     finally:
         mes.AsyncSessionLocal = orig_session
+        staff_mod.StaffService.get_team_power = orig_get_power
         await redis_client.disconnect()

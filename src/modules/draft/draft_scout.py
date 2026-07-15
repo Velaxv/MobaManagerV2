@@ -425,52 +425,13 @@ class DraftScoutAdvisor:
         if not remaining:
             remaining = [PlayerRole.MID]
 
-        # Role alvo: focus do FE ou role com counter possível / primeira aberta
-        target_role = remaining[0]
+        # Flex: se o FE foca uma role aberta, score só nela; senão todas as abertas
+        roles_to_score: List[PlayerRole] = list(remaining)
         if focus_role:
             fr = focus_role.upper()
             match = next((r for r in remaining if r.value == fr), None)
             if match:
-                target_role = match
-        else:
-            for role in remaining:
-                if any(p.get("role_hint") == role.value for p in opp_picks):
-                    target_role = role
-                    break
-
-        player = next((p for p in my_starters if p.role == target_role), None)
-        if not player and my_starters:
-            player = my_starters[0]
-            target_role = player.role or target_role
-
-        # Candidates: pool do jogador + meta da role + patch buffs da role
-        candidates: Set[str] = set()
-        if player:
-            pool = player.champion_pool if isinstance(player.champion_pool, list) else []
-            for item in pool:
-                if isinstance(item, dict) and item.get("champion"):
-                    candidates.add(item["champion"])
-
-        for c in CHAMPIONS_BY_ROLE.get(target_role, []):
-            candidates.add(c)
-
-        for key, champ in self.champions_by_name.items():
-            if champ.is_disabled_for_rework:
-                continue
-            pr = (champ.primary_role or "").upper()
-            sr = (champ.secondary_role or "").upper() if champ.secondary_role else ""
-            # ADC no DB às vezes; FE usa BOT
-            if pr == "ADC":
-                pr = "BOT"
-            if sr == "ADC":
-                sr = "BOT"
-            if pr == target_role.value or sr == target_role.value:
-                candidates.add(champ.name)
-
-        opp_lane = next(
-            (p for p in opp_picks if p.get("role_hint") == target_role.value), None
-        )
-        opp_champ = opp_lane.get("champion") if opp_lane else None
+                roles_to_score = [match]
 
         # Composição atual do time
         my_champ_objs = [
@@ -488,140 +449,169 @@ class DraftScoutAdvisor:
             in ("TANK_ENGAGE", "TANK_WARDEN", "BRUISER")
         )
 
-        results: List[Dict[str, Any]] = []
-        for champ_name in candidates:
-            if _norm_name(champ_name) in unavailable:
-                continue
+        # Melhor score por campeão entre roles abertas (flex)
+        best_by_champ: Dict[str, Dict[str, Any]] = {}
 
-            bd = self._base_meta_scores(champ_name, focus_role=target_role.value)
+        for target_role in roles_to_score:
+            player = next((p for p in my_starters if p.role == target_role), None)
+            if not player and my_starters:
+                player = my_starters[0]
 
-            # Mastery
-            tier = (
-                player.get_champion_pool_tier(champ_name)
-                if player
-                else ChampionPoolTier.OFF_POOL.value
+            candidates: Set[str] = set()
+            if player:
+                pool = player.champion_pool if isinstance(player.champion_pool, list) else []
+                for item in pool:
+                    if isinstance(item, dict) and item.get("champion"):
+                        candidates.add(item["champion"])
+
+            for c in CHAMPIONS_BY_ROLE.get(target_role, []):
+                candidates.add(c)
+
+            for key, champ in self.champions_by_name.items():
+                if champ.is_disabled_for_rework:
+                    continue
+                pr = (champ.primary_role or "").upper()
+                sr = (champ.secondary_role or "").upper() if champ.secondary_role else ""
+                if pr == "ADC":
+                    pr = "BOT"
+                if sr == "ADC":
+                    sr = "BOT"
+                if pr == target_role.value or sr == target_role.value:
+                    candidates.add(champ.name)
+
+            opp_lane = next(
+                (p for p in opp_picks if p.get("role_hint") == target_role.value), None
             )
-            mastery = TIER_SCORE.get(tier, 0.12) * 40.0
-            bd.mastery = mastery
-            if tier == ChampionPoolTier.MAIN.value:
-                bd.reasons.append(
-                    {
-                        "code": "MASTERY_MAIN",
-                        "label": f"Main de {player.name if player else 'titular'}",
-                        "weight": round(mastery, 1),
-                    }
+            opp_champ = opp_lane.get("champion") if opp_lane else None
+
+            for champ_name in candidates:
+                if _norm_name(champ_name) in unavailable:
+                    continue
+
+                bd = self._base_meta_scores(champ_name, focus_role=target_role.value)
+
+                # Mastery
+                tier = (
+                    player.get_champion_pool_tier(champ_name)
+                    if player
+                    else ChampionPoolTier.OFF_POOL.value
                 )
-            elif tier == ChampionPoolTier.SECONDARY.value:
-                bd.reasons.append(
-                    {
-                        "code": "MASTERY_SEC",
-                        "label": f"Secundário de {player.name if player else 'titular'}",
-                        "weight": round(mastery, 1),
-                    }
+                mastery = TIER_SCORE.get(tier, 0.12) * 40.0
+                bd.mastery = mastery
+                if tier == ChampionPoolTier.MAIN.value:
+                    bd.reasons.append(
+                        {
+                            "code": "MASTERY_MAIN",
+                            "label": f"Main de {player.name if player else 'titular'}",
+                            "weight": round(mastery, 1),
+                        }
+                    )
+                elif tier == ChampionPoolTier.SECONDARY.value:
+                    bd.reasons.append(
+                        {
+                            "code": "MASTERY_SEC",
+                            "label": f"Secundário de {player.name if player else 'titular'}",
+                            "weight": round(mastery, 1),
+                        }
+                    )
+                else:
+                    bd.reasons.append(
+                        {
+                            "code": "MASTERY_OFF",
+                            "label": "Off-pool — risco mecânico alto",
+                            "weight": round(mastery, 1),
+                        }
+                    )
+
+                # Counter: COUNTER_MAP[X] = campeões que X countera
+                counter_s = 0.0
+                if opp_champ:
+                    countered_by_us = COUNTER_MAP.get(champ_name, [])
+                    if not countered_by_us:
+                        for k, val in COUNTER_MAP.items():
+                            if _norm_name(k) == _norm_name(champ_name):
+                                countered_by_us = val
+                                break
+                    if any(_norm_name(c) == _norm_name(opp_champ) for c in countered_by_us):
+                        counter_s = 28.0
+                        bd.reasons.append(
+                            {
+                                "code": "COUNTER",
+                                "label": f"Counter de {opp_champ}",
+                                "weight": counter_s,
+                            }
+                        )
+                    opp_counters = COUNTER_MAP.get(opp_champ, [])
+                    if not opp_counters:
+                        for k, val in COUNTER_MAP.items():
+                            if _norm_name(k) == _norm_name(opp_champ):
+                                opp_counters = val
+                                break
+                    if any(_norm_name(c) == _norm_name(champ_name) for c in opp_counters):
+                        counter_s -= 20.0
+                        bd.reasons.append(
+                            {
+                                "code": "COUNTERED",
+                                "label": f"Sofre contra {opp_champ}",
+                                "weight": -20.0,
+                            }
+                        )
+                bd.counter = counter_s
+
+                # Composition needs
+                comp_s = 0.0
+                cobj = self.champions_by_name.get(_norm_name(champ_name))
+                if cobj:
+                    dt = (cobj.damage_type or "").upper()
+                    if ad_count >= 3 and dt == "AP":
+                        comp_s += 12.0
+                        bd.reasons.append(
+                            {
+                                "code": "COMP_AP",
+                                "label": "Equilibra dano (time já AD-heavy)",
+                                "weight": 12.0,
+                            }
+                        )
+                    elif ap_count >= 3 and dt == "AD":
+                        comp_s += 12.0
+                        bd.reasons.append(
+                            {
+                                "code": "COMP_AD",
+                                "label": "Equilibra dano (time já AP-heavy)",
+                                "weight": 12.0,
+                            }
+                        )
+                    if frontline_n == 0 and (cobj.class_type or "") in (
+                        "TANK_ENGAGE",
+                        "TANK_WARDEN",
+                        "BRUISER",
+                    ):
+                        comp_s += 14.0
+                        bd.reasons.append(
+                            {
+                                "code": "COMP_FRONT",
+                                "label": "Traz frontline à composição",
+                                "weight": 14.0,
+                            }
+                        )
+                bd.composition = comp_s
+
+                total = clamp(
+                    mastery * 0.95
+                    + bd.patch * 0.55
+                    + bd.role_fit * 0.35
+                    + bd.global_meta * 0.30
+                    + counter_s
+                    + comp_s,
+                    0.0,
+                    100.0,
                 )
-            else:
-                bd.reasons.append(
-                    {
-                        "code": "MASTERY_OFF",
-                        "label": "Off-pool — risco mecânico alto",
-                        "weight": round(mastery, 1),
-                    }
-                )
+                if tier == ChampionPoolTier.OFF_POOL.value:
+                    total = min(total, 48.0)
 
-            # Counter: COUNTER_MAP[X] = campeões que X countera
-            counter_s = 0.0
-            if opp_champ:
-                # Champ atual countera o oponente?
-                countered_by_us = COUNTER_MAP.get(champ_name, [])
-                # case-insensitive keys
-                if not countered_by_us:
-                    for k, val in COUNTER_MAP.items():
-                        if _norm_name(k) == _norm_name(champ_name):
-                            countered_by_us = val
-                            break
-                if any(_norm_name(c) == _norm_name(opp_champ) for c in countered_by_us):
-                    counter_s = 28.0
-                    bd.reasons.append(
-                        {
-                            "code": "COUNTER",
-                            "label": f"Counter de {opp_champ}",
-                            "weight": counter_s,
-                        }
-                    )
-                # Oponente countera a gente?
-                opp_counters = COUNTER_MAP.get(opp_champ, [])
-                if not opp_counters:
-                    for k, val in COUNTER_MAP.items():
-                        if _norm_name(k) == _norm_name(opp_champ):
-                            opp_counters = val
-                            break
-                if any(_norm_name(c) == _norm_name(champ_name) for c in opp_counters):
-                    counter_s -= 20.0
-                    bd.reasons.append(
-                        {
-                            "code": "COUNTERED",
-                            "label": f"Sofre contra {opp_champ}",
-                            "weight": -20.0,
-                        }
-                    )
-            bd.counter = counter_s
-
-            # Composition needs
-            comp_s = 0.0
-            cobj = self.champions_by_name.get(_norm_name(champ_name))
-            if cobj:
-                dt = (cobj.damage_type or "").upper()
-                if ad_count >= 3 and dt == "AP":
-                    comp_s += 12.0
-                    bd.reasons.append(
-                        {
-                            "code": "COMP_AP",
-                            "label": "Equilibra dano (time já AD-heavy)",
-                            "weight": 12.0,
-                        }
-                    )
-                elif ap_count >= 3 and dt == "AD":
-                    comp_s += 12.0
-                    bd.reasons.append(
-                        {
-                            "code": "COMP_AD",
-                            "label": "Equilibra dano (time já AP-heavy)",
-                            "weight": 12.0,
-                        }
-                    )
-                if frontline_n == 0 and (cobj.class_type or "") in (
-                    "TANK_ENGAGE",
-                    "TANK_WARDEN",
-                    "BRUISER",
-                ):
-                    comp_s += 14.0
-                    bd.reasons.append(
-                        {
-                            "code": "COMP_FRONT",
-                            "label": "Traz frontline à composição",
-                            "weight": 14.0,
-                        }
-                    )
-            bd.composition = comp_s
-
-            total = clamp(
-                mastery * 0.95
-                + bd.patch * 0.55
-                + bd.role_fit * 0.35
-                + bd.global_meta * 0.30
-                + counter_s
-                + comp_s,
-                0.0,
-                100.0,
-            )
-            # Off-pool hard cap unless extraordinary meta
-            if tier == ChampionPoolTier.OFF_POOL.value:
-                total = min(total, 48.0)
-
-            bd.total = total
-            meta = self._global_presence(champ_name)
-            results.append(
-                self._to_recommendation(
+                bd.total = total
+                meta = self._global_presence(champ_name)
+                rec = self._to_recommendation(
                     champion=champ_name,
                     role=target_role.value,
                     breakdown=bd,
@@ -632,9 +622,14 @@ class DraftScoutAdvisor:
                     for_player=player.name if player else None,
                     pool_tier=tier,
                 )
-            )
+                ck = _norm_name(champ_name)
+                prev = best_by_champ.get(ck)
+                if prev is None or float(rec.get("score") or 0) > float(
+                    prev.get("score") or 0
+                ):
+                    best_by_champ[ck] = rec
 
-        return results
+        return list(best_by_champ.values())
 
     # ------------------------------------------------------------------
     # Shared scoring helpers

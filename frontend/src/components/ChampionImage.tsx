@@ -41,9 +41,9 @@ export function ChampionImage({
   const isEmpty = !name;
 
   const ring = locked
-    ? 'ring-2 ring-lol-gold shadow-lol-gold'
+    ? 'ring-2 ring-lol-hq-cyan shadow-hq-cyan'
     : highlighted
-      ? 'ring-2 ring-lol-gold shadow-[0_0_12px_rgba(200,155,60,0.55)]'
+      ? 'ring-2 ring-lol-hq-cyan shadow-[0_0_12px_rgba(200,155,60,0.55)]'
       : banned
         ? 'ring-1 ring-red-700/80'
         : 'ring-1 ring-white/10';
@@ -80,10 +80,10 @@ export function ChampionImage({
         </div>
       )}
       {locked && !banned && (
-        <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-lol-gold shadow-lol-gold" />
+        <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-lol-hq-cyan shadow-hq-cyan" />
       )}
       {showName && name && (
-        <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] font-semibold text-center truncate px-0.5 py-0.5 text-lol-gold-soft">
+        <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] font-semibold text-center truncate px-0.5 py-0.5 text-white">
           {name}
         </div>
       )}

@@ -43,14 +43,19 @@ class Settings(BaseSettings):
     rookie_clause_threshold: float = 0.25
 
     # ── Mecânicas de burnout ───────────────────────────────────────────────────
-    # Penalidade de burnout aplicada por dia de treino intensivo
+    # Penalidade de burnout aplicada em MATCH_DAY (titulares)
     burnout_daily_penalty: int = 5
     # Limite crítico de burnout — acima disso o jogador entra em colapso
     burnout_critical_threshold: int = 80
-    # Pontos de burnout recuperados por período de descanso
-    burnout_recovery_per_rest: int = 10
+    # Pontos de burnout recuperados por período de descanso (base REST)
+    burnout_recovery_per_rest: int = 12
+    # Recuperação visual/mental em REST (base)
+    visual_recovery_per_rest: int = 10
+    mental_recovery_per_rest: int = 8
     # Limite de burnout que aplica debuff visível nas mecânicas
     visual_fatigue_mechanics_debuff_threshold: int = 70
+    # Alerta de hub (burnout ou visual acima deste valor)
+    fatigue_alert_threshold: int = 70
 
     # ── Motor de partidas: bônus/debuffs de champion pool ────────────────────
     # Multiplicador de performance ao jogar campeão do pool principal

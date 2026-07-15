@@ -90,7 +90,7 @@ function UnitMarker({ unit }: { unit: RiftUnit }) {
           isBlue
             ? 'border-sky-400 shadow-sky-500/40'
             : 'border-rose-400 shadow-rose-500/40'
-        } ${unit.focused ? 'scale-110 ring-2 ring-lol-gold/70' : 'scale-100'} ${
+        } ${unit.focused ? 'scale-110 ring-2 ring-lol-hq-cyan/70' : 'scale-100'} ${
           pulse ? 'rift-unit-pulse' : ''
         }`}
         style={{ width: 28, height: 28 }}
@@ -655,8 +655,8 @@ export function SummonersRiftMap({
     <div className={`rift-map-shell ${className}`}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/50">
         <div className="flex items-center gap-2">
-          <MapIcon className="w-3.5 h-3.5 text-lol-gold" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-lol-gold-soft">
+          <MapIcon className="w-3.5 h-3.5 text-lol-hq-cyan" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white">
             Summoner&apos;s Rift
           </span>
         </div>
@@ -873,7 +873,7 @@ export function SummonersRiftMap({
             )}
           </div>
           {eventCaption ? (
-            <div className="text-[10px] font-mono text-lol-gold-soft/90 truncate max-w-[55%] text-right animate-fade-in">
+            <div className="text-[10px] font-mono text-white/90 truncate max-w-[55%] text-right animate-fade-in">
               {eventCaption.type}
               {eventCaption.loc ? ` · ${eventCaption.loc}` : ''}
             </div>

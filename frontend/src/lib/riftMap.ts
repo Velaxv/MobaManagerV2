@@ -715,6 +715,91 @@ export function locationLabel(loc?: string | null): string {
   return map[loc.toUpperCase()] || loc;
 }
 
+/** Ponto de calor no Rift (0–100) a partir de logs de partida. */
+export type HeatmapPoint = {
+  x: number;
+  y: number;
+  /** Intensidade relativa 0–1+ (agregada por célula) */
+  weight: number;
+  side?: MapSide | string;
+  kind?: string;
+};
+
+const HEAT_KIND_WEIGHT: Record<string, number> = {
+  KILL: 1.4,
+  SOLO_KILL: 1.5,
+  TEAMFIGHT: 1.8,
+  DRAGON_SECURED: 1.6,
+  BARON_SECURED: 1.7,
+  HERALD: 1.3,
+  TURRET_DESTROYED: 1.2,
+  STRUCTURE: 1.1,
+  OBJECTIVE: 1.4,
+  FARM: 0.45,
+  WARD: 0.35,
+  COACH_COMM: 0.2,
+};
+
+/**
+ * Agrega eventos de mapa em blobs de densidade (heatmap pós-jogo).
+ * Células 8×8 no espaço 0–100; jitter leve por role para legibilidade.
+ */
+export function buildHeatmapPoints(events: MapEventHint[]): HeatmapPoint[] {
+  if (!events?.length) return [];
+
+  const buckets = new Map<string, HeatmapPoint>();
+
+  for (const ev of events) {
+    const loc = parseLocationFromEvent(ev);
+    if (!loc) continue;
+
+    const side = (ev.side || '').toUpperCase() || undefined;
+    const base = locationAnchor(loc as MapLocation, side);
+    const role = normalizeRole(ev.role as string);
+    const off = role ? roleOffset(role, (side as MapSide) || 'BLUE') : { x: 0, y: 0 };
+    // jitter pequeno para não empilhar tudo no mesmo pixel
+    const jx = ((role?.charCodeAt(0) || 0) % 5) - 2;
+    const jy = ((role?.charCodeAt(1) || 0) % 5) - 2;
+    const x = Math.max(6, Math.min(94, base.x + off.x * 0.35 + jx));
+    const y = Math.max(6, Math.min(94, base.y + off.y * 0.35 + jy));
+
+    const et = (ev.eventType || '').toUpperCase();
+    let kindWeight = HEAT_KIND_WEIGHT[et] ?? 0.7;
+    if (et.includes('KILL')) kindWeight = Math.max(kindWeight, 1.35);
+    if (et.includes('DRAGON') || et.includes('BARON')) kindWeight = Math.max(kindWeight, 1.5);
+    if (et.includes('TURRET') || et.includes('TOWER')) kindWeight = Math.max(kindWeight, 1.15);
+    const intensity = Math.min(1.2, Math.max(0.25, ev.intensity ?? 0.75));
+    const w = kindWeight * intensity;
+
+    // quantiza em células ~8 unidades
+    const cx = Math.round(x / 8) * 8;
+    const cy = Math.round(y / 8) * 8;
+    const key = `${cx},${cy},${side || 'N'}`;
+    const prev = buckets.get(key);
+    if (prev) {
+      prev.weight += w;
+      // média ponderada da posição
+      const t = w / prev.weight;
+      prev.x = prev.x * (1 - t) + x * t;
+      prev.y = prev.y * (1 - t) + y * t;
+    } else {
+      buckets.set(key, {
+        x,
+        y,
+        weight: w,
+        side,
+        kind: et || loc,
+      });
+    }
+  }
+
+  const pts = Array.from(buckets.values());
+  const maxW = Math.max(...pts.map((p) => p.weight), 0.001);
+  return pts
+    .map((p) => ({ ...p, weight: p.weight / maxW }))
+    .sort((a, b) => b.weight - a.weight);
+}
+
 /** Âncora visual do flash de evento. */
 export function flashAnchor(flashLoc: string | null | undefined): MapPoint {
   if (!flashLoc) return { x: 50, y: 50 };

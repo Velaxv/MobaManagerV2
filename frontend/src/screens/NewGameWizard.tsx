@@ -64,11 +64,12 @@ const TEAM_SPLASH: Record<string, string> = {
 };
 
 export function NewGameWizard() {
-  const { teams, setManager, setGameState, loadData, isDataLoaded } = useGameStore();
+  const { teams, setGameState, isDataLoaded, startNewCareer } = useGameStore();
   const [step, setStep] = useState(1);
   const [managerName, setManagerName] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [previewPlayers, setPreviewPlayers] = useState<ApiPlayer[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [searchTeam, setSearchTeam] = useState('');
@@ -128,12 +129,16 @@ export function NewGameWizard() {
   const canStart = canGoStep3 && !isStarting;
 
   const handleStartCareer = async () => {
-    if (!canStart || !selectedTeamId) return;
+    if (!canStart || !selectedTeamId || !selectedTeam) return;
     setIsStarting(true);
+    setStartError(null);
     try {
-      setManager(managerName.trim(), selectedTeamId);
-      await loadData();
-      setGameState('PLAYING');
+      // Reseed + limpa Redis + reseta store — carreira do zero
+      await startNewCareer(managerName.trim(), selectedTeam.abbreviation);
+    } catch (e) {
+      setStartError(
+        e instanceof Error ? e.message : 'Falha ao iniciar nova carreira do zero.'
+      );
     } finally {
       setIsStarting(false);
     }
@@ -149,7 +154,16 @@ export function NewGameWizard() {
         className="absolute inset-0 bg-cover bg-center scale-105 transition-opacity duration-700"
         style={{ backgroundImage: `url(${championSplashUrl(splashChamp)})` }}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(200,155,60,0.12)_0%,_transparent_55%),linear-gradient(180deg,rgba(1,10,19,0.75)_0%,rgba(1,10,19,0.96)_55%,#010a13_100%)]" />
+      <div className="absolute inset-0 bg-hq-ambient" />
+      <div
+        className="absolute inset-0 opacity-30 pointer-events-none"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(34,211,238,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.04) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-lol-void/70 via-lol-void/88 to-lol-void" />
 
       <div className="relative z-10 flex-1 flex flex-col max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
         {/* Header */}
@@ -157,11 +171,11 @@ export function NewGameWizard() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="team-crest !w-8 !h-8 text-[10px]">LM</div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-lol-gold/70 font-semibold">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-lol-hq-cyan/70 font-semibold">
                 Setup de carreira · CBLOL 2026
               </p>
             </div>
-            <h1 className="font-display text-2xl sm:text-4xl font-bold text-lol-gold-soft tracking-wide">
+            <h1 className="font-display text-2xl sm:text-4xl font-bold text-white tracking-wide">
               Nova carreira
             </h1>
             <p className="text-white/40 mt-1.5 text-sm max-w-md">
@@ -195,7 +209,7 @@ export function NewGameWizard() {
                   }}
                   className={`flex items-center gap-2 px-2 sm:px-3 py-2 rounded-sm border w-full transition-all ${
                     active
-                      ? 'border-lol-gold bg-lol-gold/15 text-lol-gold shadow-lol-gold'
+                      ? 'border-lol-hq-cyan bg-lol-hq-cyan/15 text-lol-hq-cyan shadow-hq-cyan'
                       : done
                         ? 'border-emerald-700/40 bg-emerald-950/20 text-emerald-400'
                         : 'border-white/10 bg-black/30 text-white/35'
@@ -204,7 +218,7 @@ export function NewGameWizard() {
                   <span
                     className={`w-6 h-6 rounded-sm flex items-center justify-center text-[10px] font-bold shrink-0 ${
                       active
-                        ? 'bg-lol-gold text-lol-void'
+                        ? 'bg-lol-hq-cyan text-lol-void'
                         : done
                           ? 'bg-emerald-600 text-white'
                           : 'bg-white/10'
@@ -235,13 +249,13 @@ export function NewGameWizard() {
           <div className="lg:col-span-3 panel-lol flex flex-col min-h-[380px]">
             {step === 1 && (
               <div className="p-5 sm:p-8 flex flex-col justify-center flex-1 animate-fade-in">
-                <div className="flex items-center gap-2 text-lol-gold mb-4">
+                <div className="flex items-center gap-2 text-lol-hq-cyan mb-4">
                   <User className="w-5 h-5" />
                   <span className="text-xs font-semibold uppercase tracking-[0.2em]">
                     Passo 1 — Identidade
                   </span>
                 </div>
-                <h2 className="font-display text-xl sm:text-2xl text-lol-gold-soft mb-2">
+                <h2 className="font-display text-xl sm:text-2xl text-white mb-2">
                   Como você quer ser chamado?
                 </h2>
                 <p className="text-sm text-white/40 mb-6 max-w-md">
@@ -260,7 +274,7 @@ export function NewGameWizard() {
                   placeholder="Ex: tockers, Maestro, BeellzY…"
                   autoFocus
                   maxLength={32}
-                  className="w-full max-w-md bg-black/50 border border-white/15 focus:border-lol-gold focus:outline-none focus:shadow-lol-gold px-4 py-3.5 text-lg rounded-sm transition-all"
+                  className="w-full max-w-md bg-black/50 border border-white/15 focus:border-lol-hq-cyan focus:outline-none focus:shadow-hq-cyan px-4 py-3.5 text-lg rounded-sm transition-all"
                 />
                 <p className="text-[10px] text-white/25 mt-2 font-mono">
                   Mínimo 2 caracteres · {managerName.trim().length}/32
@@ -281,21 +295,21 @@ export function NewGameWizard() {
             {step === 2 && (
               <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
                 <div className="p-4 sm:p-5 border-b border-white/5">
-                  <div className="flex items-center gap-2 text-lol-gold mb-1">
+                  <div className="flex items-center gap-2 text-lol-hq-cyan mb-1">
                     <Shield className="w-4 h-4" />
                     <span className="text-xs font-semibold uppercase tracking-[0.2em]">
                       Passo 2 — Organização
                     </span>
                   </div>
                   <p className="text-sm text-white/40 mb-3">
-                    Olá, <strong className="text-lol-gold-soft">{managerName}</strong> — escolha seu
+                    Olá, <strong className="text-white">{managerName}</strong> — escolha seu
                     clube no CBLOL.
                   </p>
                   <input
                     value={searchTeam}
                     onChange={(e) => setSearchTeam(e.target.value)}
                     placeholder="Filtrar por nome ou tag…"
-                    className="w-full bg-black/40 border border-white/10 focus:border-lol-gold focus:outline-none px-3 py-2 text-sm rounded-sm"
+                    className="w-full bg-black/40 border border-white/10 focus:border-lol-hq-cyan focus:outline-none px-3 py-2 text-sm rounded-sm"
                   />
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 content-start max-h-[420px]">
@@ -316,7 +330,7 @@ export function NewGameWizard() {
                         onClick={() => setSelectedTeamId(team.id)}
                         className={`text-left p-3 rounded-sm border transition-all flex gap-3 ${
                           active
-                            ? 'border-lol-gold bg-lol-gold/15 shadow-lol-gold'
+                            ? 'border-lol-hq-cyan bg-lol-hq-cyan/15 shadow-hq-cyan'
                             : 'border-white/10 bg-black/35 hover:border-white/25 hover:bg-black/50'
                         }`}
                         style={
@@ -337,7 +351,7 @@ export function NewGameWizard() {
                           <div className="flex items-start justify-between gap-2">
                             <span
                               className={`font-semibold text-sm truncate ${
-                                active ? 'text-lol-gold-soft' : 'text-white'
+                                active ? 'text-white' : 'text-white'
                               }`}
                             >
                               {team.name}
@@ -354,7 +368,7 @@ export function NewGameWizard() {
                           </div>
                           <div className="stat-bar mt-1.5 h-1">
                             <div
-                              className="stat-bar-fill bg-gradient-to-r from-lol-gold-dim to-lol-gold"
+                              className="stat-bar-fill bg-gradient-to-r from-lol-hq-cyan-dim to-lol-hq-cyan"
                               style={{ width: `${budgetPct}%` }}
                             />
                           </div>
@@ -365,7 +379,7 @@ export function NewGameWizard() {
                           )}
                         </div>
                         {active && (
-                          <Check className="w-4 h-4 text-lol-gold shrink-0 self-center" />
+                          <Check className="w-4 h-4 text-lol-hq-cyan shrink-0 self-center" />
                         )}
                       </button>
                     );
@@ -395,19 +409,27 @@ export function NewGameWizard() {
 
             {step === 3 && selectedTeam && (
               <div className="p-5 sm:p-8 flex flex-col flex-1 animate-fade-in">
-                <div className="flex items-center gap-2 text-lol-gold mb-4">
+                <div className="flex items-center gap-2 text-lol-hq-cyan mb-4">
                   <Sparkles className="w-5 h-5" />
                   <span className="text-xs font-semibold uppercase tracking-[0.2em]">
                     Passo 3 — Confirmação
                   </span>
                 </div>
-                <h2 className="font-display text-xl sm:text-2xl text-lol-gold-soft mb-1">
+                <h2 className="font-display text-xl sm:text-2xl text-white mb-1">
                   Pronto para a temporada?
                 </h2>
-                <p className="text-sm text-white/40 mb-6">
-                  Você assume o comando da comissão técnica. O calendário e o elenco já estão no
-                  hub.
+                <p className="text-sm text-white/40 mb-2">
+                  Você assume o comando da comissão técnica. O split começa do zero.
                 </p>
+                <p className="text-[11px] text-lol-hq-cyan/80 font-mono mb-6 border border-lol-hq-cyan/20 bg-cyan-950/20 rounded-sm px-3 py-2">
+                  Nova carreira recria o CBLOL (semana 1, dia 1), zera partidas, standings, fadiga e
+                  estado em memória. Saves em disco não são apagados.
+                </p>
+                {startError && (
+                  <div className="mb-4 text-[12px] text-lol-red-side border border-lol-red-side/30 bg-red-950/30 rounded-sm px-3 py-2">
+                    {startError}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                   <div className="p-4 rounded-sm bg-black/40 border border-white/10">
@@ -416,11 +438,11 @@ export function NewGameWizard() {
                     </div>
                     <div className="font-display text-lg text-white">{managerName}</div>
                   </div>
-                  <div className="p-4 rounded-sm bg-black/40 border border-lol-gold/25">
-                    <div className="text-[9px] uppercase tracking-widest text-lol-gold/60 mb-1">
+                  <div className="p-4 rounded-sm bg-black/40 border border-lol-hq-cyan/25">
+                    <div className="text-[9px] uppercase tracking-widest text-lol-hq-cyan/60 mb-1">
                       Organização
                     </div>
-                    <div className="font-display text-lg text-lol-gold-soft">
+                    <div className="font-display text-lg text-white">
                       {selectedTeam.name}
                     </div>
                   </div>
@@ -443,16 +465,16 @@ export function NewGameWizard() {
                   <button
                     disabled={!canStart}
                     onClick={handleStartCareer}
-                    className="btn-lol-primary flex items-center gap-2 px-8 py-3.5 text-sm shadow-lol-gold"
+                    className="btn-lol-primary flex items-center gap-2 px-8 py-3.5 text-sm shadow-hq-cyan"
                   >
                     {isStarting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Entrando no hub…
+                        Reiniciando mundo…
                       </>
                     ) : (
                       <>
-                        Começar temporada
+                        Começar do zero
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -477,7 +499,7 @@ export function NewGameWizard() {
                     : '??'}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-display font-bold text-lg text-lol-gold-soft truncate">
+                  <div className="font-display font-bold text-lg text-white truncate">
                     {selectedTeam?.name || 'Selecione um time'}
                   </div>
                   <div className="text-[10px] font-mono text-white/45 uppercase tracking-wider">
@@ -510,7 +532,7 @@ export function NewGameWizard() {
                   </div>
 
                   {TEAM_FLAVOR[selectedTeam.abbreviation] && (
-                    <p className="text-[11px] text-white/45 leading-relaxed border-l-2 border-lol-gold/40 pl-3">
+                    <p className="text-[11px] text-white/45 leading-relaxed border-l-2 border-lol-hq-cyan/40 pl-3">
                       {TEAM_FLAVOR[selectedTeam.abbreviation]}
                     </p>
                   )}
@@ -537,7 +559,7 @@ export function NewGameWizard() {
                                 {p.name}
                               </div>
                               <div className="flex items-center gap-1 text-[9px] text-white/40">
-                                <RoleIcon role={p.role} size={10} className="text-lol-gold/70" />
+                                <RoleIcon role={p.role} size={10} className="text-lol-hq-cyan/70" />
                                 {ROLE_LABELS[p.role] || p.role}
                               </div>
                             </div>
@@ -557,7 +579,7 @@ export function NewGameWizard() {
                   <div className="mt-auto pt-2 border-t border-white/5">
                     <div className="text-[10px] text-white/35 font-mono">
                       Coach designado:{' '}
-                      <span className="text-lol-gold-soft">
+                      <span className="text-white">
                         {managerName.trim() || '—'}
                       </span>
                     </div>

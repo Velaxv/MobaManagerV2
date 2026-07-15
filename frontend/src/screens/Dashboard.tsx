@@ -74,21 +74,21 @@ const SHORTCUTS_SECONDARY: typeof SHORTCUTS_PRIMARY = [
     label: 'Mercado',
     hint: 'Transfers e free agents',
     icon: Users,
-    accent: 'border-white/15 hover:border-lol-gold/40 hover:bg-lol-gold/5',
+    accent: 'border-white/12 hover:border-lol-hq-cyan/40 hover:bg-lol-hq-cyan/5',
   },
   {
     id: 'STANDINGS',
     label: 'Tabela',
     hint: 'Classificação e playoffs',
     icon: TableProperties,
-    accent: 'border-white/15 hover:border-lol-gold/40 hover:bg-lol-gold/5',
+    accent: 'border-white/12 hover:border-lol-hq-cyan/40 hover:bg-lol-hq-cyan/5',
   },
   {
     id: 'PATCH',
     label: 'Patch',
     hint: 'Meta e notas',
     icon: FileCode2,
-    accent: 'border-white/15 hover:border-lol-gold/40 hover:bg-lol-gold/5',
+    accent: 'border-white/12 hover:border-lol-hq-cyan/40 hover:bg-lol-hq-cyan/5',
   },
 ];
 
@@ -198,7 +198,7 @@ export function Dashboard() {
       case CalendarDayType.REST:
         return 'border-emerald-700/40 bg-emerald-950/25 text-emerald-300';
       case CalendarDayType.MATCH_DAY:
-        return 'border-lol-gold/45 bg-lol-gold/10 text-lol-gold-soft';
+        return 'border-lol-hq-orange/45 bg-lol-hq-orange/10 text-lol-hq-orange-bright';
       case CalendarDayType.TRAINING:
         return 'border-lol-hextech-bright/25 bg-lol-hextech/25 text-white/75';
       case CalendarDayType.SCRIM:
@@ -212,21 +212,21 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero */}
-      <div className="panel-lol p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-lol-header pointer-events-none" />
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-lol-gold/50 to-transparent" />
+      {/* Hero — War Room command strip */}
+      <div className="panel-lol hq-frame panel-enter p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative overflow-hidden">
+        <div className="hq-scan-bar" aria-hidden />
+        <div className="absolute inset-0 bg-hq-header pointer-events-none opacity-90" />
         <div className="relative">
-          <p className="text-[10px] uppercase tracking-[0.25em] text-lol-gold/70 font-semibold mb-1">
-            Painel · o que fazer agora
+          <p className="text-[10px] uppercase tracking-hud text-lol-hq-cyan/80 font-semibold mb-1 font-mono">
+            Command Center · Inbox
           </p>
-          <h2 className="font-display text-xl sm:text-2xl font-bold text-lol-gold-soft tracking-wide">
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-white tracking-wide">
             {myTeamName}
           </h2>
           <p className="text-xs text-white/45 mt-1 font-mono">
             {splitPhase?.replace('_', ' ')}
             {myStanding && (
-              <span className="text-lol-gold-soft">
+              <span className="text-lol-hq-cyan/90">
                 {' '}
                 · #{myRank || '—'} · {myStanding.wins}V-{myStanding.losses}D · {myStanding.points}{' '}
                 pts
@@ -236,11 +236,11 @@ export function Dashboard() {
           {today && (
             <p className="text-[11px] text-white/50 mt-2">
               Hoje:{' '}
-              <span className="text-white/80 font-semibold">
+              <span className="text-white/85 font-semibold">
                 {today.dayOfWeek} · {today.type.replace('_', ' ')}
               </span>
               {today.type === CalendarDayType.MATCH_DAY && today.opponentAbbr && (
-                <span className="text-lol-gold-soft">
+                <span className="text-lol-hq-orange">
                   {' '}
                   · vs {today.opponentAbbr}
                   {today.isHome ? ' (casa)' : ' (fora)'}
@@ -250,16 +250,16 @@ export function Dashboard() {
           )}
         </div>
         <div className="relative flex items-center gap-3 flex-wrap">
-          <div className="text-right hidden sm:block px-3 py-1.5 rounded-sm bg-black/30 border border-white/5">
-            <span className="text-[9px] uppercase text-white/35 block">Semana</span>
-            <span className="font-mono text-sm font-bold text-white">
+          <div className="text-right hidden sm:block px-3 py-1.5 rounded-sm bg-black/40 border border-lol-hq-cyan/15 backdrop-blur-sm">
+            <span className="text-[9px] uppercase tracking-hud text-white/35 block font-mono">Week</span>
+            <span className="font-mono text-sm font-bold text-lol-hq-cyan-bright">
               {currentWeek} · {today?.dayOfWeek ?? 'SEG'}
             </span>
           </div>
           {activeMatch && activeMatch.currentPhase === 'DRAFT' ? (
             <button
               onClick={() => setCurrentScreen('DRAFT')}
-              className="btn-lol-primary flex items-center gap-2 py-2.5 px-4 shadow-lol-gold"
+              className="btn-lol-primary flex items-center gap-2 py-2.5 px-4"
             >
               <Swords className="w-4 h-4" />
               Match Day — Draft
@@ -287,7 +287,7 @@ export function Dashboard() {
 
       {/* Alertas prioritários — só o que precisa de ação */}
       {hubAlerts.length > 0 && (
-        <div>
+        <div className="panel-enter panel-enter-delay-1">
           <p className="hub-section-label">Atenção</p>
           <div className="flex flex-col gap-1.5">
             {hubAlerts.map((a) => (
@@ -325,7 +325,7 @@ export function Dashboard() {
       )}
 
       {/* Atalhos: gestão primeiro, referência depois */}
-      <div>
+      <div className="panel-enter panel-enter-delay-2">
         <p className="hub-section-label">Gestão do plantel</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {SHORTCUTS_PRIMARY.map((s) => {
@@ -336,14 +336,14 @@ export function Dashboard() {
                 key={s.id}
                 type="button"
                 onClick={() => setCurrentScreen(s.id)}
-                className={`group text-left rounded-sm border bg-black/30 p-3 transition-all ${s.accent}`}
+                className={`group hq-module-tile ${s.accent}`}
               >
                 <div className="flex items-center justify-between gap-1 mb-1.5">
-                  <Icon className="w-4 h-4 text-lol-gold/80 group-hover:text-lol-gold" />
+                  <Icon className="w-4 h-4 text-lol-hq-cyan/80 group-hover:text-lol-hq-cyan" />
                   {badge ? (
                     <span className="hub-nav-badge hub-nav-badge-warning text-[8px]">{badge}</span>
                   ) : (
-                    <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-lol-gold/60" />
+                    <ChevronRight className="w-3 h-3 text-white/20 group-hover:text-lol-hq-cyan/60" />
                   )}
                 </div>
                 <div className="text-[11px] font-semibold text-white/90 uppercase tracking-wide">
@@ -367,7 +367,7 @@ export function Dashboard() {
                 className={`group text-left rounded-sm border bg-black/20 p-2.5 transition-all ${s.accent}`}
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <Icon className="w-3.5 h-3.5 text-white/50 group-hover:text-lol-gold" />
+                  <Icon className="w-3.5 h-3.5 text-white/50 group-hover:text-lol-hq-cyan transition-colors" />
                   {badge ? (
                     <span className="hub-nav-badge hub-nav-badge-warning text-[8px]">{badge}</span>
                   ) : (
@@ -388,11 +388,11 @@ export function Dashboard() {
 
       {/* Playoffs */}
       {(splitPhase === SplitPhase.PLAYOFFS || playoffBracket) && !isOffseason && (
-        <div className="panel-lol border-lol-gold/25 bg-lol-gold/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="panel-lol border-lol-hq-orange/30 bg-lol-hq-orange/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-lol-gold" />
+            <Trophy className="w-4 h-4 text-lol-hq-orange" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-lol-gold-soft">
+              <p className="text-xs font-semibold uppercase tracking-wide text-lol-hq-orange-bright">
                 {playoffBracket?.champion_name
                   ? `Campeão: ${playoffBracket.champion_name}`
                   : 'Playoffs CBLOL — Top 6'}
@@ -406,7 +406,7 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => setCurrentScreen('STANDINGS')}
-            className="text-[10px] uppercase tracking-wide text-lol-gold border border-lol-gold/30 px-3 py-1.5 rounded-sm hover:bg-lol-gold/10"
+            className="text-[10px] uppercase tracking-wide text-lol-hq-orange border border-lol-hq-orange/35 px-3 py-1.5 rounded-sm hover:bg-lol-hq-orange/10"
           >
             Ver chave →
           </button>
@@ -433,7 +433,7 @@ export function Dashboard() {
               Renove ou liberte atletas. Janela de transferências completa — use{' '}
               <button
                 type="button"
-                className="text-lol-gold hover:underline"
+                className="text-lol-hq-cyan hover:underline"
                 onClick={() => setCurrentScreen('MARKET')}
               >
                 Mercado
@@ -580,12 +580,12 @@ export function Dashboard() {
         <button
           type="button"
           onClick={() => setCurrentScreen('STANDINGS')}
-          className="hub-stat-card text-left hover:border-lol-gold/30 transition-colors"
+          className="hub-stat-card text-left hover:border-lol-hq-cyan/30 transition-colors"
         >
           <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-wider">
-            <TrendingUp className="w-3.5 h-3.5 text-lol-gold" /> Posição
+            <TrendingUp className="w-3.5 h-3.5 text-lol-hq-cyan" /> Posição
           </div>
-          <div className="font-mono text-lg sm:text-xl font-bold text-lol-gold">
+          <div className="font-mono text-lg sm:text-xl font-bold text-lol-hq-cyan">
             {myRank > 0 ? `#${myRank}` : '—'}
             {myStanding && (
               <span className="text-sm text-white/40 font-normal ml-1">
@@ -642,8 +642,8 @@ export function Dashboard() {
       <div className="panel-lol">
         <div className="panel-lol-header">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-lol-gold" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <Calendar className="w-4 h-4 text-lol-hq-cyan" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Semana {currentWeek}
             </span>
           </div>
@@ -652,7 +652,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => setCurrentScreen('PATCH')}
-                className="text-[9px] font-mono text-white/40 hover:text-lol-gold"
+                className="text-[9px] font-mono text-white/40 hover:text-lol-hq-cyan"
               >
                 patch v{patchStatus.active.version}
               </button>
@@ -671,7 +671,7 @@ export function Dashboard() {
                 className={`hub-day-card ${getDayTypeStyles(day.type)} ${isToday ? 'hub-day-today' : 'opacity-80'}`}
               >
                 {isToday && (
-                  <span className="absolute top-1.5 right-1.5 text-[8px] font-bold bg-lol-gold text-lol-void px-1 rounded-sm uppercase">
+                  <span className="absolute top-1.5 right-1.5 text-[8px] font-bold bg-lol-hq-cyan text-lol-void px-1 rounded-sm uppercase">
                     Hoje
                   </span>
                 )}
@@ -685,7 +685,7 @@ export function Dashboard() {
                 </span>
                 {isMatch && hasOpponent ? (
                   <div className="mt-auto pt-2 space-y-0.5">
-                    <p className="text-[11px] font-bold text-lol-gold leading-tight">
+                    <p className="text-[11px] font-bold text-lol-hq-cyan leading-tight">
                       vs {day.opponentAbbr}
                     </p>
                     <p className="text-[9px] opacity-50 line-clamp-1 leading-snug">
@@ -769,12 +769,12 @@ export function Dashboard() {
 
         <div className="lg:col-span-2 panel-lol flex flex-col">
           <div className="panel-lol-header">
-            <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+            <span className="text-xs font-semibold uppercase tracking-wider text-white">
               Titulares
             </span>
             <button
               onClick={() => setCurrentScreen('SQUAD')}
-              className="text-[10px] text-lol-gold hover:underline uppercase tracking-wide"
+              className="text-[10px] text-lol-hq-cyan hover:underline uppercase tracking-wide"
             >
               Ver elenco completo →
             </button>
@@ -783,12 +783,12 @@ export function Dashboard() {
             {starters.map((player) => (
               <div
                 key={player.id}
-                className="flex sm:flex-col items-center sm:items-stretch gap-2 p-2.5 rounded-sm bg-black/30 border border-white/5 hover:border-lol-gold/25 transition-colors"
+                className="flex sm:flex-col items-center sm:items-stretch gap-2 p-2.5 rounded-sm bg-black/30 border border-white/5 hover:border-lol-hq-cyan/25 transition-colors"
               >
                 <PlayerPortrait name={player.name} size="md" className="shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1 text-[9px] text-white/40 mb-0.5">
-                    <RoleIcon role={player.role} size={10} className="text-lol-gold/70" />
+                    <RoleIcon role={player.role} size={10} className="text-lol-hq-cyan/70" />
                     {ROLE_LABELS[player.role]}
                   </div>
                   <div className="font-semibold text-sm text-white truncate">{player.name}</div>
@@ -825,14 +825,14 @@ export function Dashboard() {
         <div className="panel-lol">
           <div className="panel-lol-header">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-lol-gold" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              <TrendingUp className="w-4 h-4 text-lol-hq-cyan" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-white">
                 Classificação
               </span>
             </div>
             <button
               onClick={() => setCurrentScreen('STANDINGS')}
-              className="text-[10px] text-lol-gold hover:underline uppercase"
+              className="text-[10px] text-lol-hq-cyan hover:underline uppercase"
             >
               Completa →
             </button>
@@ -881,8 +881,8 @@ export function Dashboard() {
         <div className="panel-lol">
           <div className="panel-lol-header">
             <div className="flex items-center gap-2">
-              <Swords className="w-4 h-4 text-lol-gold" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+              <Swords className="w-4 h-4 text-lol-hq-cyan" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-white">
                 Resultados da rodada
               </span>
             </div>
@@ -913,7 +913,7 @@ export function Dashboard() {
                       key={r.match_id || `${blueTag}-${redTag}-${i}`}
                       className={`text-[11px] font-mono p-2.5 border rounded-sm flex flex-col gap-1 ${
                         involvesMe
-                          ? 'border-lol-gold/35 bg-lol-gold/5'
+                          ? 'border-lol-hq-cyan/35 bg-lol-hq-cyan/5'
                           : 'border-white/5 bg-black/30'
                       }`}
                     >
@@ -927,7 +927,7 @@ export function Dashboard() {
                           <span className="text-amber-400/90 text-[10px]">Pendente</span>
                         ) : (
                           <>
-                            <span className="text-lol-gold/60">→</span>
+                            <span className="text-lol-hq-cyan/60">→</span>
                             <span
                               className={
                                 iWon
@@ -945,7 +945,7 @@ export function Dashboard() {
                           <button
                             type="button"
                             onClick={() => void openMatchLog(r.match_id!)}
-                            className="ml-auto text-[9px] uppercase tracking-wide text-lol-gold/80 hover:text-lol-gold border border-lol-gold/20 px-1.5 py-0.5 rounded-sm"
+                            className="ml-auto text-[9px] uppercase tracking-wide text-lol-hq-cyan/80 hover:text-lol-hq-cyan border border-lol-hq-cyan/20 px-1.5 py-0.5 rounded-sm"
                           >
                             Ver log
                           </button>
@@ -958,9 +958,9 @@ export function Dashboard() {
             )}
 
             {matchLogPreview && (
-              <div className="mt-3 border border-lol-gold/25 bg-black/50 rounded-sm p-3">
+              <div className="mt-3 border border-lol-hq-cyan/25 bg-black/50 rounded-sm p-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-lol-gold-soft">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-white">
                     {matchLogPreview.title}
                   </span>
                   <button

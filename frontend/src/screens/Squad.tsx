@@ -3,11 +3,14 @@ import { useGameStore } from '../store/useGameStore';
 import { ROLE_LABELS } from '../lib/champions';
 import { ChampionImage } from '../components/ChampionImage';
 import { PlayerPortrait } from '../components/PlayerPortrait';
+import { PlayerProfilePanel } from '../components/PlayerProfilePanel';
 import { RoleIcon } from '../components/RoleIcon';
-import { Users, Search, Binoculars, ArrowUpCircle, ArrowDownCircle, GraduationCap } from 'lucide-react';
+import { Users, Search, Binoculars, ArrowUpCircle, ArrowDownCircle, GraduationCap, Radar } from 'lucide-react';
 import { PlayerRole } from '../types/game';
 import { getPlayerPhotoUrl } from '../lib/playerPhotoMap';
 import type { Player } from '../store/useGameStore';
+import { HubPageHeader } from '../components/HubPageHeader';
+import { AttributeRadar, playerToRadarAxes } from '../components/AttributeRadar';
 
 function formatHiddenAttr(
   known: boolean | undefined,
@@ -57,6 +60,7 @@ export function Squad() {
   const [scoutBusy, setScoutBusy] = useState<string | null>(null);
   const [lineupBusy, setLineupBusy] = useState<string | null>(null);
   const [lineupMsg, setLineupMsg] = useState<string | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
 
   const starters = useMemo(() => {
     return ROLE_ORDER.map((role) => {
@@ -127,46 +131,26 @@ export function Squad() {
     }
   };
 
-  const heroPhoto =
-    getPlayerPhotoUrl(starters[2]?.name) ||
-    getPlayerPhotoUrl(starters[0]?.name) ||
-    null;
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero */}
-      <div className="panel-lol relative overflow-hidden min-h-[120px]">
-        {heroPhoto ? (
-          <div
-            className="absolute inset-0 bg-cover bg-top opacity-35"
-            style={{ backgroundImage: `url(${heroPhoto})` }}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#121a28] to-lol-void" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-r from-lol-void via-lol-void/90 to-lol-void/70" />
-        <div className="relative panel-lol-header !border-0 !bg-transparent">
-          <div className="flex items-center gap-3 py-2">
-            <div className="team-crest">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-base sm:text-lg text-lol-gold-soft uppercase tracking-wide">
-                Elenco — {myTeamName}
-              </h2>
-              <p className="text-[10px] text-white/45 font-mono">
-                {myPlayers.length} atletas · {starters.length} titulares · {bench.length} reservas ·{' '}
-                {academy.length} academy
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      {profilePlayer && (
+        <PlayerProfilePanel
+          player={profilePlayer}
+          teamName={myTeamName}
+          onClose={() => setProfilePlayer(null)}
+        />
+      )}
+      <HubPageHeader
+        icon={Users}
+        eyebrow="Roster Analytics"
+        title={`Elenco — ${myTeamName}`}
+        subtitle={`${myPlayers.length} atletas · ${starters.length} titulares · ${bench.length} reservas · ${academy.length} academy`}
+      />
 
       {/* Lineup cards */}
       <div className="panel-lol">
         <div className="panel-lol-header">
-          <span className="text-xs font-semibold uppercase tracking-wider text-lol-gold-soft">
+          <span className="text-xs font-semibold uppercase tracking-wider text-white">
             Lineup principal
           </span>
         </div>
@@ -174,9 +158,13 @@ export function Squad() {
           {starters.map((p) => {
             const photo = getPlayerPhotoUrl(p.name);
             return (
-              <div key={p.id} className="hub-player-card">
+              <div key={p.id} className="hub-player-card group">
                 {/* Foto real / silhueta (não usa splash de campeão) */}
-                <div className="relative h-20 overflow-hidden bg-[#0a1018]">
+                <div
+                  className="relative h-20 overflow-hidden bg-[#0a1018] cursor-pointer"
+                  onClick={() => setProfilePlayer(p)}
+                  title="Abrir análise de atributos"
+                >
                   {photo ? (
                     <div
                       className="absolute inset-0 bg-cover bg-top opacity-80"
@@ -190,7 +178,7 @@ export function Squad() {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#060d18] via-black/40 to-transparent" />
                   <div className="absolute bottom-2 left-2 right-2 flex items-end justify-between">
                     <PlayerPortrait name={p.name} size="md" className="!w-11 !h-11 ring-1 ring-black/40" />
-                    <span className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-lol-gold bg-black/60 border border-lol-gold/30 px-1.5 py-0.5 rounded-sm">
+                    <span className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-lol-hq-cyan bg-black/60 border border-lol-hq-cyan/30 px-1.5 py-0.5 rounded-sm">
                       <RoleIcon role={p.role} size={11} active />
                       {ROLE_LABELS[p.role]}
                     </span>
@@ -204,6 +192,14 @@ export function Squad() {
                       {p.age}a · {p.nationality}
                       {p.isRookie && <span className="text-sky-400 ml-1">· Rookie</span>}
                     </div>
+                  </div>
+
+                  <div className="flex justify-center -my-1">
+                    <AttributeRadar
+                      axes={playerToRadarAxes(p)}
+                      size={88}
+                      className="opacity-90"
+                    />
                   </div>
 
                   <div className="grid grid-cols-3 gap-1 text-center text-[10px] font-mono pt-1 border-t border-white/5">
@@ -223,7 +219,7 @@ export function Squad() {
                     </div>
                     <div>
                       <div className="text-white/35">Mec</div>
-                      <div className="text-lol-gold-soft text-sm">{p.mechanics}</div>
+                      <div className="text-white text-sm">{p.mechanics}</div>
                     </div>
                   </div>
                   {/* Forma recente (TR-1) */}
@@ -301,6 +297,14 @@ export function Squad() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setProfilePlayer(p)}
+                      className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide px-2 py-1 rounded-sm border border-lol-hq-cyan/40 text-lol-hq-cyan hover:bg-cyan-950/40"
+                    >
+                      <Radar className="w-3 h-3" />
+                      Análise
+                    </button>
                     <button
                       type="button"
                       disabled={!!lineupBusy}
@@ -454,7 +458,7 @@ export function Squad() {
                     </span>
                   )}
                   {p.isStarter && (
-                    <span className="text-[9px] uppercase text-lol-gold border border-lol-gold/30 px-1 rounded-sm">
+                    <span className="text-[9px] uppercase text-lol-hq-cyan border border-lol-hq-cyan/30 px-1 rounded-sm">
                       Titular
                     </span>
                   )}
@@ -479,7 +483,7 @@ export function Squad() {
                   onClick={() => setFilterRole(role)}
                   className={`px-2 py-1 text-[9px] font-bold uppercase border rounded-sm ${
                     filterRole === role
-                      ? 'border-lol-gold bg-lol-gold/15 text-lol-gold'
+                      ? 'border-lol-hq-cyan bg-lol-hq-cyan/15 text-lol-hq-cyan'
                       : 'border-white/10 text-white/40 hover:border-white/25'
                   }`}
                 >
@@ -497,7 +501,7 @@ export function Squad() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar…"
-                className="pl-7 pr-2 py-1 text-[11px] bg-black/40 border border-white/10 rounded-sm focus:border-lol-gold focus:outline-none w-28 sm:w-36"
+                className="pl-7 pr-2 py-1 text-[11px] bg-black/40 border border-white/10 rounded-sm focus:border-lol-hq-cyan focus:outline-none w-28 sm:w-36"
               />
             </div>
           </div>

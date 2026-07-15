@@ -5,25 +5,33 @@ type IconType = ComponentType<SVGProps<SVGSVGElement> & { className?: string; si
 interface HubPageHeaderProps {
   icon: IconType;
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
+  /** Small technical eyebrow label (default: War Room module) */
+  eyebrow?: string;
 }
 
-/** Cabeçalho padrão das páginas de gestão (FM-like). */
-export function HubPageHeader({ icon: Icon, title, subtitle, actions }: HubPageHeaderProps) {
+/** Cabeçalho padrão das páginas — linguagem War Room / tech-noir. */
+export function HubPageHeader({
+  icon: Icon,
+  title,
+  subtitle,
+  actions,
+  eyebrow = 'Operations',
+}: HubPageHeaderProps) {
   return (
-    <div className="panel-lol p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative overflow-hidden">
-      <div className="absolute inset-0 bg-lol-header pointer-events-none" />
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-lol-gold/50 to-transparent" />
+    <div className="hq-page-header hq-frame panel-enter relative overflow-hidden">
+      <div className="absolute inset-0 bg-hq-header pointer-events-none opacity-80" />
+      <div className="hq-scan-bar" aria-hidden />
       <div className="relative flex items-start gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-sm border border-lol-gold/30 bg-lol-gold/10 flex items-center justify-center shrink-0">
-          <Icon className="w-5 h-5 text-lol-gold" />
+        <div className="hq-page-header-icon">
+          <Icon className="w-5 h-5 text-lol-hq-cyan" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-lol-gold/70 font-semibold mb-0.5">
-            Gestão
+          <p className="text-[10px] uppercase tracking-hud text-lol-hq-cyan/70 font-semibold mb-0.5 font-mono">
+            {eyebrow}
           </p>
-          <h2 className="font-display text-xl sm:text-2xl font-bold text-lol-gold-soft tracking-wide truncate">
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-white tracking-wide truncate">
             {title}
           </h2>
           {subtitle && (

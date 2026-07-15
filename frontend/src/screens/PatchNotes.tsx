@@ -4,6 +4,7 @@ import { FileCode2, TrendingUp, TrendingDown, Clock, Loader2, Sparkles } from 'l
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
 import { ROLE_LABELS } from '../lib/champions';
+import { HubPageHeader } from '../components/HubPageHeader';
 
 export function PatchNotes() {
   const patch = useGameStore((s) => s.patchStatus);
@@ -21,26 +22,17 @@ export function PatchNotes() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="panel-lol relative overflow-hidden">
-        <div className="absolute inset-0 bg-lol-header pointer-events-none" />
-        <div className="relative panel-lol-header !bg-transparent">
-          <div className="flex items-center gap-3 py-1">
-            <div className="team-crest">
-              <FileCode2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-base text-lol-gold-soft uppercase tracking-wide">
-                Patch notes · Meta CBLOL
-              </h2>
-              <p className="text-[10px] text-white/40 font-mono mt-0.5">
-                Buffs/nerfs afetam o motor de partida e a IA de draft
-                {patch?.calendar_date ? ` · data jogo ${patch.calendar_date}` : ''}
-              </p>
-            </div>
-            {loading && <Loader2 className="w-4 h-4 animate-spin text-white/40 ml-auto" />}
-          </div>
-        </div>
-      </div>
+      <HubPageHeader
+        icon={FileCode2}
+        eyebrow="Meta Intel"
+        title="Patch notes · Meta CBLOL"
+        subtitle={`Buffs/nerfs afetam o motor e a IA de draft${
+          patch?.calendar_date ? ` · data jogo ${patch.calendar_date}` : ''
+        }`}
+        actions={
+          loading ? <Loader2 className="w-4 h-4 animate-spin text-lol-hq-cyan/60" /> : null
+        }
+      />
 
       {/* Active */}
       <div className="panel-lol border-emerald-500/20">
@@ -51,7 +43,7 @@ export function PatchNotes() {
               Patch ativo
             </span>
           </div>
-          <span className="font-mono text-sm text-lol-gold-soft font-bold">
+          <span className="font-mono text-sm text-white font-bold">
             {active?.version ? `v${active.version}` : '—'}
           </span>
         </div>

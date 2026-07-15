@@ -119,10 +119,10 @@ export function DataGrid<T extends { id: string | number }>({
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/30 border border-white/10 text-white font-sans rounded-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-black/40 border border-lol-hq-cyan/15 text-white font-sans rounded-sm overflow-hidden shadow-hq-glass backdrop-blur-sm">
       {searchKey && (
-        <div className="flex items-center gap-2 p-3 bg-black/40 border-b border-white/5">
-          <Search className="w-4 h-4 text-lol-gold/60" />
+        <div className="flex items-center gap-2 p-3 bg-hq-header border-b border-lol-hq-cyan/12">
+          <Search className="w-4 h-4 text-lol-hq-cyan/70" />
           <input
             type="text"
             placeholder={searchPlaceholder}
@@ -131,9 +131,9 @@ export function DataGrid<T extends { id: string | number }>({
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full max-w-sm bg-lol-void border border-white/10 focus:border-lol-gold focus:outline-none text-sm px-3 py-1.5 font-mono text-white placeholder:text-white/30 rounded-sm transition-all"
+            className="w-full max-w-sm bg-black/50 border border-white/10 focus:border-lol-hq-cyan focus:outline-none focus:shadow-hq-cyan-sm text-sm px-3 py-1.5 font-mono text-white placeholder:text-white/30 rounded-sm transition-all"
           />
-          <div className="ml-auto text-[10px] text-white/35 font-mono uppercase">
+          <div className="ml-auto text-[10px] text-lol-hq-cyan/50 font-mono uppercase tracking-wider">
             {sortedData.length} registros
           </div>
         </div>
@@ -142,7 +142,7 @@ export function DataGrid<T extends { id: string | number }>({
       <div className="overflow-x-auto flex-grow">
         <table className="w-full text-left border-collapse select-none">
           <thead>
-            <tr className="bg-lol-hextech/30 border-b border-lol-gold/15 font-mono text-[10px] uppercase tracking-wider text-white/45">
+            <tr className="bg-black/35 border-b border-lol-hq-cyan/15 font-mono text-[10px] uppercase tracking-wider text-white/45">
               {columns.map((col, idx) => {
                 const sortKey = typeof col.accessorKey === 'string' ? col.accessorKey : String(idx);
                 const isSorted = sortConfig?.key === sortKey;
@@ -151,16 +151,16 @@ export function DataGrid<T extends { id: string | number }>({
                   <th
                     key={idx}
                     onClick={() => handleSort(sortKey, col.sortable)}
-                    className={`px-4 py-3 font-semibold select-none ${col.sortable ? 'cursor-pointer hover:bg-white/5 hover:text-lol-gold transition-colors' : ''}`}
+                    className={`px-4 py-3 font-semibold select-none ${col.sortable ? 'cursor-pointer hover:bg-white/5 hover:text-lol-hq-cyan transition-colors' : ''}`}
                   >
                     <div className="flex items-center gap-1.5">
                       {col.header}
                       {col.sortable &&
                         (isSorted ? (
                           sortConfig.direction === 'asc' ? (
-                            <ChevronUp className="w-3 h-3 text-lol-gold" />
+                            <ChevronUp className="w-3 h-3 text-lol-hq-cyan" />
                           ) : (
-                            <ChevronDown className="w-3 h-3 text-lol-gold" />
+                            <ChevronDown className="w-3 h-3 text-lol-hq-cyan" />
                           )
                         ) : (
                           <ArrowUpDown className="w-3 h-3 text-white/20" />

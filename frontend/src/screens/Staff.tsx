@@ -48,6 +48,7 @@ export function Staff() {
     <div className="flex flex-col gap-4">
       <HubPageHeader
         icon={Briefcase}
+        eyebrow="Staff Ops"
         title="Comissão técnica"
         subtitle="Pessoas fora do elenco: contratar/demitir coaches. Efeito no scouting, draft tips e coach comms da live."
         actions={

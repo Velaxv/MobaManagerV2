@@ -4,6 +4,7 @@ import { Ban, RotateCcw, Swords, Sparkles, Volume2, Crosshair, Radar, Eye } from
 import { PlayerRole, ChampionPoolTier, DraftTeam, DraftAction } from '../types/game';
 import { ChampionImage } from '../components/ChampionImage';
 import { RoleIcon } from '../components/RoleIcon';
+import { CompositionSynergy } from '../components/CompositionSynergy';
 import { ROLE_LABELS, championSplashUrl } from '../lib/champions';
 import { api, type DraftScoutAdviceResponse, type DraftScoutRecommendation } from '../services/api';
 
@@ -73,7 +74,7 @@ function PickSlot({
       ? 'border-lol-blue-side/60 shadow-[0_0_12px_rgba(0,150,255,0.2)]'
       : 'border-lol-red-side/60 shadow-[0_0_12px_rgba(255,70,85,0.2)]'
     : isActiveSlot
-      ? 'border-lol-gold/50 animate-pulse'
+      ? 'border-lol-hq-cyan/50 animate-pulse'
       : side === 'blue'
         ? 'border-lol-blue-side/25'
         : 'border-lol-red-side/25';
@@ -103,7 +104,7 @@ function PickSlot({
         {playerName && <div className="text-[10px] text-white/40 truncate">{playerName}</div>}
       </div>
       {champion && (
-        <span className="text-[8px] font-bold uppercase tracking-wider text-lol-gold/80 border border-lol-gold/30 px-1 py-0.5 rounded-sm">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-lol-hq-cyan/80 border border-lol-hq-cyan/30 px-1 py-0.5 rounded-sm">
           Lock
         </span>
       )}
@@ -121,11 +122,11 @@ function LockInOverlay({ state }: { state: LockInState }) {
           className="absolute -inset-20 opacity-40 blur-sm bg-cover bg-center -z-10"
           style={{ backgroundImage: `url(${championSplashUrl(state.champion)})` }}
         />
-        <ChampionImage name={state.champion} variant="loading" className="shadow-2xl ring-2 ring-lol-gold/60" />
-        <div className={isBan ? 'ban-stamp-label animate-ban-stamp' : 'lock-in-label text-lol-gold'}>
+        <ChampionImage name={state.champion} variant="loading" className="shadow-2xl ring-2 ring-lol-hq-cyan/60" />
+        <div className={isBan ? 'ban-stamp-label animate-ban-stamp' : 'lock-in-label text-lol-hq-cyan'}>
           {isBan ? 'BANNED' : 'LOCKED IN'}
         </div>
-        <div className="text-sm font-display text-lol-gold-soft tracking-wide">{state.champion}</div>
+        <div className="text-sm font-display text-white tracking-wide">{state.champion}</div>
         <div
           className={`text-[10px] font-mono uppercase tracking-widest ${
             state.team === DraftTeam.BLUE ? 'text-lol-blue-side' : 'text-lol-red-side'
@@ -135,7 +136,7 @@ function LockInOverlay({ state }: { state: LockInState }) {
           {state.role ? ` · ${ROLE_LABELS[state.role] || state.role}` : ''}
         </div>
         <div className="w-40 h-0.5 bg-white/10 rounded-full overflow-hidden mt-1">
-          <div className="h-full bg-lol-gold animate-draft-bar" />
+          <div className="h-full bg-lol-hq-cyan animate-draft-bar" />
         </div>
       </div>
     </div>
@@ -397,11 +398,19 @@ export function TacticsDraft() {
 
   const handleConfirm = async () => {
     if (!selectedChamp || isComplete || !isMyTurn || !currentStep || isBusy) return;
+    // Flex: role deve estar livre no momento do lock
+    let lockRole: PlayerRole | undefined;
+    if (currentStep.action === DraftAction.PICK) {
+      lockRole = myFreeRoles.includes(selectedRole)
+        ? selectedRole
+        : myFreeRoles[0];
+      if (!lockRole) return;
+    }
     await runLockIn(
       selectedChamp,
       currentStep.action,
       currentStep.team,
-      currentStep.action === DraftAction.PICK ? selectedRole : undefined
+      lockRole
     );
   };
 
@@ -471,10 +480,15 @@ export function TacticsDraft() {
         } else if (res.role && Object.values(PlayerRole).includes(res.role as PlayerRole)) {
           role = res.role as PlayerRole;
         } else if (currentStep.action === DraftAction.PICK) {
-          const aiPicks =
-            currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
-          const rolesPicked = aiPicks.map((p) => p.role);
-          role = ROLES_ORDER.find((r) => !rolesPicked.includes(r)) || PlayerRole.MID;
+          role = freeRolesForActiveTeam[0] || PlayerRole.MID;
+        }
+        // Flex: se a role da IA já foi pickada, remapeia para role livre
+        if (
+          currentStep.action === DraftAction.PICK &&
+          role &&
+          !freeRolesForActiveTeam.includes(role)
+        ) {
+          role = freeRolesForActiveTeam[0] || PlayerRole.MID;
         }
       } catch {
         const fb = fallback();
@@ -523,21 +537,45 @@ export function TacticsDraft() {
     return picks.find((p) => p.role === role)?.champion;
   };
 
-  /** Role sendo pickada agora (slot piscando) */
-  const activePickRole = useMemo(() => {
-    if (!currentStep || currentStep.action !== DraftAction.PICK) return null;
+  /** Roles ainda livres no time que está pickando (flex — qualquer role aberta) */
+  const freeRolesForActiveTeam = useMemo(() => {
+    if (!currentStep || currentStep.action !== DraftAction.PICK) return [];
     const picks =
       currentStep.team === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
-    const rolesPicked = picks.map((p) => p.role);
-    return ROLES_ORDER.find((r) => !rolesPicked.includes(r)) || null;
+    const rolesPicked = new Set(picks.map((p) => p.role));
+    return ROLES_ORDER.filter((r) => !rolesPicked.has(r));
   }, [currentStep, draft.bluePicks, draft.redPicks]);
+
+  /** Roles livres do manager (turno do jogador) */
+  const myFreeRoles = useMemo(() => {
+    const picks =
+      resolvedSide === DraftTeam.BLUE ? draft.bluePicks : draft.redPicks;
+    const rolesPicked = new Set(picks.map((p) => p.role));
+    return ROLES_ORDER.filter((r) => !rolesPicked.has(r));
+  }, [resolvedSide, draft.bluePicks, draft.redPicks]);
+
+  // Flex: se a role selecionada já foi pickada, troca para a primeira livre
+  useEffect(() => {
+    if (!isMyTurn || !currentStep || currentStep.action !== DraftAction.PICK) return;
+    if (myFreeRoles.length === 0) return;
+    if (!myFreeRoles.includes(selectedRole)) {
+      setSelectedRole(myFreeRoles[0]);
+    }
+  }, [isMyTurn, currentStep, myFreeRoles, selectedRole]);
+
+  /** Slot piscando: role selecionada (flex) se livre; senão qualquer livre */
+  const activePickRole = useMemo(() => {
+    if (!currentStep || currentStep.action !== DraftAction.PICK) return null;
+    if (freeRolesForActiveTeam.includes(selectedRole)) return selectedRole;
+    return freeRolesForActiveTeam[0] || null;
+  }, [currentStep, freeRolesForActiveTeam, selectedRole]);
 
   const progressPct = (draft.currentTurn / 20) * 100;
   const comfort = selectedChamp ? getComfortLevel(selectedChamp, selectedRole) : null;
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="draft-stage min-h-[560px]">
+      <div className="draft-stage hq-frame min-h-[560px]">
         {/* Splash de fundo dinâmico */}
         <div
           key={splashChampion}
@@ -545,26 +583,30 @@ export function TacticsDraft() {
           style={{ backgroundImage: `url(${championSplashUrl(splashChampion)})` }}
         />
         <div className="draft-splash-veil" />
+        {/* Blueprint tático (holograma / grid técnico) */}
+        <div className="draft-blueprint-grid" aria-hidden />
+        <div className="draft-blueprint-lanes" aria-hidden />
+        <div className="draft-blueprint-corners" aria-hidden />
 
         {/* Overlay lock-in */}
         {lockIn && <LockInOverlay state={lockIn} />}
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-lol-gold/20 bg-black/40 backdrop-blur-sm">
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-lol-hq-cyan/25 bg-black/50 backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-sm bg-gradient-to-br from-lol-gold to-lol-gold-dim flex items-center justify-center shadow-lol-gold">
+              <div className="w-9 h-9 rounded-sm bg-gradient-to-br from-lol-hq-cyan to-lol-hq-cyan-dim flex items-center justify-center shadow-hq-cyan">
                 <Swords className="w-4 h-4 text-lol-void" />
               </div>
               <div>
-                <h2 className="font-display font-bold text-lol-gold-soft tracking-wide uppercase text-sm sm:text-base">
+                <h2 className="font-display font-bold text-white tracking-wide uppercase text-sm sm:text-base">
                   Champion Select
                 </h2>
-                <p className="text-[10px] text-white/45 font-mono flex items-center gap-1.5">
+                <p className="text-[10px] text-lol-hq-cyan/60 font-mono flex items-center gap-1.5">
                   <Volume2 className="w-3 h-3 opacity-50" />
-                  Snake Draft · Ação {Math.min(draft.currentTurn + 1, 20)}/20
+                  Blueprint Draft · Ação {Math.min(draft.currentTurn + 1, 20)}/20
                   {activeMatch?.isPlayoff && activeMatch?.seriesScoreDisplay && (
-                    <span className="text-lol-gold-soft">
+                    <span className="text-white">
                       · Série {activeMatch.seriesScoreDisplay}
                       {activeMatch.mapIndex ? ` · Map ${activeMatch.mapIndex}` : ''}
                     </span>
@@ -588,7 +630,7 @@ export function TacticsDraft() {
           {/* Barra de progresso do draft */}
           <div className="h-1 bg-black/50">
             <div
-              className="h-full bg-gradient-to-r from-lol-blue-side via-lol-gold to-lol-red-side transition-all duration-500"
+              className="h-full bg-gradient-to-r from-lol-blue-side via-lol-hq-cyan to-lol-red-side transition-all duration-500"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -683,26 +725,40 @@ export function TacticsDraft() {
             <div className="p-3 sm:p-4 flex flex-col gap-3 order-1 lg:order-2 min-h-[340px] bg-black/25 backdrop-blur-[1px]">
               {!isComplete && currentStep ? (
                 <>
-                  {/* Role filters com ícones */}
+                  {/* Role filters — flex: qualquer role livre (slots já pickados desabilitados) */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {ROLES_ORDER.map((role) => {
                       const active = selectedRole === role;
+                      const roleTaken =
+                        currentStep.action === DraftAction.PICK &&
+                        !myFreeRoles.includes(role);
                       return (
                         <button
                           key={role}
                           onClick={() => {
+                            if (roleTaken) return;
                             setSelectedRole(role);
                             setSelectedChamp('');
                           }}
-                          disabled={isBusy}
+                          disabled={isBusy || roleTaken}
+                          title={
+                            roleTaken
+                              ? 'Role já preenchida neste draft'
+                              : `Pickar para ${ROLE_LABELS[role]} (flex)`
+                          }
                           className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide rounded-sm border transition-all ${
-                            active
-                              ? 'border-lol-gold bg-lol-gold/20 text-lol-gold shadow-lol-gold'
-                              : 'border-white/15 text-white/50 hover:border-white/35 hover:text-white/80 bg-black/30'
+                            roleTaken
+                              ? 'border-white/5 text-white/20 bg-black/20 cursor-not-allowed opacity-40'
+                              : active
+                                ? 'border-lol-hq-cyan bg-lol-hq-cyan/20 text-lol-hq-cyan shadow-hq-cyan'
+                                : 'border-white/15 text-white/50 hover:border-white/35 hover:text-white/80 bg-black/30'
                           }`}
                         >
-                          <RoleIcon role={role} size={14} active={active} />
+                          <RoleIcon role={role} size={14} active={active && !roleTaken} />
                           <span className="hidden sm:inline">{ROLE_LABELS[role]}</span>
+                          {roleTaken && (
+                            <span className="text-[8px] font-mono text-white/30">✓</span>
+                          )}
                         </button>
                       );
                     })}
@@ -711,13 +767,13 @@ export function TacticsDraft() {
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Buscar…"
                       disabled={isBusy}
-                      className="ml-auto flex-1 min-w-[7rem] max-w-xs bg-black/55 border border-white/15 px-2 py-1.5 text-xs rounded-sm focus:border-lol-gold focus:outline-none placeholder:text-white/30"
+                      className="ml-auto flex-1 min-w-[7rem] max-w-xs bg-black/55 border border-white/15 px-2 py-1.5 text-xs rounded-sm focus:border-lol-hq-cyan focus:outline-none placeholder:text-white/30"
                     />
                   </div>
 
                   {/* Preview do campeão hover/selecionado (splash thumb) */}
                   {selectedChamp && (
-                    <div className="relative h-16 sm:h-20 rounded-sm overflow-hidden border border-lol-gold/30 animate-fade-in">
+                    <div className="relative h-16 sm:h-20 rounded-sm overflow-hidden border border-lol-hq-cyan/30 animate-fade-in">
                       <div
                         className="absolute inset-0 bg-cover bg-center"
                         style={{ backgroundImage: `url(${championSplashUrl(selectedChamp)})` }}
@@ -726,11 +782,11 @@ export function TacticsDraft() {
                       <div className="relative h-full flex items-center gap-3 px-3">
                         <ChampionImage name={selectedChamp} variant="portrait" highlighted />
                         <div>
-                          <div className="font-display font-bold text-lol-gold-soft text-sm sm:text-base">
+                          <div className="font-display font-bold text-white text-sm sm:text-base">
                             {selectedChamp}
                           </div>
                           <div className="text-[10px] text-white/60 flex items-center gap-1">
-                            <RoleIcon role={selectedRole} size={11} className="text-lol-gold" />
+                            <RoleIcon role={selectedRole} size={11} className="text-lol-hq-cyan" />
                             {ROLE_LABELS[selectedRole]}
                             {currentStep.action === DraftAction.PICK && comfort && (
                               <span
@@ -765,7 +821,7 @@ export function TacticsDraft() {
                   {/* Grid de campeões (buffs do patch sobem na lista) */}
                   {patchStatus?.active?.version && (
                     <div className="text-[9px] font-mono text-white/40 px-1 flex items-center gap-2">
-                      <span className="text-lol-gold-soft">Patch v{patchStatus.active.version}</span>
+                      <span className="text-white">Patch v{patchStatus.active.version}</span>
                       <span className="text-emerald-400">▲ BUFF</span>
                       <span className="text-red-400">▼ NERF</span>
                       <span className="text-cyan-300/80">◎ Scout</span>
@@ -793,7 +849,7 @@ export function TacticsDraft() {
                           <Eye className="w-3 h-3" />
                           {currentStep.action === DraftAction.BAN ? 'BAN tip' : 'PICK tip'}
                           {scoutAdvice?.patch?.version && (
-                            <span className="text-lol-gold-soft ml-1">
+                            <span className="text-white ml-1">
                               p{scoutAdvice.patch.version}
                             </span>
                           )}
@@ -861,7 +917,7 @@ export function TacticsDraft() {
                                     <span className="text-[8px] text-emerald-400 uppercase">Main</span>
                                   )}
                                   {rec.global_meta?.tier && (
-                                    <span className="text-[8px] font-mono text-lol-gold/80">
+                                    <span className="text-[8px] font-mono text-lol-hq-cyan/80">
                                       meta {rec.global_meta.tier}
                                     </span>
                                   )}
@@ -939,7 +995,7 @@ export function TacticsDraft() {
                   </div>
 
                   {/* Confirm bar */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-black/55 border border-lol-gold/20 rounded-sm">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-black/55 border border-lol-hq-cyan/20 rounded-sm">
                     {selectedChamp ? (
                       <>
                         <ChampionImage name={selectedChamp} variant="pick" highlighted />
@@ -1003,8 +1059,8 @@ export function TacticsDraft() {
                         <ChampionImage key={`r-${p.champion}`} name={p.champion} variant="pick" locked />
                       ))}
                     </div>
-                    <Sparkles className="w-8 h-8 text-lol-gold animate-pulse" />
-                    <h3 className="font-display text-base text-lol-gold-soft uppercase tracking-wide">
+                    <Sparkles className="w-8 h-8 text-lol-hq-cyan animate-pulse" />
+                    <h3 className="font-display text-base text-white uppercase tracking-wide">
                       Draft completo · Táticas
                     </h3>
                     <p className="text-[11px] text-white/45 max-w-md text-center">
@@ -1013,7 +1069,7 @@ export function TacticsDraft() {
                   </div>
 
                   <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-lol-hq-cyan/80 font-semibold">
                       <Crosshair className="w-3.5 h-3.5" /> Estilo de jogo
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -1031,7 +1087,7 @@ export function TacticsDraft() {
                           onClick={() => setMatchTactics({ gameStyle: opt.id })}
                           className={`px-2 py-2 rounded-sm border text-left transition-colors ${
                             matchTactics.gameStyle === opt.id
-                              ? 'border-lol-gold bg-lol-gold/15 text-lol-gold'
+                              ? 'border-lol-hq-cyan bg-lol-hq-cyan/15 text-lol-hq-cyan'
                               : 'border-white/10 bg-black/30 text-white/60 hover:border-white/25'
                           }`}
                         >
@@ -1044,10 +1100,10 @@ export function TacticsDraft() {
 
                   <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                      <span className="text-[10px] uppercase tracking-wider text-lol-hq-cyan/80 font-semibold">
                         Coach Comms (early)
                       </span>
-                      <span className="font-mono text-sm text-lol-gold">
+                      <span className="font-mono text-sm text-lol-hq-cyan">
                         {matchTactics.coachComms}/6
                       </span>
                     </div>
@@ -1067,7 +1123,7 @@ export function TacticsDraft() {
                   </div>
 
                   <div className="border border-white/10 bg-black/40 rounded-sm p-3 space-y-2">
-                    <span className="text-[10px] uppercase tracking-wider text-lol-gold/80 font-semibold">
+                    <span className="text-[10px] uppercase tracking-wider text-lol-hq-cyan/80 font-semibold">
                       Lineup titulares
                     </span>
                     <div className="space-y-1.5">
@@ -1090,7 +1146,7 @@ export function TacticsDraft() {
                                 );
                                 setMatchTactics({ starterIds: next });
                               }}
-                              className="flex-1 bg-black/50 border border-white/15 rounded-sm px-2 py-1 text-white/80 focus:border-lol-gold outline-none"
+                              className="flex-1 bg-black/50 border border-white/15 rounded-sm px-2 py-1 text-white/80 focus:border-lol-hq-cyan outline-none"
                             >
                               {options.length === 0 && <option value="">Sem jogador</option>}
                               {options.map((p) => (
@@ -1153,6 +1209,25 @@ export function TacticsDraft() {
         </div>
       </div>
 
+      {/* Manager Analytics — design PDF item 4 */}
+      {(draft.bluePicks.length > 0 || draft.redPicks.length > 0) && (
+        <CompositionSynergy
+          blueChamps={draft.bluePicks.map((p) => p.champion)}
+          redChamps={draft.redPicks.map((p) => p.champion)}
+          counterPicks={
+            scoutAdvice?.recommendations?.length
+              ? [
+                  {
+                    style: 'SCOUT',
+                    champions: scoutAdvice.recommendations.slice(0, 4).map((r) => r.champion),
+                    tone: 'text-lol-hq-cyan',
+                  },
+                ]
+              : undefined
+          }
+        />
+      )}
+
       {/* Log */}
       <div className="panel-lol">
         <div className="panel-lol-header">
@@ -1166,7 +1241,7 @@ export function TacticsDraft() {
             <div
               key={i}
               className={`${log.includes('⚠️') ? 'text-lol-red-side' : ''} ${
-                i === draft.narrative.length - 1 ? 'text-lol-gold-soft' : ''
+                i === draft.narrative.length - 1 ? 'text-white' : ''
               }`}
             >
               {log}

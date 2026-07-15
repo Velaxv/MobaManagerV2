@@ -450,6 +450,8 @@ interface GameState {
   // --- Ações ---
   setGameState: (state: 'MAIN_MENU' | 'NEW_GAME_SETUP' | 'PLAYING') => void;
   setManager: (name: string, teamId: string) => void;
+  /** Nova carreira do zero (reseed + limpa Redis + reseta store). */
+  startNewCareer: (managerName: string, teamAbbreviation: string) => Promise<void>;
   advanceDay: () => Promise<void>;
   setCurrentScreen: (
     screen:
@@ -723,6 +725,83 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Carrega elenco real do time escolhido + mercado
       void get().refreshRosterAndMarket();
     }
+  },
+
+  startNewCareer: async (managerName, teamAbbreviation) => {
+    const name = managerName.trim();
+    const abbr = teamAbbreviation.trim().toUpperCase();
+    if (name.length < 2) throw new Error('Nome do treinador muito curto.');
+    if (!abbr) throw new Error('Selecione uma organização.');
+
+    // 1) Backend: reseed + limpa Redis (calendário, partidas, moral, forma…)
+    const result = await api.startNewCareer({
+      manager_name: name,
+      team_abbreviation: abbr,
+      force_reseed: true,
+    });
+
+    // 2) Zera estado de sessão no frontend (não reaproveita partidas/draft/alertas)
+    set({
+      manager: { name: result.manager_name, teamId: result.team_id },
+      myTeamName: result.team_name,
+      myBudget: 0,
+      gameState: 'PLAYING',
+      currentScreen: 'DASHBOARD',
+      currentWeek: result.week ?? 1,
+      currentDayIndex: Math.max(0, ((result.day ?? 1) - 1) % 7),
+      totalDaysElapsed: 0,
+      splitPhase: SplitPhase.REGULAR_SEASON,
+      leagueId: result.league_id || null,
+      standings: [],
+      playoffBracket: null,
+      lastAutoResults: [],
+      roundResults: [],
+      roundResultsWeek: null,
+      matchLogPreview: null,
+      offseasonContracts: [],
+      finance: null,
+      lastFinanceEvent: null,
+      lastBoardReview: null,
+      orgSnapshot: null,
+      training: null,
+      lastTrainingEvent: null,
+      practice: null,
+      lastPracticeEvent: null,
+      scouting: null,
+      lastScoutingEvent: null,
+      myPlayers: [],
+      marketPlayers: [],
+      playersCache: [],
+      activeMatch: null,
+      scoutSessionId: null,
+      lastScoutReport: null,
+      patchStatus: null,
+      patchBadges: {},
+      draft: {
+        currentTurn: 0,
+        blueBans: [],
+        redBans: [],
+        bluePicks: [],
+        redPicks: [],
+        isComplete: false,
+        narrative: ['Nova carreira — draft ainda não iniciado.'],
+      },
+      matchTactics: {
+        gameStyle: 'BALANCED',
+        coachComms: 3,
+        starterIds: [],
+      },
+      isDataLoaded: false,
+    });
+
+    // 3) Rehidrata do banco limpo
+    await get().loadData();
+    await get().refreshRosterAndMarket();
+    await get().refreshPatch();
+    await get().refreshFinance();
+    await get().refreshTraining();
+    await get().refreshScouting();
+    await get().refreshPractice();
   },
 
   advanceDay: async () => {

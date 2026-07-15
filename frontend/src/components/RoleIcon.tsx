@@ -81,7 +81,7 @@ export function RoleIcon({ role, className = '', size = 16, active = false }: Ro
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      className={`shrink-0 ${active ? 'text-lol-gold drop-shadow-[0_0_4px_rgba(200,155,60,0.6)]' : ''} ${className}`}
+      className={`shrink-0 ${active ? 'text-lol-hq-cyan drop-shadow-[0_0_4px_rgba(200,155,60,0.6)]' : ''} ${className}`}
       aria-hidden
     >
       {content}

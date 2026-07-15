@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyTowerHpFromPressure,
+  buildHeatmapPoints,
   buildMiniFeed,
   countAliveTowers,
   eventTypeGlyph,
@@ -54,6 +55,34 @@ describe('locationLabel', () => {
   it('fallback para string crua', () => {
     expect(locationLabel('CUSTOM_SPOT')).toBe('CUSTOM_SPOT')
     expect(locationLabel(null)).toBe('')
+  })
+})
+
+describe('buildHeatmapPoints', () => {
+  it('retorna vazio sem eventos', () => {
+    expect(buildHeatmapPoints([])).toEqual([])
+  })
+
+  it('agrega kills e objetivos em pontos normalizados', () => {
+    const pts = buildHeatmapPoints([
+      { eventType: 'SOLO_KILL', location: 'MID_LANE', side: 'BLUE', intensity: 1, role: 'MID' },
+      { eventType: 'DRAGON_SECURED', location: 'DRAGON', side: 'BLUE', intensity: 0.9 },
+      { eventType: 'TURRET_DESTROYED', location: 'BOT_LANE', side: 'RED', intensity: 0.8, role: 'BOT' },
+      { eventType: 'FARM', location: 'TOP_LANE', side: 'BLUE', intensity: 0.4, role: 'TOP' },
+    ])
+    expect(pts.length).toBeGreaterThanOrEqual(3)
+    for (const p of pts) {
+      expect(p.x).toBeGreaterThanOrEqual(6)
+      expect(p.x).toBeLessThanOrEqual(94)
+      expect(p.y).toBeGreaterThanOrEqual(6)
+      expect(p.y).toBeLessThanOrEqual(94)
+      expect(p.weight).toBeGreaterThan(0)
+      expect(p.weight).toBeLessThanOrEqual(1.001)
+    }
+    // kill/objective deve pesar mais que farm
+    const farm = pts.find((p) => p.kind?.includes('FARM'))
+    const heavy = pts[0]
+    expect(heavy.weight).toBeGreaterThanOrEqual(farm?.weight ?? 0)
   })
 })
 

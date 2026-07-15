@@ -2,48 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ═══════════════════════════════════════════════════════════
+ *  MOBA MANAGER — War Room / Tech-Noir HQ Design System
+ *  Mesa de guerra digital · frosted glass · data-rich
+ *  Acentos: electric cyan · neon orange · clean white
+ * ═══════════════════════════════════════════════════════════
+ */
+
 @layer base {
   body {
-    @apply bg-lol-void text-white font-sans antialiased selection:bg-lol-gold selection:text-lol-void;
+    @apply bg-lol-void text-white font-sans antialiased selection:bg-lol-hq-cyan/30 selection:text-white;
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: #010a13;
   }
   ::-webkit-scrollbar-thumb {
-    background: #785a28;
-    border-radius: 2px;
+    background: rgba(34, 211, 238, 0.25);
+    border-radius: 1px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #c89b3c;
+    background: rgba(34, 211, 238, 0.45);
   }
 }
 
 @layer components {
+  /* ─── Surfaces: frosted glass panels ─── */
   .panel-lol {
-    @apply bg-lol-panel border border-lol-gold/20 rounded-sm shadow-panel backdrop-blur-sm;
+    @apply rounded-sm border border-lol-hq-cyan/15 shadow-hq-glass backdrop-blur-glass;
+    /* More transparent so HQ facility bleeds through */
+    background:
+      linear-gradient(160deg, rgba(10, 36, 56, 0.48) 0%, rgba(4, 12, 22, 0.72) 100%);
+    position: relative;
+  }
+
+  .panel-lol::after {
+    /* thin top edge glow */
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-px pointer-events-none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(34, 211, 238, 0.45) 30%,
+      rgba(249, 115, 22, 0.25) 70%,
+      transparent 100%
+    );
   }
 
   .panel-lol-header {
-    @apply px-4 py-2.5 border-b border-lol-gold/15 bg-lol-header flex items-center justify-between gap-2;
+    @apply px-4 py-2.5 border-b border-lol-hq-cyan/15 bg-hq-header flex items-center justify-between gap-2;
   }
 
+  /* Bracket corners — modular war-room frame */
+  .hq-frame {
+    @apply relative rounded-sm;
+  }
+  .hq-frame::before,
+  .hq-frame::after {
+    content: '';
+    @apply absolute w-2.5 h-2.5 pointer-events-none z-[1];
+    border-color: rgba(34, 211, 238, 0.55);
+  }
+  .hq-frame::before {
+    @apply top-0 left-0 border-t border-l;
+  }
+  .hq-frame::after {
+    @apply bottom-0 right-0 border-b border-r;
+  }
+
+  /* ─── Buttons ─── */
   .btn-lol {
-    @apply px-4 py-2 border border-lol-gold/50 bg-gradient-to-b from-[#1e2328] to-[#0a1428]
-      text-lol-gold-soft text-xs font-semibold uppercase tracking-wider
-      hover:border-lol-gold hover:text-lol-gold hover:shadow-lol-gold
+    @apply px-4 py-2 border border-lol-hq-cyan/35 bg-gradient-to-b from-[#0c2438] to-[#061018]
+      text-lol-hq-cyan-bright text-xs font-semibold uppercase tracking-wider
+      hover:border-lol-hq-cyan hover:text-white hover:shadow-hq-cyan-sm
       transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-lol-primary {
-    @apply px-4 py-2 border border-lol-gold bg-gradient-to-b from-lol-gold to-lol-gold-dim
+    @apply px-4 py-2 border border-lol-hq-cyan/80
+      bg-gradient-to-b from-lol-hq-cyan to-lol-hq-cyan-dim
       text-lol-void text-xs font-bold uppercase tracking-wider
-      hover:brightness-110 shadow-lol-gold transition-all active:scale-[0.98]
+      hover:brightness-110 shadow-hq-cyan-sm transition-all active:scale-[0.98]
       disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none;
+  }
+
+  .btn-lol-accent {
+    @apply px-4 py-2 border border-lol-hq-orange/70
+      bg-gradient-to-b from-lol-hq-orange to-[#c2410c]
+      text-white text-xs font-bold uppercase tracking-wider
+      hover:brightness-110 shadow-hq-orange-sm transition-all active:scale-[0.98]
+      disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   .btn-lol-danger {
@@ -52,7 +105,14 @@
       hover:border-lol-red-side hover:brightness-110 transition-all;
   }
 
-  /* Legado (telas ainda não migradas) */
+  .btn-lol-secondary {
+    @apply px-4 py-2 border border-white/15 bg-black/40
+      text-white/70 text-xs font-semibold uppercase tracking-wider
+      hover:border-lol-hq-cyan/40 hover:text-lol-hq-cyan hover:bg-lol-hq-cyan/5
+      transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Legado */
   .btn-brutal {
     @apply btn-lol;
   }
@@ -66,34 +126,98 @@
     @apply panel-lol p-4 border-lol-red-side/40 bg-red-950/20;
   }
 
+  /* ─── Data viz primitives ─── */
   .stat-bar {
-    @apply h-1.5 rounded-full bg-black/50 overflow-hidden border border-white/5;
+    @apply h-1.5 rounded-none bg-black/60 overflow-hidden border border-white/[0.06];
   }
   .stat-bar-fill {
-    @apply h-full rounded-full transition-all duration-500;
+    @apply h-full transition-all duration-500;
+    box-shadow: 0 0 8px currentColor;
   }
 
   .role-pill {
     @apply text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-sm
-      bg-lol-hextech/60 text-lol-blue border border-lol-hextech-bright/20;
+      bg-lol-hq-cyan/10 text-lol-hq-cyan border border-lol-hq-cyan/25;
   }
 
-  /* Draft / Champion Select */
+  .hud-label {
+    @apply text-[9px] font-mono uppercase tracking-hud text-white/35 font-semibold;
+  }
+
+  .hud-value {
+    @apply font-mono font-bold tabular-nums text-white/90;
+  }
+
+  .neon-text-cyan {
+    color: #67e8f9;
+    text-shadow: 0 0 12px rgba(34, 211, 238, 0.55);
+  }
+
+  .neon-text-orange {
+    color: #fb923c;
+    text-shadow: 0 0 12px rgba(249, 115, 22, 0.5);
+  }
+
+  .neon-line {
+    @apply h-px w-full;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(34, 211, 238, 0.5),
+      rgba(249, 115, 22, 0.3),
+      transparent
+    );
+  }
+
+  /* ─── Draft / Champion Select — blueprint hologram ─── */
   .draft-stage {
-    @apply relative overflow-hidden rounded-sm border border-lol-gold/25 shadow-panel;
+    @apply relative overflow-hidden rounded-sm border border-lol-hq-cyan/25 shadow-hq-glass;
   }
 
   .draft-splash-bg {
     @apply absolute inset-0 bg-cover bg-center scale-105 animate-splash-pulse;
-    filter: saturate(0.85) brightness(0.45);
+    filter: saturate(0.55) brightness(0.32) contrast(1.05) hue-rotate(-6deg);
   }
 
   .draft-splash-veil {
-    @apply absolute inset-0 bg-gradient-to-b from-lol-void/70 via-lol-void/85 to-lol-void;
+    @apply absolute inset-0;
+    background:
+      linear-gradient(90deg, rgba(0, 80, 140, 0.28) 0%, transparent 28%, transparent 72%, rgba(140, 30, 20, 0.26) 100%),
+      linear-gradient(180deg, rgba(1, 10, 19, 0.78) 0%, rgba(1, 10, 19, 0.9) 55%, rgba(1, 10, 19, 0.97) 100%);
+  }
+
+  /* Technical grid + tactical lane guides over draft */
+  .draft-blueprint-grid {
+    @apply absolute inset-0 pointer-events-none z-[1];
+    background-image:
+      linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(ellipse 85% 75% at 50% 45%, black 30%, transparent 78%);
+  }
+
+  .draft-blueprint-lanes {
+    @apply absolute inset-0 pointer-events-none z-[1];
+    background:
+      /* mid river diagonal (rift vibe) */
+      linear-gradient(
+        135deg,
+        transparent 46%,
+        rgba(34, 211, 238, 0.06) 49%,
+        rgba(249, 115, 22, 0.05) 51%,
+        transparent 54%
+      );
+  }
+
+  .draft-blueprint-corners {
+    @apply absolute inset-2 pointer-events-none z-[2] border border-lol-hq-cyan/10 rounded-sm;
+    box-shadow:
+      inset 0 0 0 1px rgba(34, 211, 238, 0.04),
+      0 0 40px rgba(34, 211, 238, 0.03);
   }
 
   .lock-in-overlay {
-    @apply absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-[2px];
+    @apply absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-[3px];
   }
 
   .lock-in-card {
@@ -101,8 +225,7 @@
   }
 
   .lock-in-label {
-    @apply font-display text-2xl sm:text-3xl font-bold tracking-[0.2em] uppercase;
-    text-shadow: 0 0 24px rgba(200, 155, 60, 0.65);
+    @apply font-display text-2xl sm:text-3xl font-bold tracking-[0.2em] uppercase neon-text-cyan;
   }
 
   .ban-stamp-label {
@@ -110,21 +233,21 @@
     text-shadow: 0 0 20px rgba(255, 70, 85, 0.7);
   }
 
-  /* Live match / Rift */
+  /* ─── Live match / Rift ─── */
   .match-stage {
-    @apply relative overflow-hidden rounded-sm border border-lol-gold/25 shadow-panel;
+    @apply relative overflow-hidden rounded-sm border border-lol-hq-cyan/20 shadow-hq-glass;
   }
 
   .match-splash-bg {
     @apply absolute inset-0 bg-cover bg-center scale-110;
-    filter: saturate(0.75) brightness(0.35);
+    filter: saturate(0.65) brightness(0.32);
     animation: splash-pulse 8s ease-in-out infinite;
   }
 
   .match-splash-veil {
     @apply absolute inset-0;
     background:
-      linear-gradient(90deg, rgba(0, 80, 140, 0.25) 0%, transparent 28%, transparent 72%, rgba(140, 20, 30, 0.28) 100%),
+      linear-gradient(90deg, rgba(0, 80, 140, 0.28) 0%, transparent 28%, transparent 72%, rgba(140, 20, 30, 0.3) 100%),
       linear-gradient(180deg, rgba(1, 10, 19, 0.75) 0%, rgba(1, 10, 19, 0.88) 55%, rgba(1, 10, 19, 0.96) 100%);
   }
 
@@ -141,7 +264,7 @@
   }
 
   .phase-chip-active {
-    @apply border-lol-gold bg-lol-gold/20 text-lol-gold shadow-lol-gold;
+    @apply border-lol-hq-cyan bg-lol-hq-cyan/15 text-lol-hq-cyan shadow-hq-cyan-sm;
   }
 
   .phase-chip-done {
@@ -156,12 +279,17 @@
     @apply absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in;
   }
 
-  /* Summoner's Rift minimap */
+  /* Summoner's Rift minimap — holographic blueprint */
   .rift-map-shell {
-    @apply flex flex-col bg-black/40 border border-white/10 rounded-sm overflow-hidden;
+    @apply flex flex-col rounded-sm overflow-hidden border border-lol-hq-cyan/25;
     background-image:
-      radial-gradient(ellipse 70% 60% at 20% 80%, rgba(14, 165, 233, 0.08), transparent 55%),
-      radial-gradient(ellipse 70% 60% at 80% 20%, rgba(244, 63, 94, 0.08), transparent 55%);
+      radial-gradient(ellipse 70% 60% at 18% 82%, rgba(14, 165, 233, 0.16), transparent 55%),
+      radial-gradient(ellipse 70% 60% at 82% 18%, rgba(249, 115, 22, 0.14), transparent 55%),
+      linear-gradient(135deg, rgba(6, 18, 32, 0.92) 0%, rgba(4, 12, 22, 0.96) 100%);
+    box-shadow:
+      inset 0 0 48px rgba(34, 211, 238, 0.05),
+      0 0 0 1px rgba(34, 211, 238, 0.08),
+      0 8px 32px rgba(0, 0, 0, 0.5);
   }
 
   .rift-unit-pulse {
@@ -169,10 +297,11 @@
   }
 }
 
+/* ─── Rift animations ─── */
 @keyframes rift-unit-pulse {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(200, 155, 60, 0.55); }
-  50% { transform: scale(1.18); box-shadow: 0 0 14px 4px rgba(200, 155, 60, 0.35); }
-  100% { transform: scale(1.1); box-shadow: 0 0 0 0 rgba(200, 155, 60, 0); }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); }
+  50% { transform: scale(1.18); box-shadow: 0 0 14px 4px rgba(34, 211, 238, 0.35); }
+  100% { transform: scale(1.1); box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
 }
 
 @keyframes rift-event-ring {
@@ -187,9 +316,9 @@
 }
 
 @keyframes rift-structure-pop {
-  0% { opacity: 1; filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0)); }
-  40% { opacity: 1; filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.9)); }
-  100% { opacity: 0.4; filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0)); }
+  0% { opacity: 1; filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0)); }
+  40% { opacity: 1; filter: drop-shadow(0 0 4px rgba(34, 211, 238, 0.9)); }
+  100% { opacity: 0.4; filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0)); }
 }
 
 .rift-structure-pop {
@@ -206,7 +335,6 @@
   animation: rift-ward-ping 2.4s ease-in-out infinite;
 }
 
-/* ME-7: siege / contest / mini-feed */
 @keyframes rift-siege-ring {
   0% { opacity: 0.9; stroke-width: 0.45; }
   50% { opacity: 0.35; stroke-width: 0.25; }
@@ -230,7 +358,7 @@
 }
 
 .rift-hp-siege {
-  filter: drop-shadow(0 0 0.6px rgba(251, 191, 36, 0.45));
+  filter: drop-shadow(0 0 0.6px rgba(34, 211, 238, 0.45));
 }
 
 .rift-mini-feed {
@@ -255,10 +383,11 @@
   line-height: 1.25;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   padding: 3px 6px;
-  border-radius: 2px;
+  border-radius: 1px;
   border-width: 1px;
   border-style: solid;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  background: rgba(4, 12, 22, 0.72);
   animation: rift-mini-in 0.35s ease-out both;
 }
 
@@ -280,34 +409,195 @@
 }
 
 @keyframes event-flash {
-  0% { background-color: rgba(200, 155, 60, 0.25); }
+  0% { background-color: rgba(34, 211, 238, 0.2); }
   100% { background-color: transparent; }
 }
 
 @layer components {
-  /* Hub / Football Manager */
+  /* ═══════════════════════════════════════
+   *  HUB SHELL — mesa de guerra / sede HQ
+   * ═══════════════════════════════════════ */
   .hub-shell {
-    @apply min-h-screen flex bg-lol-void text-white font-sans;
+    @apply min-h-screen flex text-white font-sans relative;
+    background-color: #030810;
     background-image:
-      radial-gradient(ellipse 80% 50% at 0% 0%, rgba(200, 155, 60, 0.06), transparent 50%),
-      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(10, 150, 170, 0.06), transparent 45%);
+      radial-gradient(ellipse 70% 55% at 6% 10%, rgba(34, 211, 238, 0.11), transparent 55%),
+      radial-gradient(ellipse 55% 45% at 94% 90%, rgba(249, 115, 22, 0.09), transparent 50%),
+      radial-gradient(ellipse 45% 30% at 50% 0%, rgba(14, 165, 233, 0.06), transparent 60%),
+      linear-gradient(180deg, #0a1628 0%, #050d18 38%, #010a13 100%);
+  }
+
+  /* subtle technical grid over ambient (depth without noise) */
+  .hub-shell::before {
+    content: '';
+    @apply absolute inset-0 pointer-events-none opacity-[0.35];
+    background-image:
+      linear-gradient(rgba(34, 211, 238, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 20%, transparent 75%);
+  }
+
+  /*
+   * Sede HQ borrada (CSS art) — open-plan / LED walls / conference glass
+   * Fica atrás do main; painéis glass deixam “vazar” profundidade.
+   */
+  .hub-facility {
+    @apply absolute inset-0 pointer-events-none overflow-hidden;
+    z-index: 0;
+  }
+
+  .hub-facility-scene {
+    @apply absolute inset-0;
+    filter: blur(16px) saturate(0.9) brightness(0.58);
+    transform: scale(1.1);
+    background-color: #061018;
+    background-image:
+      /* left LED wall — cyan dashboards */
+      linear-gradient(90deg, rgba(34, 211, 238, 0.28) 0%, transparent 16%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 12px,
+        rgba(34, 211, 238, 0.1) 12px,
+        rgba(34, 211, 238, 0.1) 14px
+      ),
+      /* right LED wall — orange live feeds */
+      linear-gradient(270deg, rgba(249, 115, 22, 0.2) 0%, transparent 18%),
+      repeating-linear-gradient(
+        90deg,
+        transparent 0,
+        transparent 22px,
+        rgba(249, 115, 22, 0.05) 22px,
+        rgba(249, 115, 22, 0.05) 24px
+      ),
+      /* conference table glow */
+      radial-gradient(ellipse 42% 18% at 48% 62%, rgba(34, 211, 238, 0.14), transparent 70%),
+      /* dusk windows */
+      radial-gradient(ellipse 50% 40% at 50% 18%, rgba(56, 189, 248, 0.16), transparent 70%),
+      radial-gradient(ellipse 28% 22% at 78% 58%, rgba(249, 115, 22, 0.14), transparent 60%),
+      /* floor */
+      linear-gradient(0deg, rgba(34, 211, 238, 0.07) 0%, transparent 38%),
+      linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(8, 30, 48, 0.35) 30%,
+        rgba(4, 16, 28, 0.55) 55%,
+        rgba(2, 8, 16, 0.75) 100%
+      );
+    animation: facility-led-breathe 7s ease-in-out infinite;
+  }
+
+  .hub-facility-scanlines {
+    @apply absolute inset-0 pointer-events-none opacity-[0.07];
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.45) 2px,
+      rgba(0, 0, 0, 0.45) 4px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  .hub-facility-vignette {
+    @apply absolute inset-0;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 40%, transparent 18%, rgba(1, 10, 19, 0.58) 100%),
+      linear-gradient(90deg, rgba(1, 10, 19, 0.7) 0%, transparent 11%, transparent 89%, rgba(1, 10, 19, 0.7) 100%);
+  }
+
+@keyframes facility-led-breathe {
+  0%, 100% { filter: blur(16px) saturate(0.85) brightness(0.55); }
+  50% { filter: blur(16px) saturate(1.05) brightness(0.68); }
+}
+
+  .hub-main {
+    @apply flex-1 flex flex-col min-w-0 min-h-screen relative z-[1];
+  }
+
+  .hub-main-content {
+    @apply flex-1 p-3 sm:p-5 overflow-x-hidden relative;
+  }
+
+  .hub-main-content::before {
+    content: '';
+    @apply absolute inset-0 pointer-events-none opacity-40;
+    background:
+      radial-gradient(ellipse 90% 50% at 50% 0%, rgba(34, 211, 238, 0.06), transparent 55%);
   }
 
   .hub-sidebar {
-    @apply hidden md:flex w-60 shrink-0 flex-col border-r border-lol-gold/15;
-    background: linear-gradient(180deg, #0c1a2e 0%, #0a1428 40%, #010a13 100%);
+    @apply hidden md:flex w-60 shrink-0 flex-col border-r border-lol-hq-cyan/15 relative z-[1];
+    background: linear-gradient(
+      180deg,
+      rgba(8, 28, 48, 0.92) 0%,
+      rgba(6, 18, 32, 0.96) 45%,
+      rgba(3, 10, 18, 0.98) 100%
+    );
+    backdrop-filter: blur(12px);
+    box-shadow:
+      inset -1px 0 0 rgba(34, 211, 238, 0.08),
+      4px 0 32px rgba(0, 0, 0, 0.35);
   }
 
+  /* HQ glass panels */
+  .hq-glass-inset {
+    @apply p-3 rounded-sm border border-white/[0.07] backdrop-blur-sm;
+    background: rgba(0, 0, 0, 0.38);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .hq-panel-header {
+    @apply px-3 py-2 border-b border-lol-hq-cyan/15 bg-hq-header flex items-center justify-between gap-2;
+  }
+
+  .hq-stat-chip {
+    @apply rounded-sm border border-white/10 px-2 py-1.5 backdrop-blur-sm;
+    background: rgba(0, 0, 0, 0.42);
+  }
+
+  .hq-profile-card {
+    @apply rounded-sm border border-lol-hq-cyan/30 shadow-hq-glass overflow-hidden;
+    background: linear-gradient(135deg, rgba(8, 28, 46, 0.97) 0%, rgba(3, 10, 18, 0.99) 100%);
+  }
+
+  .hq-profile-portrait {
+    background: #0a1628;
+  }
+
+  .hq-profile-portrait-bg {
+    background-image:
+      radial-gradient(ellipse 80% 60% at 30% 40%, rgba(34, 211, 238, 0.14), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 70% 70%, rgba(249, 115, 22, 0.1), transparent 50%),
+      linear-gradient(160deg, #0c2840 0%, #071422 100%);
+  }
+
+  .hq-manager-analytics {
+    @apply rounded-sm border border-lol-hq-cyan/25 overflow-hidden shadow-hq-glass;
+    background: linear-gradient(180deg, rgba(8, 28, 44, 0.88) 0%, rgba(4, 12, 22, 0.94) 100%);
+    backdrop-filter: blur(10px);
+  }
+
+  .hq-postmatch {
+    @apply rounded-sm border border-lol-hq-cyan/25 overflow-hidden shadow-hq-glass;
+    background: linear-gradient(160deg, rgba(8, 24, 40, 0.94) 0%, rgba(3, 10, 18, 0.97) 100%);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Nav */
   .hub-nav-item {
     @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-left transition-all border-l-2;
   }
 
   .hub-nav-item-active {
-    @apply bg-gradient-to-r from-lol-gold/15 to-transparent text-lol-gold border-lol-gold shadow-[inset_0_0_20px_rgba(200,155,60,0.06)];
+    @apply text-lol-hq-cyan border-lol-hq-cyan;
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.16) 0%, transparent 100%);
+    box-shadow: inset 0 0 24px rgba(34, 211, 238, 0.1);
   }
 
   .hub-nav-item-idle {
-    @apply text-white/60 hover:bg-white/[0.04] hover:text-white border-transparent;
+    @apply text-white/55 hover:bg-white/[0.04] hover:text-white border-transparent;
   }
 
   .hub-nav-badge {
@@ -316,19 +606,19 @@
   }
 
   .hub-nav-badge-critical {
-    @apply bg-red-600/90 text-white shadow-[0_0_8px_rgba(220,38,38,0.45)];
+    @apply bg-red-600/90 text-white shadow-[0_0_8px_rgba(220,38,38,0.5)];
   }
 
   .hub-nav-badge-warning {
-    @apply bg-amber-500/90 text-black shadow-[0_0_8px_rgba(245,158,11,0.35)];
+    @apply bg-lol-hq-orange/90 text-black shadow-hq-orange-sm;
   }
 
   .hub-nav-badge-info {
-    @apply bg-sky-500/80 text-white;
+    @apply bg-lol-hq-cyan/85 text-lol-void;
   }
 
   .hub-section-label {
-    @apply text-[10px] uppercase tracking-[0.18em] text-white/30 font-semibold mb-2 px-0.5;
+    @apply text-[10px] uppercase tracking-hud text-white/30 font-semibold mb-2 px-0.5;
   }
 
   .hub-alert-critical {
@@ -336,26 +626,25 @@
   }
 
   .hub-alert-warning {
-    @apply border-amber-500/35 bg-amber-950/25 text-amber-50;
+    @apply border-lol-hq-orange/40 bg-orange-950/25 text-orange-50;
   }
 
   .hub-alert-info {
-    @apply border-sky-500/30 bg-sky-950/20 text-sky-50;
+    @apply border-lol-hq-cyan/30 bg-cyan-950/20 text-cyan-50;
   }
 
   .hub-topbar {
-    @apply sticky top-0 z-40 border-b border-lol-gold/15 backdrop-blur-md;
-    background: linear-gradient(180deg, rgba(12, 26, 46, 0.97) 0%, rgba(10, 20, 40, 0.92) 100%);
+    @apply sticky top-0 z-40 border-b border-lol-hq-cyan/15 backdrop-blur-md;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 24, 42, 0.94) 0%,
+      rgba(5, 14, 26, 0.88) 100%
+    );
+    box-shadow: 0 1px 0 rgba(34, 211, 238, 0.06);
   }
 
   .hub-stat-card {
     @apply panel-lol p-3 sm:p-4 flex flex-col gap-1 relative overflow-hidden;
-  }
-
-  .hub-stat-card::before {
-    content: '';
-    @apply absolute top-0 left-0 right-0 h-px;
-    background: linear-gradient(90deg, transparent, rgba(200, 155, 60, 0.45), transparent);
   }
 
   .hub-day-card {
@@ -363,17 +652,17 @@
   }
 
   .hub-day-today {
-    @apply ring-1 ring-lol-gold shadow-lol-gold scale-[1.02] z-[1];
+    @apply ring-1 ring-lol-hq-cyan shadow-hq-cyan-sm scale-[1.02] z-[1];
   }
 
   .hub-player-card {
-    @apply relative overflow-hidden rounded-sm border border-lol-gold/20
+    @apply relative overflow-hidden rounded-sm border border-lol-hq-cyan/20
       bg-gradient-to-b from-[#0f2438] to-[#060d18] flex flex-col
-      hover:border-lol-gold/45 hover:shadow-lol-gold transition-all;
+      hover:border-lol-hq-cyan/55 hover:shadow-hq-cyan transition-all;
   }
 
   .hub-table-row-mine {
-    @apply bg-lol-gold/10 text-lol-gold-soft;
+    @apply bg-lol-hq-cyan/10 text-lol-hq-cyan-bright;
   }
 
   .hub-table-row-playoff {
@@ -386,6 +675,67 @@
 
   .team-crest {
     @apply w-10 h-10 rounded-sm flex items-center justify-center font-display font-black text-sm
-      bg-gradient-to-br from-lol-gold to-lol-gold-dim text-lol-void shadow-lol-gold shrink-0;
+      bg-gradient-to-br from-lol-hq-cyan to-lol-hq-cyan-dim text-lol-void shadow-hq-cyan-sm shrink-0;
   }
+
+  /* Shortcut tiles (dashboard war-room modules) */
+  .hq-module-tile {
+    @apply text-left rounded-sm border border-white/10 bg-black/30 p-3
+      transition-all hover:border-lol-hq-cyan/40 hover:bg-cyan-950/20 hover:shadow-hq-cyan-sm;
+  }
+
+  .hq-page-header {
+    @apply panel-lol p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative overflow-hidden;
+  }
+
+  .hq-page-header-icon {
+    @apply w-10 h-10 rounded-sm border border-lol-hq-cyan/35 bg-lol-hq-cyan/10
+      flex items-center justify-center shrink-0 shadow-hq-cyan-sm;
+  }
+
+  /* ─── Passada 3: microanimações / stagger ─── */
+  .panel-enter {
+    animation: panel-enter 0.38s cubic-bezier(0.2, 0.85, 0.25, 1) both;
+  }
+
+  .panel-enter-delay-1 { animation-delay: 0.04s; }
+  .panel-enter-delay-2 { animation-delay: 0.08s; }
+  .panel-enter-delay-3 { animation-delay: 0.12s; }
+  .panel-enter-delay-4 { animation-delay: 0.16s; }
+
+  .hq-live-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+    animation: neon-breathe 1.6s ease-in-out infinite;
+  }
+
+  .hq-scan-bar {
+    @apply absolute left-0 right-0 h-px pointer-events-none opacity-40;
+    background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.55), transparent);
+    animation: hq-scan-sweep 4.5s linear infinite;
+  }
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hq-scan-sweep {
+  0% { top: 8%; opacity: 0; }
+  10% { opacity: 0.45; }
+  50% { top: 88%; opacity: 0.25; }
+  90% { opacity: 0; }
+  100% { top: 8%; opacity: 0; }
+}
+
+@keyframes neon-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }

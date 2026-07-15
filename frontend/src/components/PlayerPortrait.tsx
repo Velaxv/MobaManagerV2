@@ -62,7 +62,7 @@ export function PlayerPortrait({
     <div
       className={`
         relative shrink-0 overflow-hidden rounded-sm bg-lol-void
-        border ${highlighted ? 'border-lol-gold/60 shadow-lol-gold' : 'border-white/10'}
+        border ${highlighted ? 'border-lol-hq-cyan/60 shadow-hq-cyan' : 'border-white/10'}
         ${SIZE_CLASS[size]} ${className}
       `}
       title={name}
