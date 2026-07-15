@@ -11,28 +11,115 @@ import {
   Save,
   Loader2,
   FileCode2,
+  Dumbbell,
+  Briefcase,
+  Landmark,
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { getOrgBrand, orgCrestStyle } from '../lib/orgBrands';
+import type { AppScreen } from '../types/screens';
 
-export type AppScreen = 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH';
-
+/**
+ * Navegação inspirada em management sims (FM):
+ * - categorias no sidebar (Rotina / Time / Clube / Competição)
+ * - Painel = inbox; áreas profundas em telas próprias
+ */
 const NAV: {
   id: AppScreen;
   label: string;
   short: string;
   icon: typeof LayoutDashboard;
   hint?: string;
-  group: 'manage' | 'compete';
+  group: 'routine' | 'squad' | 'club' | 'compete';
 }[] = [
-  { id: 'DASHBOARD', label: 'Painel', short: 'Home', icon: LayoutDashboard, hint: 'Dia a dia', group: 'manage' },
-  { id: 'SQUAD', label: 'Elenco', short: 'Elenco', icon: UserCircle2, hint: 'Plantel', group: 'manage' },
-  { id: 'STANDINGS', label: 'Tabela', short: 'Tabela', icon: TableProperties, hint: 'CBLOL', group: 'manage' },
-  { id: 'MARKET', label: 'Mercado', short: 'Mercado', icon: Users, hint: 'Contratações', group: 'manage' },
-  { id: 'PATCH', label: 'Patch', short: 'Patch', icon: FileCode2, hint: 'Meta', group: 'manage' },
-  { id: 'DRAFT', label: 'Draft', short: 'Draft', icon: Swords, hint: 'Picks & bans', group: 'compete' },
-  { id: 'SIMULATION', label: 'Partida', short: 'Live', icon: Trophy, hint: 'Ao vivo', group: 'compete' },
+  {
+    id: 'DASHBOARD',
+    label: 'Painel',
+    short: 'Home',
+    icon: LayoutDashboard,
+    hint: 'Inbox do dia',
+    group: 'routine',
+  },
+  {
+    id: 'TRAINING',
+    label: 'Treino',
+    short: 'Treino',
+    icon: Dumbbell,
+    hint: 'Plano & moral',
+    group: 'routine',
+  },
+  {
+    id: 'SQUAD',
+    label: 'Elenco',
+    short: 'Elenco',
+    icon: UserCircle2,
+    hint: 'Plantel',
+    group: 'squad',
+  },
+  {
+    id: 'STAFF',
+    label: 'Staff',
+    short: 'Staff',
+    icon: Briefcase,
+    hint: 'Comissão',
+    group: 'squad',
+  },
+  {
+    id: 'ORG',
+    label: 'Organização',
+    short: 'Org',
+    icon: Landmark,
+    hint: 'Board & $',
+    group: 'club',
+  },
+  {
+    id: 'MARKET',
+    label: 'Mercado',
+    short: 'Mercado',
+    icon: Users,
+    hint: 'Transfers',
+    group: 'club',
+  },
+  {
+    id: 'STANDINGS',
+    label: 'Tabela',
+    short: 'Tabela',
+    icon: TableProperties,
+    hint: 'CBLOL',
+    group: 'compete',
+  },
+  {
+    id: 'PATCH',
+    label: 'Patch',
+    short: 'Patch',
+    icon: FileCode2,
+    hint: 'Meta',
+    group: 'compete',
+  },
+  {
+    id: 'DRAFT',
+    label: 'Draft',
+    short: 'Draft',
+    icon: Swords,
+    hint: 'Picks & bans',
+    group: 'compete',
+  },
+  {
+    id: 'SIMULATION',
+    label: 'Partida',
+    short: 'Live',
+    icon: Trophy,
+    hint: 'Ao vivo',
+    group: 'compete',
+  },
 ];
+
+const GROUP_LABELS: Record<(typeof NAV)[number]['group'], string> = {
+  routine: 'Rotina',
+  squad: 'Time',
+  club: 'Clube',
+  compete: 'Competição',
+};
 
 interface GameShellProps {
   children: ReactNode;
@@ -78,8 +165,11 @@ export function GameShell({ children }: GameShellProps) {
   const crestStyle = orgCrestStyle(myTeamName);
   const crestTag = brand.tag !== '???' ? brand.tag : teamInitials(myTeamName);
 
-  const manageNav = NAV.filter((n) => n.group === 'manage');
-  const competeNav = NAV.filter((n) => n.group === 'compete');
+  const groups = (['routine', 'squad', 'club', 'compete'] as const).map((g) => ({
+    key: g,
+    label: GROUP_LABELS[g],
+    items: NAV.filter((n) => n.group === g),
+  }));
 
   const renderNav = (items: typeof NAV) =>
     items.map((item) => {
@@ -88,7 +178,8 @@ export function GameShell({ children }: GameShellProps) {
       const badge =
         (item.id === 'DRAFT' && matchPending) ||
         (item.id === 'SIMULATION' && matchLive) ||
-        (item.id === 'DASHBOARD' && burnoutCount > 0);
+        (item.id === 'DASHBOARD' && burnoutCount > 0) ||
+        (item.id === 'TRAINING' && burnoutCount > 0);
       return (
         <button
           key={item.id}
@@ -114,7 +205,6 @@ export function GameShell({ children }: GameShellProps) {
 
   return (
     <div className="hub-shell">
-      {/* Sidebar FM */}
       <aside className="hub-sidebar">
         <div className="px-4 py-4 border-b border-lol-gold/15">
           <div className="flex items-center gap-3">
@@ -130,7 +220,6 @@ export function GameShell({ children }: GameShellProps) {
           </div>
         </div>
 
-        {/* Team strip */}
         <div
           className="px-3 py-3 border-b border-white/5 bg-black/20"
           style={{ boxShadow: `inset 3px 0 0 ${brand.primary}` }}
@@ -154,15 +243,18 @@ export function GameShell({ children }: GameShellProps) {
         </div>
 
         <nav className="flex-1 py-2 px-2 overflow-y-auto">
-          <p className="px-2 pt-1 pb-1.5 text-[9px] uppercase tracking-[0.2em] text-white/25 font-semibold">
-            Gestão
-          </p>
-          <div className="space-y-0.5">{renderNav(manageNav)}</div>
-
-          <p className="px-2 pt-4 pb-1.5 text-[9px] uppercase tracking-[0.2em] text-white/25 font-semibold">
-            Competição
-          </p>
-          <div className="space-y-0.5">{renderNav(competeNav)}</div>
+          {groups.map((g, idx) => (
+            <div key={g.key}>
+              <p
+                className={`px-2 pb-1.5 text-[9px] uppercase tracking-[0.2em] text-white/25 font-semibold ${
+                  idx === 0 ? 'pt-1' : 'pt-3'
+                }`}
+              >
+                {g.label}
+              </p>
+              <div className="space-y-0.5">{renderNav(g.items)}</div>
+            </div>
+          ))}
         </nav>
 
         <div className="p-3 border-t border-lol-gold/10 space-y-2 bg-black/25">
@@ -182,7 +274,6 @@ export function GameShell({ children }: GameShellProps) {
         </div>
       </aside>
 
-      {/* Main column */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         <header className="hub-topbar">
           <div className="px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
@@ -283,7 +374,7 @@ export function GameShell({ children }: GameShellProps) {
             </div>
           </div>
 
-          {/* Mobile nav */}
+          {/* Mobile nav — scroll horizontal por grupos */}
           <div className="md:hidden flex overflow-x-auto border-t border-white/5 px-1 gap-0.5 pb-1 scrollbar-none">
             {NAV.map((item) => {
               const active = currentScreen === item.id;
@@ -292,11 +383,11 @@ export function GameShell({ children }: GameShellProps) {
                 <button
                   key={item.id}
                   onClick={() => setCurrentScreen(item.id as never)}
-                  className={`flex flex-col items-center gap-0.5 px-3 py-2 min-w-[4.2rem] rounded-sm text-[9px] uppercase tracking-wide ${
+                  className={`flex flex-col items-center gap-0.5 px-2.5 py-2 min-w-[3.6rem] rounded-sm text-[8px] uppercase tracking-wide ${
                     active ? 'text-lol-gold bg-lol-hextech/40' : 'text-white/45'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                   {item.short}
                 </button>
               );

@@ -1,9 +1,10 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-15 — ME-7 Rift UI refinada  
+**Última atualização:** 2026-07-15 — Hub reorganizado (FM-like)  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
-**Estado:** E+F+G+H + ME-7 (HP torre, contest, mini-feed)  
+**Estado:** Painel inbox + Treino / Staff / Org em telas próprias  
+
 
 
 ### Retomar

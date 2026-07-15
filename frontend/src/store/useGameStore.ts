@@ -195,7 +195,17 @@ interface GameState {
   } | null;
 
   // --- Calendário e Estado do Jogo ---
-  currentScreen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH';
+  currentScreen:
+    | 'DASHBOARD'
+    | 'TRAINING'
+    | 'STAFF'
+    | 'ORG'
+    | 'SQUAD'
+    | 'MARKET'
+    | 'DRAFT'
+    | 'SIMULATION'
+    | 'STANDINGS'
+    | 'PATCH';
   currentWeek: number;
   currentDayIndex: number; // 0-6 (Segunda a Domingo)
   totalDaysElapsed: number;
@@ -441,7 +451,19 @@ interface GameState {
   setGameState: (state: 'MAIN_MENU' | 'NEW_GAME_SETUP' | 'PLAYING') => void;
   setManager: (name: string, teamId: string) => void;
   advanceDay: () => Promise<void>;
-  setCurrentScreen: (screen: 'DASHBOARD' | 'SQUAD' | 'MARKET' | 'DRAFT' | 'SIMULATION' | 'STANDINGS' | 'PATCH') => void;
+  setCurrentScreen: (
+    screen:
+      | 'DASHBOARD'
+      | 'TRAINING'
+      | 'STAFF'
+      | 'ORG'
+      | 'SQUAD'
+      | 'MARKET'
+      | 'DRAFT'
+      | 'SIMULATION'
+      | 'STANDINGS'
+      | 'PATCH',
+  ) => void;
   refreshPatch: () => Promise<void>;
   patchStatus: {
     calendar_date?: string;

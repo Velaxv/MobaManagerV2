@@ -39,6 +39,14 @@ Seed seguro por padrão. Reseed: `SEED_FORCE=1` ou `seed_runner.py --force`.
 - Mini-feed no canto do minimapa  
 - Setas de pressão de lane  
 
+### Hub reorganizado (UX management sim)
+Sidebar em 4 grupos: **Rotina · Time · Clube · Competição**  
+- **Painel** = inbox (avançar dia, calendário, KPIs, atalhos, resultados)  
+- **Treino** = plano CA→PA, moral, scrim, VOD, scouting  
+- **Staff** = comissão técnica  
+- **Organização** = board, sponsors, facility, finanças  
+- Elenco / Mercado / Tabela / Patch / Draft / Live como antes
+
 
 ### Explicitamente **fora** deste sprint (pedido)
 - Coach mid/late (não faz sentido em LoL real)  

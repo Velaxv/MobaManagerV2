@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 import { Dashboard } from './screens/Dashboard';
+import { Training } from './screens/Training';
+import { Staff } from './screens/Staff';
+import { Organization } from './screens/Organization';
 import { TransferMarket } from './screens/TransferMarket';
 import { TacticsDraft } from './screens/TacticsDraft';
 import { MatchSimulation } from './screens/MatchSimulation';
@@ -32,6 +35,12 @@ function App() {
     switch (currentScreen) {
       case 'DASHBOARD':
         return <Dashboard />;
+      case 'TRAINING':
+        return <Training />;
+      case 'STAFF':
+        return <Staff />;
+      case 'ORG':
+        return <Organization />;
       case 'SQUAD':
         return <Squad />;
       case 'STANDINGS':
