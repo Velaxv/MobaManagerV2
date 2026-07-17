@@ -1,13 +1,27 @@
 # Continuidade — Moba Manager / LoL Manager
 
-**Última atualização:** 2026-07-15 (noite) — checkpoint arte menu + style bible  
+**Última atualização:** 2026-07-17 — bootstrap GSD (`.planning/`)  
 **Branch:** `main`  
 **Remote:** https://github.com/Velaxv/MobaManagerV2.git  
 
-### Retomar amanhã
-1. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md)  
-2. [`docs/STYLE_BIBLE.md`](docs/STYLE_BIBLE.md) — bible visual + workflow de arte  
-3. `run_game.bat` → conferir tela de **menu principal** com HQ art  
+### Fonte de verdade (GSD)
+Planejamento ativo está em **`.planning/`** (não nos relatórios de sprint antigos):
+
+| Arquivo | Uso |
+|---------|-----|
+| [`.planning/STATE.md`](.planning/STATE.md) | Onde paramos / próximo passo |
+| [`.planning/ROADMAP.md`](.planning/ROADMAP.md) | Phases v1.1 |
+| [`.planning/PROJECT.md`](.planning/PROJECT.md) | Visão e decisões |
+| [`.planning/REQUIREMENTS.md`](.planning/REQUIREMENTS.md) | Requisitos checkáveis |
+| [`.planning/codebase/`](.planning/codebase/) | Mapa técnico (STACK, CONCERNS, …) |
+
+**Próximo comando sugerido:** `/gsd:plan-phase 1` (Estabilidade de carreira) ou `/gsd:discuss-phase 1`.
+
+### Retomar (legado arte / handoff)
+1. [`.planning/STATE.md`](.planning/STATE.md) — posição atual  
+2. [`docs/HANDOFF_SESSAO.md`](docs/HANDOFF_SESSAO.md) — arte menu (2026-07-15)  
+3. [`docs/STYLE_BIBLE.md`](docs/STYLE_BIBLE.md) — bible visual + workflow de arte  
+4. `run_game.bat` → conferir tela de **menu principal** com HQ art  
 
 ### Entregue nesta sessão (arte)
 - Style bible em `docs/STYLE_BIBLE.md` (cyan/orange/navy, sem texto na IA, base→edit)  
